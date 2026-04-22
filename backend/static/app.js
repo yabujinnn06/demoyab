@@ -1,0 +1,1654 @@
+const legacyToken = localStorage.getItem("callPortalToken");
+const sessionToken = sessionStorage.getItem("callPortalToken");
+const persistedToken = sessionToken || legacyToken || null;
+if (legacyToken && !sessionToken) {
+  sessionStorage.setItem("callPortalToken", legacyToken);
+}
+if (legacyToken) {
+  localStorage.removeItem("callPortalToken");
+}
+
+const CALL_STATUS_OPTIONS = [
+  ["NOT_CALLED", "Aranmadı"],
+  ["CALLING", "Aranıyor"],
+  ["CALLED", "Arandı"],
+  ["UNREACHABLE", "Ulaşılamadı"],
+  ["CALLBACK", "Tekrar aranacak"],
+  ["COMPLETED", "Tamamlandı"],
+];
+
+const RESULT_STATUS_OPTIONS = [
+  ["PENDING", "Beklemede"],
+  ["POSITIVE", "Olumlu"],
+  ["NEGATIVE", "Olumsuz"],
+  ["NO_ANSWER", "Cevap yok"],
+  ["WRONG_NUMBER", "Hatalı numara"],
+  ["NOT_INTERESTED", "İlgilenmiyor"],
+];
+
+const DEFAULT_FILTERS = {
+  q: "",
+  call_status: "",
+  result_status: "",
+  unassigned: false,
+  has_email: true,
+  has_phone: false,
+  has_address: false,
+  has_website: false,
+};
+
+const state = {
+  token: persistedToken,
+  me: null,
+  lists: [],
+  records: [],
+  filteredSummary: null,
+  users: [],
+  activity: [],
+  selectedListId: "",
+  uploadFile: null,
+  uploadListName: "",
+  recordDrafts: {},
+  pagination: {
+    offset: 0,
+    limit: 100,
+    total: 0,
+  },
+  flash: null,
+  pollingHandle: null,
+  teamModalOpen: false,
+  listsModalOpen: false,
+  filters: { ...DEFAULT_FILTERS },
+  assignStrategy: "equal",
+  assignMode: "unassigned",
+  assignDrafts: {},
+  lastSyncAt: null,
+  lastSyncSource: "",
+  liveRefreshCount: 0,
+};
+
+const appNode = document.querySelector("#app");
+
+function resetSessionState(message = "") {
+  stopPolling();
+  state.token = null;
+  state.me = null;
+  state.lists = [];
+  state.records = [];
+  state.filteredSummary = null;
+  state.users = [];
+  state.activity = [];
+  state.selectedListId = "";
+  state.uploadFile = null;
+  state.uploadListName = "";
+  state.recordDrafts = {};
+  state.teamModalOpen = false;
+  state.listsModalOpen = false;
+  state.assignStrategy = "equal";
+  state.assignMode = "unassigned";
+  state.assignDrafts = {};
+  state.lastSyncAt = null;
+  state.lastSyncSource = "";
+  state.liveRefreshCount = 0;
+  state.pagination.offset = 0;
+  state.pagination.total = 0;
+  sessionStorage.removeItem("callPortalToken");
+  localStorage.removeItem("callPortalToken");
+  if (message) {
+    state.flash = { type: "error", text: message };
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function brandMark() {
+  return `<img class="brand-logo" src="/static/yabujin-mark.svg" alt="Yabujin logo" />`;
+}
+
+function roleLabel(role) {
+  if (role === "admin") return "Yönetici";
+  if (role === "agent") return "Operatör";
+  return role || "-";
+}
+
+function setFlash(type, text) {
+  state.flash = { type, text };
+  render();
+  window.setTimeout(() => {
+    if (state.flash?.text === text) {
+      state.flash = null;
+      render();
+    }
+  }, 2600);
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("tr-TR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function formatClock(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
+function getAuthHeaders(extra = {}) {
+  return state.token ? { ...extra, Authorization: `Bearer ${state.token}` } : extra;
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: getAuthHeaders(options.headers ?? {}),
+  });
+
+  if (!response.ok) {
+    let detail = "İstek başarısız.";
+    try {
+      const data = await response.json();
+      detail = data.detail ?? detail;
+    } catch {
+      // noop
+    }
+    if ((response.status === 401 || response.status === 403) && state.token) {
+      resetSessionState("Oturum kapandı. Lütfen tekrar giriş yap.");
+      render();
+    }
+    throw new Error(detail);
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+  return response.blob();
+}
+
+function selectedList() {
+  return state.lists.find((item) => item.id === state.selectedListId) ?? state.lists[0] ?? null;
+}
+
+function normalizedValue(value) {
+  return String(value ?? "")
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+function recordMatchesFilters(record) {
+  const query = normalizedValue(state.filters.q).trim();
+  if (query) {
+    const haystack = [
+      record.company_name,
+      record.address,
+      record.phone,
+      record.email,
+      record.website,
+      record.call_list_name,
+    ]
+      .map(normalizedValue)
+      .join(" ");
+    if (!haystack.includes(query)) return false;
+  }
+  if (state.filters.call_status && record.call_status !== state.filters.call_status) return false;
+  if (state.filters.result_status && record.result_status !== state.filters.result_status) return false;
+  if (state.filters.unassigned && record.assigned_user_id) return false;
+  if (state.filters.has_email && !String(record.email ?? "").trim()) return false;
+  if (state.filters.has_phone && !String(record.phone ?? "").trim()) return false;
+  if (state.filters.has_address && !String(record.address ?? "").trim()) return false;
+  if (state.filters.has_website && !String(record.website ?? "").trim()) return false;
+  return true;
+}
+
+function summarizeRecords(records) {
+  return records.reduce(
+    (summary, record) => {
+      summary.total += 1;
+      if (record.assigned_user_id) summary.assigned += 1;
+      if (record.call_status === "CALLING" || record.call_status === "CALLED" || record.call_status === "COMPLETED") {
+        summary.calling += 1;
+      }
+      if (record.result_status === "POSITIVE") {
+        summary.positive += 1;
+      }
+      return summary;
+    },
+    {
+      total: 0,
+      assigned: 0,
+      calling: 0,
+      positive: 0,
+    },
+  );
+}
+
+function compactSummary(summary) {
+  if (!summary) return null;
+  return {
+    total: summary.total || 0,
+    assigned: summary.assigned || 0,
+    calling: (summary.calling || 0) + (summary.called || 0) + (summary.completed || 0),
+    positive: summary.positive || 0,
+  };
+}
+
+function latestActivity() {
+  return state.activity[0] ?? null;
+}
+
+function activityActionLabel(action) {
+  if (action === "UPDATED") return "kayıt güncellendi";
+  if (action === "ASSIGNED") return "dağıtım işlendi";
+  return action || "işlem";
+}
+
+function assignDraftFor(userId) {
+  return state.assignDrafts[userId] || { enabled: false, count: "" };
+}
+
+function activeAgents() {
+  return state.users.filter((user) => user.role === "agent" && user.is_active);
+}
+
+function availableAssignmentCount() {
+  const list = selectedList();
+  if (!list) return 0;
+  if (state.assignMode === "all") return list.summary.total;
+  return Math.max(0, list.summary.total - list.summary.assigned);
+}
+
+function assignSummaryValues(users = activeAgents()) {
+  const selectedAgents = users.filter((user) => assignDraftFor(user.id).enabled).length;
+  const requested = users.reduce((total, user) => {
+    const draft = assignDraftFor(user.id);
+    if (!draft.enabled) return total;
+    return total + Math.max(0, Number(draft.count || 0));
+  }, 0);
+  const available = availableAssignmentCount();
+  return {
+    available,
+    selectedAgents,
+    requested,
+    remainder: Math.max(0, available - requested),
+    overflow: Math.max(0, requested - available),
+  };
+}
+
+function syncAssignSummaryDisplay() {
+  const nodes = {
+    available: document.querySelector("#assign-available-count"),
+    selected: document.querySelector("#assign-selected-count"),
+    requested: document.querySelector("#assign-requested-count"),
+    status: document.querySelector("#assign-status-text"),
+  };
+  if (!nodes.available || !nodes.selected || !nodes.requested || !nodes.status) return;
+  const summary = assignSummaryValues();
+  nodes.available.textContent = String(summary.available);
+  nodes.selected.textContent = String(summary.selectedAgents);
+  nodes.requested.textContent = state.assignStrategy === "custom" ? String(summary.requested) : "-";
+  if (state.assignStrategy !== "custom") {
+    nodes.status.textContent = "Eşit dağıtım aktif.";
+  } else if (summary.overflow > 0) {
+    nodes.status.textContent = `${summary.overflow} kayıt fazla istendi.`;
+  } else {
+    nodes.status.textContent = `${summary.remainder} kayıt atanmamış kalır.`;
+  }
+}
+
+function markSync(source) {
+  state.lastSyncAt = Date.now();
+  state.lastSyncSource = source;
+  state.liveRefreshCount += 1;
+}
+
+async function refreshOperationalData(source = "manual") {
+  await Promise.all([loadLists(), loadRecords(), loadActivity()]);
+  markSync(source);
+}
+
+function liveMonitorMarkup() {
+  const lastItem = latestActivity();
+  const actor = lastItem?.actor_user_name || (lastItem?.actor_role ? roleLabel(lastItem.actor_role) : "Sistem");
+  const target = lastItem?.company_name || lastItem?.call_list_name || "Operasyon akışı izleniyor";
+  const syncAgeSeconds = state.lastSyncAt ? Math.max(0, Math.floor((Date.now() - state.lastSyncAt) / 1000)) : null;
+  return `
+    <div class="live-monitor">
+      <div class="live-monitor-head">
+        <span class="signal-bars" aria-hidden="true"><span></span><span></span><span></span></span>
+        <strong>Canlı Operasyon Monitörü</strong>
+      </div>
+      <div class="live-monitor-grid">
+        <div class="live-monitor-cell">
+          <span>Son yenileme</span>
+          <strong>${escapeHtml(formatClock(state.lastSyncAt))}</strong>
+        </div>
+        <div class="live-monitor-cell">
+          <span>Canlılık</span>
+          <strong>${syncAgeSeconds === null ? "-" : `${syncAgeSeconds} sn önce`}</strong>
+        </div>
+        <div class="live-monitor-cell live-monitor-wide">
+          <span>Akış</span>
+          <strong>${escapeHtml(`${actor} / ${activityActionLabel(lastItem?.action)} / ${target}`)}</strong>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function hasLocalInteraction() {
+  const active = document.activeElement;
+  if (state.uploadFile) return true;
+  if (Object.keys(state.recordDrafts).length > 0) return true;
+  return Boolean(active?.closest("#upload-form, #user-form, #assign-form, #team-modal, .records-table, #login-form"));
+}
+
+function recordDraft(record) {
+  return { ...record, ...(state.recordDrafts[record.id] || {}) };
+}
+
+async function loadSession() {
+  if (!state.token) {
+    resetSessionState();
+    render();
+    return;
+  }
+
+  try {
+    state.me = await api("/api/auth/me");
+    await Promise.all([loadLists(), loadUsersIfAdmin()]);
+    await refreshOperationalData("login");
+    startPolling();
+  } catch (error) {
+    console.error(error);
+    resetSessionState(error.message);
+    setFlash("error", error.message);
+  }
+}
+
+async function loadUsersIfAdmin() {
+  if (state.me?.role !== "admin") {
+    state.users = [];
+    return;
+  }
+  state.users = await api("/api/users");
+}
+
+async function loadActivity() {
+  if (state.me?.role !== "admin") {
+    state.activity = [];
+    return;
+  }
+  const params = new URLSearchParams();
+  if (state.selectedListId) params.set("call_list_id", state.selectedListId);
+  params.set("limit", "25");
+  state.activity = await api(`/api/activity?${params.toString()}`);
+}
+
+async function loadLists() {
+  if (!state.me) return;
+  state.lists = await api("/api/lists");
+  if (!state.selectedListId && state.lists.length) {
+    state.selectedListId = state.lists[0].id;
+  }
+  if (state.selectedListId && !state.lists.some((item) => item.id === state.selectedListId)) {
+    state.selectedListId = state.lists[0]?.id ?? "";
+  }
+}
+
+async function loadRecords() {
+  if (!state.me) return;
+  const params = new URLSearchParams();
+  if (state.selectedListId) params.set("call_list_id", state.selectedListId);
+  if (state.filters.q.trim()) params.set("q", state.filters.q.trim());
+  if (state.filters.call_status) params.set("call_status", state.filters.call_status);
+  if (state.filters.result_status) params.set("result_status", state.filters.result_status);
+  if (state.filters.unassigned) params.set("unassigned", "true");
+  if (state.filters.has_email) params.set("has_email", "true");
+  if (state.filters.has_phone) params.set("has_phone", "true");
+  if (state.filters.has_address) params.set("has_address", "true");
+  if (state.filters.has_website) params.set("has_website", "true");
+  params.set("offset", String(state.pagination.offset));
+  params.set("limit", String(state.pagination.limit));
+
+  let response = await api(`/api/records?${params.toString()}`);
+
+  if (response.total > 0 && state.pagination.offset >= response.total) {
+    state.pagination.offset = Math.max(0, Math.floor((response.total - 1) / state.pagination.limit) * state.pagination.limit);
+    params.set("offset", String(state.pagination.offset));
+    response = await api(`/api/records?${params.toString()}`);
+  }
+
+  state.records = response.items;
+  state.pagination.total = response.total;
+  state.filteredSummary = compactSummary(response.summary) || summarizeRecords(response.items);
+}
+
+function startPolling() {
+  if (state.pollingHandle) {
+    window.clearInterval(state.pollingHandle);
+  }
+  state.pollingHandle = window.setInterval(async () => {
+    if (!state.token) return;
+    if (hasLocalInteraction()) return;
+    try {
+      await refreshOperationalData("poll");
+      render();
+    } catch (error) {
+      console.error(error);
+    }
+  }, 3000);
+}
+
+function stopPolling() {
+  if (state.pollingHandle) {
+    window.clearInterval(state.pollingHandle);
+    state.pollingHandle = null;
+  }
+}
+
+function logout() {
+  resetSessionState();
+  render();
+}
+
+function statsMarkup() {
+  const list = selectedList();
+  const summary = state.filteredSummary ?? list?.summary ?? {
+    total: state.records.length,
+    assigned: 0,
+    calling: 0,
+    positive: 0,
+  };
+  return `
+    <section class="stats-band">
+      <article class="stat">
+        <span>Toplam kayıt</span>
+        <strong>${summary.total ?? 0}</strong>
+      </article>
+      <article class="stat">
+        <span>Atanan</span>
+        <strong>${summary.assigned ?? 0}</strong>
+      </article>
+      <article class="stat">
+        <span>Görüşülen</span>
+        <strong>${summary.calling ?? 0}</strong>
+      </article>
+      <article class="stat">
+        <span>Olumlu</span>
+        <strong>${summary.positive ?? 0}</strong>
+      </article>
+    </section>
+  `;
+}
+
+function totalPages() {
+  return Math.max(1, Math.ceil(state.pagination.total / state.pagination.limit));
+}
+
+function currentPage() {
+  return Math.floor(state.pagination.offset / state.pagination.limit) + 1;
+}
+
+function loginConsoleMarkup() {
+  const lines = [
+    "[09:14:02] YABUJIN_NODE_01  hazır",
+    "[09:14:06] e-posta sütunu   doğrulandı",
+    "[09:14:10] telefon alanı    sırada",
+    "[09:14:14] liste bölümü     eşitlendi",
+    "[09:14:18] durum hücresi    işlendi",
+    "[09:14:22] sayfa bölümü     etkin",
+    "[09:14:26] operatör kanalı  açık",
+    "[09:14:30] YABUJIN_LAYER    dengede",
+  ];
+
+  const markup = [...lines, ...lines, ...lines]
+    .map((line) => `<div class="console-line" aria-hidden="true"><span>${escapeHtml(line)}</span></div>`)
+    .join("");
+
+  return `
+    <section class="login-console" aria-hidden="true">
+      <div class="login-console-viewport">
+        <div class="login-console-stream">
+          ${markup}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function loginMarkup() {
+  return `
+    <section class="login-screen">
+      <div class="login-stage">
+        <section class="login-hero window-shell" data-window-title="Yabujin Scrap Controller">
+          <div class="hero-grid" aria-hidden="true"></div>
+          <div class="login-watermark" aria-hidden="true">
+            <span>YABUJIN</span>
+            <span>Yabujin</span>
+            <span>yabujin</span>
+            <span>YABUJIN</span>
+          </div>
+          <div class="hero-lockup">
+            ${brandMark()}
+            <div>
+              <p class="brand-kicker">Rainwater Systems</p>
+              <h1>Yabujin Scrap Controller</h1>
+            </div>
+          </div>
+          ${loginConsoleMarkup()}
+        </section>
+
+        <section class="login-card window-shell" data-window-title="Güvenli Erişim">
+          <div class="login-card-head">
+            <p class="section-kicker">Güvenli erişim</p>
+            <h2>Oturum Aç</h2>
+          </div>
+          ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
+          <form id="login-form" class="stack">
+            <input class="field" type="email" name="email" placeholder="Email" required />
+            <input class="field" type="password" name="password" placeholder="Şifre" required />
+            <button class="btn btn-primary" type="submit">Oturum Aç</button>
+          </form>
+        </section>
+      </div>
+    </section>
+  `;
+}
+
+function uploadSectionMarkup() {
+  if (state.me?.role !== "admin") return "";
+  return `
+    <section class="sidebar-section panel window-shell" data-window-title="Veri Yükleme">
+      <div class="panel-head">
+        <div>
+          <h2>Veri Yükleme</h2>
+          <p>Yeni Excel kaynaklarını kontrol yüzeyine aktar.</p>
+        </div>
+      </div>
+      <form id="upload-form" class="stack">
+        <input class="field" name="list_name" placeholder="Liste adı (opsiyonel)" value="${escapeHtml(state.uploadListName)}" />
+        <input class="hidden-file-input" id="upload-file-input" type="file" name="file" accept=".xlsx" />
+        <div class="file-picker-row">
+          <input class="field file-display" type="text" readonly value="${escapeHtml(state.uploadFile?.name || "Dosya seçilmedi")}" />
+          <button class="btn btn-soft file-picker-button" type="button" id="open-file-picker">Dosya Seç</button>
+        </div>
+        <button class="btn btn-primary" type="submit">Listeyi İçe Al</button>
+        <p class="file-note">Dosya doğrudan yüklenir, veri anında veri tabanına işlenir.</p>
+      </form>
+    </section>
+  `;
+}
+
+function usersSectionMarkup() {
+  if (state.me?.role !== "admin") return "";
+  const agentCount = state.users.filter((user) => user.role === "agent").length;
+  const adminCount = state.users.filter((user) => user.role === "admin").length;
+  return `
+    <section class="sidebar-section panel window-shell" data-window-title="Ekip Yetkilendirme">
+      <div class="panel-head">
+        <div>
+          <h2>Ekip Yetkilendirme</h2>
+          <p>Kullanıcı yönetimini açılır pencerede düzenle.</p>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="mini-meta">
+          <span>${adminCount} yönetici</span>
+          <span>${agentCount} operatör</span>
+          <span>${state.users.length} hesap</span>
+        </div>
+        <button class="btn btn-primary" type="button" id="open-team-modal">Ekip Penceresini Aç</button>
+      </div>
+    </section>
+  `;
+}
+
+function teamModalMarkup() {
+  if (state.me?.role !== "admin" || !state.teamModalOpen) return "";
+  return `
+    <div class="modal-backdrop" id="team-modal-backdrop">
+      <section class="modal-window" id="team-modal" role="dialog" aria-modal="true" aria-labelledby="team-modal-title">
+        <header class="modal-titlebar">
+          <strong id="team-modal-title">Ekip Yetkilendirme</strong>
+          <button class="window-close" type="button" id="close-team-modal" aria-label="Kapat">X</button>
+        </header>
+        <div class="modal-body">
+          <section class="panel stack modal-panel">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Yeni Hesap</p>
+                <h2>Çalışan Ekle</h2>
+                <p>Operatör veya yönetici hesabını bu pencereden aç.</p>
+              </div>
+            </div>
+            <form id="user-form" class="stack">
+              <input class="field" name="full_name" placeholder="Adı / takma adı" required />
+              <input class="field" name="email" placeholder="Email" required />
+              <input class="field" name="password" placeholder="Geçici şifre" required />
+              <select class="select" name="role">
+                <option value="agent">Operatör</option>
+                <option value="admin">Yönetici</option>
+              </select>
+              <button class="btn btn-primary" type="submit">Kullanıcı Ekle</button>
+            </form>
+          </section>
+
+          <section class="panel stack modal-panel">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Hesaplar</p>
+                <h2>Kullanıcı Düzenleme</h2>
+                <p>Şifre, ad, rol ve aktiflik burada yönetilir.</p>
+              </div>
+            </div>
+            <div class="user-admin-table-wrap">
+              <table class="user-admin-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Adı / Takma Adı</th>
+                    <th>Rol</th>
+                    <th>Yeni Şifre</th>
+                    <th>Durum</th>
+                    <th>İşlem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${state.users
+                    .map(
+                      (user) => `
+                        <tr>
+                          <td class="mono-cell">${escapeHtml(user.email)}</td>
+                          <td>
+                            <input class="field compact-field" data-user-name="${user.id}" value="${escapeHtml(user.full_name || "")}" placeholder="Adı / takma adı" />
+                          </td>
+                          <td>
+                            <select class="select compact-select" data-user-role="${user.id}">
+                              <option value="agent" ${user.role === "agent" ? "selected" : ""}>Operatör</option>
+                              <option value="admin" ${user.role === "admin" ? "selected" : ""}>Yönetici</option>
+                            </select>
+                          </td>
+                          <td>
+                            <input class="field compact-field" type="password" data-user-password="${user.id}" placeholder="Boş bırak = aynı kalsın" />
+                          </td>
+                          <td>
+                            <label class="inline-check">
+                              <input type="checkbox" data-user-active="${user.id}" ${user.is_active ? "checked" : ""} />
+                              <span>${user.is_active ? "Aktif" : "Pasif"}</span>
+                            </label>
+                          </td>
+                          <td>
+                            <div class="row-actions">
+                              <button class="btn btn-soft mini-button" type="button" data-user-save="${user.id}">Kaydet</button>
+                              <button class="btn btn-danger mini-button" type="button" data-user-delete="${user.id}">Sil</button>
+                            </div>
+                          </td>
+                        </tr>
+                      `,
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function listsSectionMarkup() {
+  return `
+    <section class="sidebar-section panel window-shell" data-window-title="Aktif Listeler">
+      <div class="panel-head">
+        <div>
+          <h2>Aktif Listeler</h2>
+          <p>${state.lists.length} liste görünüyor.</p>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="mini-meta">
+          <span>${state.lists.filter((list) => list.is_active).length} aktif</span>
+          <span>${selectedList() ? escapeHtml(selectedList().name) : "Liste seçilmedi"}</span>
+        </div>
+        <button class="btn btn-primary" type="button" id="open-lists-modal">Liste Penceresini Aç</button>
+      </div>
+    </section>
+  `;
+}
+
+function listsModalMarkup() {
+  if (!state.listsModalOpen) return "";
+  return `
+    <div class="modal-backdrop" id="lists-modal-backdrop">
+      <section class="modal-window" id="lists-modal" role="dialog" aria-modal="true" aria-labelledby="lists-modal-title">
+        <header class="modal-titlebar">
+          <strong id="lists-modal-title">Aktif Listeler</strong>
+          <button class="window-close" type="button" id="close-lists-modal" aria-label="Kapat">X</button>
+        </header>
+        <div class="modal-body single-column">
+          <section class="panel stack modal-panel">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Liste Havuzu</p>
+                <h2>Liste Seçimi</h2>
+                <p>Aktif operasyon listeleri bu pencereden seçilir.</p>
+              </div>
+            </div>
+            <div class="list-grid modal-list-grid">
+              ${state.lists.length
+                ? state.lists
+                    .map(
+                      (list) => `
+                        <button class="list-card ${list.id === state.selectedListId ? "active" : ""}" type="button" data-list-id="${list.id}" data-close-lists-modal="true">
+                          <div class="list-card-head">
+                            <div>
+                              <h3>${escapeHtml(list.name)}</h3>
+                              <p>${escapeHtml(list.source_file_name || "Elle oluşturuldu")}</p>
+                            </div>
+                            <span class="badge ${list.is_active ? "active" : "inactive"}">${list.is_active ? "Aktif" : "Pasif"}</span>
+                          </div>
+                          <div class="mini-meta">
+                            <span>${list.summary.total} kayıt</span>
+                            <span>${list.summary.assigned} atanmış</span>
+                            <span>${list.duplicate_count} tekrar</span>
+                          </div>
+                        </button>
+                      `,
+                    )
+                    .join("")
+                : `<p class="empty">Henüz liste yok.</p>`}
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function assignPanelMarkup() {
+  if (state.me?.role !== "admin" || !selectedList()) return "";
+  const agentUsers = activeAgents();
+  const summary = assignSummaryValues(agentUsers);
+  return `
+    <section class="panel stack window-shell" data-window-title="Operasyon Dağıtımı">
+      <div class="panel-head">
+        <div>
+          <p class="section-kicker">Dağıtım</p>
+          <h2>Operasyon Dağıtımı</h2>
+          <p>Seçilen operatörlere kayıt havuzunu kontrollü biçimde dağıt.</p>
+        </div>
+        <div class="mini-meta action-meta">
+          <button class="btn btn-soft" type="button" id="export-button">CSV İndir</button>
+          <button class="btn btn-danger" type="button" id="toggle-list-button">${selectedList().is_active ? "Pasife Al" : "Etkinleştir"}</button>
+        </div>
+      </div>
+      <form id="assign-form" class="stack">
+        <div class="assign-mode-grid">
+          <label class="check-item">
+            <input type="radio" name="distribution_strategy" value="equal" ${state.assignStrategy === "equal" ? "checked" : ""} />
+            <span>Eşit dağıtım</span>
+          </label>
+          <label class="check-item">
+            <input type="radio" name="distribution_strategy" value="custom" ${state.assignStrategy === "custom" ? "checked" : ""} />
+            <span>Özel dağıtım</span>
+          </label>
+        </div>
+        <div class="assign-monitor">
+          <div class="assign-monitor-cell">
+            <span>Kapsam</span>
+            <strong id="assign-available-count">${summary.available}</strong>
+          </div>
+          <div class="assign-monitor-cell">
+            <span>Operatör</span>
+            <strong id="assign-selected-count">${summary.selectedAgents}</strong>
+          </div>
+          <div class="assign-monitor-cell">
+            <span>İstenen</span>
+            <strong id="assign-requested-count">${state.assignStrategy === "custom" ? summary.requested : "-"}</strong>
+          </div>
+          <div class="assign-monitor-cell assign-monitor-wide">
+            <span>Durum</span>
+            <strong id="assign-status-text">${
+              state.assignStrategy === "custom"
+                ? summary.overflow > 0
+                  ? `${summary.overflow} kayıt fazla istendi.`
+                  : `${summary.remainder} kayıt atanmamış kalır.`
+                : "Eşit dağıtım aktif."
+            }</strong>
+          </div>
+        </div>
+        <select class="select" name="mode">
+          <option value="unassigned" ${state.assignMode === "unassigned" ? "selected" : ""}>Sadece atanmamış kayıtlar</option>
+          <option value="all" ${state.assignMode === "all" ? "selected" : ""}>Tüm listeyi yeniden dağıt</option>
+        </select>
+        <div class="assign-grid">
+          ${agentUsers
+            .map(
+              (user) => `
+                <div class="assign-row ${assignDraftFor(user.id).enabled ? "active" : ""}">
+                  <label class="check-item assign-toggle">
+                    <input type="checkbox" name="agent_ids" value="${user.id}" data-assign-user-enabled="${user.id}" ${assignDraftFor(user.id).enabled ? "checked" : ""} />
+                    <span>
+                      <strong>${escapeHtml(user.full_name || user.email)}</strong>
+                      <span class="record-meta">${escapeHtml(user.email)}</span>
+                    </span>
+                  </label>
+                  <label class="assign-count-field">
+                    <span>Adet</span>
+                    <input
+                      class="field compact-field assign-count-input"
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputmode="numeric"
+                      data-assign-user-count="${user.id}"
+                      value="${escapeHtml(assignDraftFor(user.id).count || "")}"
+                      ${state.assignStrategy === "equal" ? "disabled" : ""}
+                    />
+                  </label>
+                </div>
+              `,
+            )
+            .join("")}
+        </div>
+        <p class="helper assign-helper">Özel dağıtımda işaretli operatörlere adet gir. Toplam adet, kapsamdaki kayıt sayısını aşamaz.</p>
+        <button class="btn btn-primary" type="submit">${state.assignStrategy === "custom" ? "Özel Dağıtımı Uygula" : "Eşit Dağıt"}</button>
+      </form>
+    </section>
+  `;
+}
+
+function filtersMarkup() {
+  const activePresence = [];
+  if (state.filters.has_email) activePresence.push("e-posta");
+  if (state.filters.has_phone) activePresence.push("telefon");
+  if (state.filters.has_address) activePresence.push("adres");
+  if (state.filters.has_website) activePresence.push("web");
+  return `
+    <section class="panel filter-panel window-shell" data-window-title="Kayıt Filtresi">
+      <div class="panel-head">
+        <div>
+          <p class="section-kicker">Filtreleme</p>
+          <h2>Kayıt Filtresi</h2>
+          <p>Firma, durum ve atama bazında havuzu daralt.</p>
+        </div>
+        <div class="filter-state">
+          <span class="badge active">Aktif görünüm: ${activePresence.length ? escapeHtml(activePresence.join(" + ")) : "genel liste"}</span>
+        </div>
+      </div>
+      <div class="toolbar">
+        <input class="field" id="filter-q" placeholder="Firma, telefon, adres veya email ara" value="${escapeHtml(state.filters.q)}" />
+        <select class="select" id="filter-call-status">
+          <option value="">Tüm arama durumları</option>
+          ${CALL_STATUS_OPTIONS
+            .map(([value, label]) => `<option value="${value}" ${state.filters.call_status === value ? "selected" : ""}>${label}</option>`)
+            .join("")}
+        </select>
+        <select class="select" id="filter-result-status">
+          <option value="">Tüm sonuç durumları</option>
+          ${RESULT_STATUS_OPTIONS
+            .map(([value, label]) => `<option value="${value}" ${state.filters.result_status === value ? "selected" : ""}>${label}</option>`)
+            .join("")}
+        </select>
+        <label class="check-item compact">
+          <input type="checkbox" id="filter-unassigned" ${state.filters.unassigned ? "checked" : ""} />
+          <span>Atanmamış</span>
+        </label>
+        <button class="btn btn-soft" type="button" id="filters-apply">Uygula</button>
+        <button class="btn btn-soft" type="button" id="filters-reset">Temizle</button>
+      </div>
+      <div class="filter-presence">
+        <label class="check-item">
+          <input type="checkbox" id="filter-has-email" ${state.filters.has_email ? "checked" : ""} />
+          <span>Sadece e-posta olanlar</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" id="filter-has-phone" ${state.filters.has_phone ? "checked" : ""} />
+          <span>Telefonu olanlar</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" id="filter-has-address" ${state.filters.has_address ? "checked" : ""} />
+          <span>Adresi olanlar</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" id="filter-has-website" ${state.filters.has_website ? "checked" : ""} />
+          <span>Web sitesi olanlar</span>
+        </label>
+      </div>
+    </section>
+  `;
+}
+
+function ownerCellMarkup(record) {
+  if (state.me?.role === "admin") {
+    return `
+      <select class="select table-select" data-record-assignee="${record.id}">
+        <option value="">Atanmamış</option>
+        ${state.users
+          .filter((user) => user.role === "agent" && user.is_active)
+          .map(
+            (user) =>
+              `<option value="${user.id}" ${record.assigned_user_id === user.id ? "selected" : ""}>${escapeHtml(user.full_name || user.email)}</option>`,
+          )
+          .join("")}
+      </select>
+    `;
+  }
+
+  return `<div class="table-cell-text">${escapeHtml(record.assigned_user_name || state.me?.full_name || state.me?.email || "-")}</div>`;
+}
+
+function recordsTableMarkup() {
+  const shownCount = state.records.length;
+  return `
+    <section class="panel stack window-shell" data-window-title="Operasyon Kayıtları">
+      <div class="panel-head">
+        <div>
+          <p class="section-kicker">Operasyon</p>
+          <h2>Operasyon Kayıtları</h2>
+          <p>${shownCount} satır gösteriliyor / toplam ${state.pagination.total} kayıt.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="records-table">
+          <colgroup>
+            <col class="col-row" />
+            <col class="col-company" />
+            <col class="col-address" />
+            <col class="col-phone" />
+            <col class="col-email" />
+            <col class="col-web" />
+            <col class="col-owner" />
+            <col class="col-call" />
+            <col class="col-result" />
+            <col class="col-note" />
+            <col class="col-updated" />
+            <col class="col-action" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Satır</th>
+              <th>Firma</th>
+              <th>Adres</th>
+              <th>Telefon</th>
+              <th>E-posta</th>
+              <th>Web</th>
+              <th>Sorumlu</th>
+              <th>Arama</th>
+              <th>Sonuç</th>
+              <th>Not</th>
+              <th>Güncel</th>
+              <th>İşlem</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.records
+              .map((record, index) => {
+                const current = recordDraft(record);
+                const rowClass =
+                  current.result_status === "POSITIVE"
+                    ? "positive"
+                    : current.result_status === "NEGATIVE" || current.result_status === "NOT_INTERESTED"
+                      ? "negative"
+                      : current.call_status === "CALLING"
+                        ? "calling"
+                        : "";
+                return `
+                  <tr class="record-row ${rowClass}">
+                    <td>
+                      <div class="table-cell-text table-row-number">${escapeHtml(current.source_row_number || index + 2)}</div>
+                    </td>
+                    <td>
+                      <div class="record-name">${escapeHtml(current.company_name || "-")}</div>
+                      <div class="record-meta">${escapeHtml(current.call_list_name || "-")}</div>
+                    </td>
+                    <td>
+                      <div class="record-address">${escapeHtml(current.address || "-")}</div>
+                    </td>
+                    <td>
+                      <div class="table-cell-text">${escapeHtml(current.phone || "-")}</div>
+                    </td>
+                    <td>
+                      <div class="table-cell-text">${escapeHtml(current.email || "-")}</div>
+                      <div class="record-meta">${escapeHtml(current.email_status || "-")}</div>
+                    </td>
+                    <td>
+                      <div class="table-cell-text">${escapeHtml(current.website || "-")}</div>
+                    </td>
+                    <td>
+                      ${ownerCellMarkup(current)}
+                    </td>
+                    <td>
+                      <select class="select table-select" data-record-call-status="${current.id}">
+                        ${CALL_STATUS_OPTIONS
+                          .map(([value, label]) => `<option value="${value}" ${current.call_status === value ? "selected" : ""}>${label}</option>`)
+                          .join("")}
+                      </select>
+                    </td>
+                    <td>
+                      <select class="select table-select" data-record-result-status="${current.id}">
+                        ${RESULT_STATUS_OPTIONS
+                          .map(([value, label]) => `<option value="${value}" ${current.result_status === value ? "selected" : ""}>${label}</option>`)
+                          .join("")}
+                      </select>
+                    </td>
+                    <td>
+                      <textarea class="textarea table-note" data-record-note="${current.id}" rows="4">${escapeHtml(current.note || "")}</textarea>
+                    </td>
+                    <td>
+                      <div class="record-meta">${formatDate(current.updated_at)}</div>
+                      <div class="record-meta">${escapeHtml(current.updated_by_user_name || current.assigned_user_name || "-")}</div>
+                      <div class="record-meta">${escapeHtml(current.result_status || "-")}</div>
+                    </td>
+                    <td>
+                      <div class="record-actions compact">
+                        <button class="btn btn-soft table-action" type="button" data-save-record="${current.id}">Kaydet</button>
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="table-pager">
+        <div class="table-pager-status">
+          ${state.pagination.total
+            ? `${state.pagination.offset + 1}-${Math.min(state.pagination.offset + state.pagination.limit, state.pagination.total)} / ${state.pagination.total} kayıt`
+            : "0 kayıt"}
+          <span>Sayfa ${currentPage()} / ${totalPages()}</span>
+        </div>
+        <div class="table-pager-actions">
+          <button class="btn btn-soft" type="button" id="page-prev" ${state.pagination.offset <= 0 ? "disabled" : ""}>Önceki Sayfa</button>
+          <button class="btn btn-soft" type="button" id="page-next" ${currentPage() >= totalPages() ? "disabled" : ""}>Sonraki Sayfa</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function activityPanelMarkup() {
+  if (state.me?.role !== "admin") return "";
+  return `
+    <section class="panel stack compact-activity window-shell" data-window-title="İşlem Geçmişi">
+      <div class="panel-head">
+        <div>
+          <p class="section-kicker">Son Hareketler</p>
+          <h2>İşlem Geçmişi</h2>
+          <p>Son 25 saha hareketi.</p>
+        </div>
+      </div>
+      <div class="activity-list">
+        ${state.activity.length
+          ? state.activity
+              .map(
+                (item) => `
+                  <article class="activity-item">
+                    <div class="activity-head">
+                      <strong>${escapeHtml(item.actor_user_name || item.actor_role)}</strong>
+                      <span class="record-meta">${formatDate(item.created_at)}</span>
+                    </div>
+                    <div class="activity-body">
+                      <div>${escapeHtml(item.company_name || "-")} / ${escapeHtml(item.call_list_name)}</div>
+                      <div class="record-meta">
+                        ${escapeHtml(item.action)} / ${escapeHtml(item.previous_call_status || "-")} -> ${escapeHtml(item.next_call_status || "-")} / ${escapeHtml(item.next_result_status || "-")}
+                      </div>
+                      ${item.note ? `<div class="record-meta">${escapeHtml(item.note)}</div>` : ""}
+                    </div>
+                  </article>
+                `,
+              )
+              .join("")
+          : `<p class="empty">Henüz hareket yok.</p>`}
+      </div>
+    </section>
+  `;
+}
+
+function agentCardsMarkup() {
+  return recordsTableMarkup();
+}
+
+function appMarkup() {
+  const currentList = selectedList();
+  return `
+    <div class="app-shell">
+      <aside class="sidebar">
+        <section class="brand-block window-shell" data-window-title="Merkez Panel">
+          <div class="brand-lockup">
+            ${brandMark()}
+            <div>
+              <span class="brand-kicker">Rainwater Systems</span>
+              <h1>Yabujin Scrap Controller</h1>
+              <p>Kaynak verileri günlük saha operasyonuna çeviren kontrol yüzeyi.</p>
+            </div>
+          </div>
+          <div class="selection-summary">
+            <div class="selection-summary-label">Seçili Liste</div>
+            <div class="selection-summary-name">${currentList ? escapeHtml(currentList.name) : "Hazır bekliyor"}</div>
+            <div class="selection-summary-meta">
+              <span>${currentList ? currentList.summary.total : 0} kayıt</span>
+              <span>${currentList ? currentList.summary.assigned : 0} atanmış</span>
+              <span>${currentList ? (currentList.is_active ? "aktif" : "pasif") : "beklemede"}</span>
+            </div>
+          </div>
+        </section>
+        ${uploadSectionMarkup()}
+        ${usersSectionMarkup()}
+        ${listsSectionMarkup()}
+      </aside>
+
+      <main class="main">
+        <header class="topbar window-shell" data-window-title="Oturum Durumu">
+          <div class="topbar-copy">
+            <p class="section-kicker">Rainwater saha operasyonu</p>
+            <h2>${state.me?.role === "admin" ? "Yönetim Ekranı" : "Operatör Ekranı"}</h2>
+            <p class="helper">${currentList ? escapeHtml(currentList.name) : "Liste seçilmedi"}</p>
+          </div>
+          <div class="topbar-meta">
+            ${state.me?.role === "admin" ? liveMonitorMarkup() : `<span class="topbar-chip">Durum: canlı izleme açık</span>`}
+            <div class="user-strip">
+              <span class="badge active">${escapeHtml(roleLabel(state.me?.role || ""))}</span>
+              <span>${escapeHtml(state.me?.full_name || state.me?.email || "")}</span>
+              <button class="btn btn-soft" type="button" id="logout-button">Çıkış</button>
+            </div>
+          </div>
+        </header>
+
+        ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
+        ${statsMarkup()}
+        ${filtersMarkup()}
+        ${state.me?.role === "admin" ? `<div class="command-grid">${assignPanelMarkup()}${activityPanelMarkup()}</div>` : ""}
+        ${recordsTableMarkup()}
+      </main>
+      ${teamModalMarkup()}
+      ${listsModalMarkup()}
+    </div>
+  `;
+}
+
+function render() {
+  appNode.innerHTML = state.token && state.me ? appMarkup() : loginMarkup();
+  bindEvents();
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    const response = await api("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: form.get("email"),
+        password: form.get("password"),
+      }),
+    });
+    state.token = response.access_token;
+    sessionStorage.setItem("callPortalToken", state.token);
+    localStorage.removeItem("callPortalToken");
+    await loadSession();
+    render();
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function handleUserCreate(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    await api("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        full_name: form.get("full_name"),
+        email: form.get("email"),
+        password: form.get("password"),
+        role: form.get("role"),
+      }),
+    });
+    event.currentTarget.reset();
+    await loadUsersIfAdmin();
+    render();
+    syncAssignSummaryDisplay();
+    setFlash("success", "Kullanıcı oluşturuldu.");
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+function openTeamModal() {
+  state.teamModalOpen = true;
+  render();
+}
+
+function closeTeamModal() {
+  state.teamModalOpen = false;
+  render();
+}
+
+function openListsModal() {
+  state.listsModalOpen = true;
+  render();
+}
+
+function closeListsModal() {
+  state.listsModalOpen = false;
+  render();
+}
+
+async function handleUserUpdate(userId) {
+  const fullName = document.querySelector(`[data-user-name='${userId}']`)?.value?.trim() ?? "";
+  const role = document.querySelector(`[data-user-role='${userId}']`)?.value ?? "agent";
+  const password = document.querySelector(`[data-user-password='${userId}']`)?.value?.trim() ?? "";
+  const isActive = Boolean(document.querySelector(`[data-user-active='${userId}']`)?.checked);
+
+  if (!fullName) {
+    setFlash("error", "Kullanıcı adı boş bırakılamaz.");
+    return;
+  }
+
+  try {
+    await api(`/api/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        full_name: fullName,
+        role,
+        is_active: isActive,
+        ...(password ? { password } : {}),
+      }),
+    });
+    await loadUsersIfAdmin();
+    await refreshOperationalData("team-update");
+    render();
+    setFlash("success", "Kullanıcı güncellendi.");
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function handleUserDelete(userId) {
+  const label = document.querySelector(`[data-user-name='${userId}']`)?.value?.trim() || userId;
+  if (!window.confirm(`${label} hesabı silinsin mi?`)) return;
+  try {
+    await api(`/api/users/${userId}`, {
+      method: "DELETE",
+    });
+    await loadUsersIfAdmin();
+    await refreshOperationalData("team-delete");
+    render();
+    setFlash("success", "Kullanıcı silindi.");
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function handleUpload(event) {
+  event.preventDefault();
+  const file = state.uploadFile;
+  if (!file) {
+    setFlash("error", "Lütfen bir .xlsx dosyası seç.");
+    return;
+  }
+  try {
+    await api("/api/lists/import", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "X-File-Name": file.name,
+        "X-List-Name": state.uploadListName.trim(),
+      },
+      body: await file.arrayBuffer(),
+    });
+    state.uploadFile = null;
+    state.uploadListName = "";
+    await refreshOperationalData("upload");
+    render();
+    setFlash("success", "Liste sisteme aktarıldı.");
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function handleAssign(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  try {
+    if (!state.selectedListId) {
+      setFlash("error", "Dağıtım için önce bir liste seç.");
+      return;
+    }
+    const mode = form.querySelector("[name='mode']").value;
+    let response;
+    if (state.assignStrategy === "custom") {
+      const allocations = activeAgents()
+        .map((user) => ({
+          user_id: user.id,
+          enabled: Boolean(form.querySelector(`[data-assign-user-enabled='${user.id}']`)?.checked),
+          count: Number(form.querySelector(`[data-assign-user-count='${user.id}']`)?.value || 0),
+        }))
+        .filter((item) => item.enabled && item.count > 0)
+        .map(({ user_id, count }) => ({ user_id, count }));
+
+      if (!allocations.length) {
+        setFlash("error", "Özel dağıtım için en az bir operatör ve adet gir.");
+        return;
+      }
+
+      response = await api(`/api/lists/${state.selectedListId}/assign-custom`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allocations, mode }),
+      });
+    } else {
+      const selectedIds = [...form.querySelectorAll("input[name='agent_ids']:checked")].map((item) => item.value);
+      if (!selectedIds.length) {
+        setFlash("error", "Dağıtım için en az bir operatör seç.");
+        return;
+      }
+
+      response = await api(`/api/lists/${state.selectedListId}/assign-evenly`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_ids: selectedIds,
+          mode,
+        }),
+      });
+    }
+    await refreshOperationalData(state.assignStrategy === "custom" ? "custom-assign" : "equal-assign");
+    render();
+    if (state.assignStrategy === "custom") {
+      setFlash(
+        "success",
+        `${response.assigned_count} kayıt özel dağıtıldı.${response.remaining_count ? ` ${response.remaining_count} kayıt atanmamış bırakıldı.` : ""}`,
+      );
+    } else {
+      setFlash("success", `${response.assigned_count} kayıt dağıtıldı.`);
+    }
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function handleSaveRecord(recordId) {
+  const draft = state.recordDrafts[recordId] || {};
+  const assigneeField = document.querySelector(`[data-record-assignee='${recordId}']`);
+  const noteField = document.querySelector(`[data-record-note='${recordId}']`);
+  const callStatusField = document.querySelector(`[data-record-call-status='${recordId}']`);
+  const resultStatusField = document.querySelector(`[data-record-result-status='${recordId}']`);
+
+  const payload = {
+    call_status: draft.call_status ?? callStatusField?.value,
+    result_status: draft.result_status ?? resultStatusField?.value,
+    note: draft.note ?? noteField?.value ?? "",
+  };
+
+  if (state.me?.role === "admin") {
+    const assigned = draft.assigned_user_id ?? (assigneeField?.value || null);
+    payload.assigned_user_id = assigned;
+    payload.clear_assignment = !assigned;
+  }
+
+  try {
+    await api(`/api/records/${recordId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    delete state.recordDrafts[recordId];
+    await refreshOperationalData("record-save");
+    render();
+    setFlash("success", "Kayıt güncellendi.");
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function handleToggleList() {
+  const list = selectedList();
+  if (!list) return;
+  try {
+    await api(`/api/lists/${list.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: !list.is_active }),
+    });
+    await refreshOperationalData("list-toggle");
+    render();
+    setFlash("success", `Liste ${list.is_active ? "pasife alındı" : "etkinleştirildi"}.`);
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function handleExport() {
+  const list = selectedList();
+  if (!list) return;
+  try {
+    const blob = await api(`/api/lists/${list.id}/export.csv`);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${list.name}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function applyFilters() {
+  state.filters.q = document.querySelector("#filter-q")?.value ?? "";
+  state.filters.call_status = document.querySelector("#filter-call-status")?.value ?? "";
+  state.filters.result_status = document.querySelector("#filter-result-status")?.value ?? "";
+  state.filters.unassigned = Boolean(document.querySelector("#filter-unassigned")?.checked);
+  state.filters.has_email = Boolean(document.querySelector("#filter-has-email")?.checked);
+  state.filters.has_phone = Boolean(document.querySelector("#filter-has-phone")?.checked);
+  state.filters.has_address = Boolean(document.querySelector("#filter-has-address")?.checked);
+  state.filters.has_website = Boolean(document.querySelector("#filter-has-website")?.checked);
+  state.pagination.offset = 0;
+  try {
+    await loadRecords();
+    render();
+    setFlash("success", `Filtre uygulandı: ${state.pagination.total} kayıt.`);
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function resetFilters() {
+  state.filters = { ...DEFAULT_FILTERS };
+  state.pagination.offset = 0;
+  try {
+    await loadRecords();
+    render();
+    setFlash("success", "Filtre temizlendi.");
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+function updateDraft(recordId, patch) {
+  state.recordDrafts[recordId] = {
+    ...(state.recordDrafts[recordId] || {}),
+    ...patch,
+  };
+}
+
+function bindEvents() {
+  document.querySelector("#login-form")?.addEventListener("submit", handleLogin);
+  document.querySelector("#logout-button")?.addEventListener("click", logout);
+  document.querySelector("#user-form")?.addEventListener("submit", handleUserCreate);
+  document.querySelector("#open-team-modal")?.addEventListener("click", openTeamModal);
+  document.querySelector("#close-team-modal")?.addEventListener("click", closeTeamModal);
+  document.querySelector("#open-lists-modal")?.addEventListener("click", openListsModal);
+  document.querySelector("#close-lists-modal")?.addEventListener("click", closeListsModal);
+  document.querySelector("#team-modal-backdrop")?.addEventListener("click", (event) => {
+    if (event.target.id === "team-modal-backdrop") {
+      closeTeamModal();
+    }
+  });
+  document.querySelector("#lists-modal-backdrop")?.addEventListener("click", (event) => {
+    if (event.target.id === "lists-modal-backdrop") {
+      closeListsModal();
+    }
+  });
+  document.querySelector("#upload-form")?.addEventListener("submit", handleUpload);
+  document.querySelector("#open-file-picker")?.addEventListener("click", () => {
+    document.querySelector("#upload-file-input")?.click();
+  });
+  document.querySelector("#upload-file-input")?.addEventListener("change", (event) => {
+    state.uploadFile = event.currentTarget.files?.[0] || null;
+    render();
+  });
+  document.querySelector("#upload-form [name='list_name']")?.addEventListener("input", (event) => {
+    state.uploadListName = event.currentTarget.value;
+  });
+  document.querySelector("#assign-form")?.addEventListener("submit", handleAssign);
+  document.querySelector("#assign-form [name='mode']")?.addEventListener("change", (event) => {
+    state.assignMode = event.currentTarget.value;
+    render();
+  });
+  document.querySelectorAll("#assign-form [name='distribution_strategy']").forEach((node) => {
+    node.addEventListener("change", (event) => {
+      state.assignStrategy = event.currentTarget.value;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-assign-user-enabled]").forEach((node) => {
+    node.addEventListener("change", (event) => {
+      const userId = event.currentTarget.getAttribute("data-assign-user-enabled");
+      state.assignDrafts[userId] = {
+        ...assignDraftFor(userId),
+        enabled: Boolean(event.currentTarget.checked),
+      };
+      render();
+    });
+  });
+  document.querySelectorAll("[data-assign-user-count]").forEach((node) => {
+    node.addEventListener("input", (event) => {
+      const userId = event.currentTarget.getAttribute("data-assign-user-count");
+      const nextValue = String(event.currentTarget.value || "").replace(/[^\d]/g, "");
+      event.currentTarget.value = nextValue;
+      state.assignDrafts[userId] = {
+        ...assignDraftFor(userId),
+        count: nextValue,
+      };
+      syncAssignSummaryDisplay();
+    });
+  });
+  document.querySelector("#toggle-list-button")?.addEventListener("click", handleToggleList);
+  document.querySelector("#export-button")?.addEventListener("click", handleExport);
+  document.querySelector("#filters-apply")?.addEventListener("click", applyFilters);
+  document.querySelector("#filters-reset")?.addEventListener("click", resetFilters);
+  document.querySelector("#filter-call-status")?.addEventListener("change", applyFilters);
+  document.querySelector("#filter-result-status")?.addEventListener("change", applyFilters);
+  document.querySelector("#filter-unassigned")?.addEventListener("change", applyFilters);
+  document.querySelector("#filter-has-email")?.addEventListener("change", applyFilters);
+  document.querySelector("#filter-has-phone")?.addEventListener("change", applyFilters);
+  document.querySelector("#filter-has-address")?.addEventListener("change", applyFilters);
+  document.querySelector("#filter-has-website")?.addEventListener("change", applyFilters);
+  document.querySelector("#filter-q")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applyFilters();
+    }
+  });
+  document.querySelector("#page-prev")?.addEventListener("click", async () => {
+    state.pagination.offset = Math.max(0, state.pagination.offset - state.pagination.limit);
+    await loadRecords();
+    render();
+  });
+  document.querySelector("#page-next")?.addEventListener("click", async () => {
+    if (currentPage() >= totalPages()) return;
+    state.pagination.offset += state.pagination.limit;
+    await loadRecords();
+    render();
+  });
+
+  document.querySelectorAll("[data-list-id]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      state.selectedListId = node.getAttribute("data-list-id");
+      if (node.hasAttribute("data-close-lists-modal")) {
+        state.listsModalOpen = false;
+      }
+      state.pagination.offset = 0;
+      await refreshOperationalData("list-switch");
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-save-record]").forEach((node) => {
+    node.addEventListener("click", () => handleSaveRecord(node.getAttribute("data-save-record")));
+  });
+
+  document.querySelectorAll("[data-user-save]").forEach((node) => {
+    node.addEventListener("click", () => handleUserUpdate(node.getAttribute("data-user-save")));
+  });
+
+  document.querySelectorAll("[data-user-delete]").forEach((node) => {
+    node.addEventListener("click", () => handleUserDelete(node.getAttribute("data-user-delete")));
+  });
+
+  document.querySelectorAll("[data-record-assignee]").forEach((node) => {
+    node.addEventListener("change", (event) => {
+      updateDraft(event.currentTarget.getAttribute("data-record-assignee"), {
+        assigned_user_id: event.currentTarget.value || null,
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-record-call-status]").forEach((node) => {
+    node.addEventListener("change", (event) => {
+      updateDraft(event.currentTarget.getAttribute("data-record-call-status"), {
+        call_status: event.currentTarget.value,
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-record-result-status]").forEach((node) => {
+    node.addEventListener("change", (event) => {
+      updateDraft(event.currentTarget.getAttribute("data-record-result-status"), {
+        result_status: event.currentTarget.value,
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-record-note]").forEach((node) => {
+    node.addEventListener("input", (event) => {
+      updateDraft(event.currentTarget.getAttribute("data-record-note"), {
+        note: event.currentTarget.value,
+      });
+    });
+  });
+
+  syncAssignSummaryDisplay();
+}
+
+render();
+loadSession().then(render);

@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: yabujindemo
+    runtime: python
+    rootDir: arama-takip-portali
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    disk:
+      name: yabujindemo-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: CALL_PORTAL_SECRET_KEY
+        generateValue: true
+      - key: CALL_PORTAL_ADMIN_EMAIL
+        value: admin@callportal.local
+      - key: CALL_PORTAL_ADMIN_PASSWORD
+        sync: false
+      - key: CALL_PORTAL_ADMIN_NAME
+        value: Portal Admin
+      - key: CALL_PORTAL_ALLOWED_ORIGINS
+        value: https://yabujindemo.onrender.com
+      - key: CALL_PORTAL_DB_PATH
+        value: /var/data/portal.db
+      - key: CALL_PORTAL_TOKEN_HOURS
+        value: 12

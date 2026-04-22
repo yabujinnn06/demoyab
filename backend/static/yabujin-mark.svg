@@ -1,0 +1,42 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="y-main" x1="57" y1="32" x2="128" y2="150" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FAFEFF"/>
+      <stop offset="0.42" stop-color="#CFF5FF"/>
+      <stop offset="1" stop-color="#63D4FF"/>
+    </linearGradient>
+    <linearGradient id="y-trace" x1="49" y1="46" x2="138" y2="152" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9BE9FF" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#9BE9FF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="y-slice" x1="86" y1="42" x2="121" y2="144" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#C2F2FF" stop-opacity="0.2"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="16" y="16" width="160" height="160" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#02131D" flood-opacity="0.34"/>
+    </filter>
+    <filter id="trail-shadow" x="18" y="18" width="156" height="156" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0A2231" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#trail-shadow)">
+    <path d="M48 44L92 104V152" stroke="url(#y-trace)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M144 44L100 104" stroke="url(#y-trace)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M65 43L102 92" stroke="#D6F8FF" stroke-opacity="0.26" stroke-width="7" stroke-linecap="round"/>
+    <path d="M127 43L94 92" stroke="#D6F8FF" stroke-opacity="0.18" stroke-width="7" stroke-linecap="round"/>
+  </g>
+
+  <g filter="url(#soft-shadow)">
+    <path
+      d="M61 38C65.8 38 70.2 40.2 73.2 44.1L96 74.8L118.8 44.1C121.8 40.2 126.2 38 131 38C140.8 38 146.4 49.2 140.5 57L106 102.6V149C106 153.4 102.4 157 98 157H94C89.6 157 86 153.4 86 149V102.6L51.5 57C45.6 49.2 51.2 38 61 38Z"
+      fill="url(#y-main)"
+    />
+  </g>
+
+  <path d="M96 74.8L122.6 39" stroke="url(#y-slice)" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M90.5 108H101.5" stroke="#082332" stroke-opacity="0.3" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="134" cy="36" r="3" fill="#E8FBFF" fill-opacity="0.82"/>
+  <circle cx="140" cy="31" r="1.4" fill="#E8FBFF" fill-opacity="0.58"/>
+</svg>
