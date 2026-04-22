@@ -98,6 +98,7 @@ const appNode = document.querySelector("#app");
 const interactionState = {
   lastUserInteractionAt: 0,
   globalActivityBound: false,
+  deferredRenderHandle: null,
 };
 
 function noteUserInteraction() {
@@ -113,8 +114,16 @@ function bindGlobalActivityListeners() {
   });
 }
 
+function cancelDeferredRender() {
+  if (interactionState.deferredRenderHandle) {
+    window.clearTimeout(interactionState.deferredRenderHandle);
+    interactionState.deferredRenderHandle = null;
+  }
+}
+
 function resetSessionState(message = "") {
   stopPolling();
+  cancelDeferredRender();
   state.token = null;
   state.me = null;
   state.lists = [];
@@ -179,7 +188,7 @@ function setFlash(type, text) {
   window.setTimeout(() => {
     if (state.flash?.text === text) {
       state.flash = null;
-      render();
+      requestRender({ idleOnly: true });
     }
   }, 2600);
 }
@@ -463,6 +472,22 @@ function hasLocalInteraction() {
   return Boolean(document.querySelector("input:focus, select:focus, textarea:focus, button:focus"));
 }
 
+function requestRender(options = {}) {
+  const { idleOnly = false, delayMs = 0 } = options;
+  cancelDeferredRender();
+
+  const attempt = () => {
+    if (idleOnly && hasLocalInteraction()) {
+      interactionState.deferredRenderHandle = window.setTimeout(attempt, 1000);
+      return;
+    }
+    interactionState.deferredRenderHandle = null;
+    render();
+  };
+
+  interactionState.deferredRenderHandle = window.setTimeout(attempt, delayMs);
+}
+
 function recordDraft(record) {
   return { ...record, ...(state.recordDrafts[record.id] || {}) };
 }
@@ -601,8 +626,7 @@ function startPolling() {
     if (hasLocalInteraction()) return;
     try {
       await refreshOperationalData("poll");
-      if (hasLocalInteraction()) return;
-      render();
+      requestRender({ idleOnly: true });
     } catch (error) {
       console.error(error);
     }
