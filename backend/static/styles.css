@@ -933,6 +933,17 @@ tbody tr:hover td {
   border-color: #5e83b1;
 }
 
+.list-card-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.list-card-actions .btn {
+  flex: 1 1 0;
+}
+
 .list-card h3,
 .user-card h3 {
   margin: 0 0 3px;

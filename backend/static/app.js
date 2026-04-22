@@ -581,7 +581,8 @@ async function loadContactPool() {
 
 async function loadLists() {
   if (!state.me) return;
-  state.lists = await api("/api/lists");
+  const path = state.me.role === "admin" ? "/api/lists?include_inactive=true" : "/api/lists";
+  state.lists = await api(path);
   if (!state.selectedListId && state.lists.length) {
     state.selectedListId = state.lists[0].id;
   }
@@ -962,16 +963,17 @@ function teamModalMarkup() {
 
 function listsSectionMarkup() {
   return `
-    <section class="sidebar-section panel window-shell" data-window-title="Aktif Listeler">
+    <section class="sidebar-section panel window-shell" data-window-title="Liste Havuzu">
       <div class="panel-head">
         <div>
-          <h2>Aktif Listeler</h2>
+          <h2>Liste Havuzu</h2>
           <p>${state.lists.length} liste görünüyor.</p>
         </div>
       </div>
       <div class="stack">
         <div class="mini-meta">
           <span>${state.lists.filter((list) => list.is_active).length} aktif</span>
+          <span>${state.lists.filter((list) => !list.is_active).length} pasif</span>
           <span>${selectedList() ? escapeHtml(selectedList().name) : "Liste seçilmedi"}</span>
         </div>
         <button class="btn btn-primary" type="button" id="open-lists-modal">Liste Penceresini Aç</button>
@@ -986,7 +988,7 @@ function listsModalMarkup() {
     <div class="modal-backdrop" id="lists-modal-backdrop">
       <section class="modal-window" id="lists-modal" role="dialog" aria-modal="true" aria-labelledby="lists-modal-title">
         <header class="modal-titlebar">
-          <strong id="lists-modal-title">Aktif Listeler</strong>
+          <strong id="lists-modal-title">Liste Havuzu</strong>
           <button class="window-close" type="button" id="close-lists-modal" aria-label="Kapat">X</button>
         </header>
         <div class="modal-body single-column">
@@ -1003,7 +1005,7 @@ function listsModalMarkup() {
                 ? state.lists
                     .map(
                       (list) => `
-                        <button class="list-card ${list.id === state.selectedListId ? "active" : ""}" type="button" data-list-id="${list.id}" data-close-lists-modal="true">
+                        <div class="list-card ${list.id === state.selectedListId ? "active" : ""}">
                           <div class="list-card-head">
                             <div>
                               <h3>${escapeHtml(list.name)}</h3>
@@ -1016,7 +1018,19 @@ function listsModalMarkup() {
                             <span>${list.summary.assigned} atanmış</span>
                             <span>${list.duplicate_count} tekrar</span>
                           </div>
-                        </button>
+                          <div class="list-card-actions">
+                            <button class="btn btn-soft mini-button" type="button" data-list-id="${list.id}" data-close-lists-modal="true">
+                              ${list.id === state.selectedListId ? "Seçili" : "Listeyi Aç"}
+                            </button>
+                            ${
+                              state.me?.role === "admin"
+                                ? `<button class="btn ${list.is_active ? "btn-danger" : "btn-primary"} mini-button" type="button" data-list-toggle="${list.id}">
+                                    ${list.is_active ? "Pasife Al" : "Etkinleştir"}
+                                  </button>`
+                                : ""
+                            }
+                          </div>
+                        </div>
                       `,
                     )
                     .join("")
@@ -1989,8 +2003,8 @@ async function handleSaveRecord(recordId) {
   }
 }
 
-async function handleToggleList() {
-  const list = selectedList();
+async function handleToggleList(listId = state.selectedListId) {
+  const list = state.lists.find((item) => item.id === listId);
   if (!list) return;
   try {
     await api(`/api/lists/${list.id}`, {
@@ -2290,6 +2304,12 @@ function bindEvents() {
       state.pagination.offset = 0;
       await refreshOperationalData("list-switch");
       render();
+    });
+  });
+
+  document.querySelectorAll("[data-list-toggle]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      await handleToggleList(node.getAttribute("data-list-toggle"));
     });
   });
 
