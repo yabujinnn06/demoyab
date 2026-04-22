@@ -219,6 +219,114 @@ def test_login_import_assign_and_agent_update(monkeypatch) -> None:
     db_path.unlink(missing_ok=True)
 
 
+def test_processed_records_are_added_to_contact_pool(monkeypatch) -> None:
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+
+    workbook = build_xlsx_bytes(
+        [
+            ["İsim", "Adres", "Telefon", "Website", "Email"],
+            ["Havuz Klinik", "Bayrakli", "05301112233", "https://havuz.example", "info@havuz.example"],
+        ]
+    )
+
+    with TestClient(app) as client:
+        admin_login = client.post(
+            "/api/auth/login",
+            json={"email": "admin@test.local", "password": "Admin12345!"},
+        )
+        admin_token = admin_login.json()["access_token"]
+        agent_id = client.post(
+            "/api/users",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "full_name": "Operator Bir",
+                "email": "operator@test.local",
+                "password": "Operator123!",
+                "role": "agent",
+            },
+        ).json()["id"]
+        imported = client.post(
+            "/api/lists/import",
+            headers={
+                "Authorization": f"Bearer {admin_token}",
+                "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "X-File-Name": "havuz.xlsx",
+                "X-List-Name": "Havuz Test",
+            },
+            content=workbook,
+        )
+        call_list_id = imported.json()["id"]
+        client.post(
+            f"/api/lists/{call_list_id}/assign-evenly",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"user_ids": [agent_id], "mode": "all"},
+        )
+        agent_login = client.post(
+            "/api/auth/login",
+            json={"email": "operator@test.local", "password": "Operator123!"},
+        )
+        agent_token = agent_login.json()["access_token"]
+        records = client.get(
+            f"/api/records?call_list_id={call_list_id}",
+            headers={"Authorization": f"Bearer {agent_token}"},
+        )
+        record_id = records.json()["items"][0]["id"]
+
+        updated = client.patch(
+            f"/api/records/{record_id}",
+            headers={"Authorization": f"Bearer {agent_token}"},
+            json={
+                "call_status": "CALLED",
+                "result_status": "POSITIVE",
+                "note": "Yetkiliye ulasildi",
+            },
+        )
+        assert updated.status_code == 200
+
+        pool = client.get(
+            f"/api/contact-pool?call_list_id={call_list_id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert pool.status_code == 200
+        assert pool.json()["total"] == 1
+        entry = pool.json()["items"][0]
+        assert entry["company_name"] == "Havuz Klinik"
+        assert entry["reach_status"] == "REACHED"
+        assert entry["record_note"] == "Yetkiliye ulasildi"
+
+        operator_pool = client.get(
+            "/api/contact-pool",
+            headers={"Authorization": f"Bearer {agent_token}"},
+        )
+        assert operator_pool.status_code == 403
+
+        edited = client.patch(
+            f"/api/contact-pool/{entry['id']}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"reach_status": "UNREACHED", "admin_note": "Tekrar teyit edilecek", "is_active": True},
+        )
+        assert edited.status_code == 200
+        assert edited.json()["reach_status"] == "UNREACHED"
+        assert edited.json()["admin_note"] == "Tekrar teyit edilecek"
+
+        exported = client.get(
+            "/api/contact-pool/export.csv",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert exported.status_code == 200
+        exported_text = exported.content.decode("utf-8-sig")
+        assert "Havuz Klinik" in exported_text
+        assert "Tekrar teyit edilecek" in exported_text
+
+    db_path.unlink(missing_ok=True)
+
+
 def test_agent_export_only_returns_assigned_rows(monkeypatch) -> None:
     db_path = make_test_db_path()
     monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
@@ -931,13 +1039,17 @@ def test_startup_creates_schema_migration_state(monkeypatch) -> None:
             row[0]
             for row in connection.execute("SELECT version FROM schema_migrations ORDER BY version").fetchall()
         }
-        assert applied_versions == {1, 2, 3}
+        assert applied_versions == {1, 2, 3, 4}
         login_attempts_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'login_attempts'"
         ).fetchone()
         assert login_attempts_table is not None
         token_version_column = connection.execute("PRAGMA table_info(users)").fetchall()
         assert "token_version" in {row[1] for row in token_version_column}
+        contact_pool_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'contact_pool_entries'"
+        ).fetchone()
+        assert contact_pool_table is not None
     finally:
         connection.close()
     db_path.unlink(missing_ok=True)

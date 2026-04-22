@@ -509,6 +509,13 @@ a {
   gap: 8px;
 }
 
+.pool-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 150px 150px auto auto auto auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
 .filter-presence {
   display: flex;
   flex-wrap: wrap;
@@ -674,6 +681,38 @@ a {
   width: 76px;
 }
 
+.pool-table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #ffffff;
+}
+
+.pool-table .pool-company {
+  width: 210px;
+}
+
+.pool-table .pool-contact {
+  width: 170px;
+}
+
+.pool-table .pool-status {
+  width: 150px;
+}
+
+.pool-table .pool-note {
+  width: 250px;
+}
+
+.pool-table .pool-meta {
+  width: 150px;
+}
+
+.pool-table .pool-action {
+  width: 86px;
+}
+
 thead th {
   position: sticky;
   top: 0;
@@ -715,6 +754,18 @@ tbody tr:hover td {
 
 .record-row.negative td:first-child {
   box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.pool-row.reached td:first-child {
+  box-shadow: inset 3px 0 0 var(--success);
+}
+
+.pool-row.unreached td:first-child {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.pool-row.follow_up td:first-child {
+  box-shadow: inset 3px 0 0 var(--warning);
 }
 
 .record-name {
@@ -1079,6 +1130,10 @@ tbody tr:hover td {
   box-shadow: 0 12px 40px rgba(15, 31, 54, 0.28), inset 1px 1px 0 #ffffff, inset -1px -1px 0 #8a9ab0;
 }
 
+.modal-window.wide-modal {
+  width: min(1500px, 100%);
+}
+
 .modal-titlebar {
   display: flex;
   align-items: center;
@@ -1121,6 +1176,10 @@ tbody tr:hover td {
   overflow: auto;
   border: 1px solid var(--line-strong);
   background: #ffffff;
+}
+
+.pool-table-wrap {
+  max-height: min(58vh, 620px);
 }
 
 .user-admin-table {
@@ -1206,7 +1265,8 @@ strong {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .toolbar {
+  .toolbar,
+  .pool-toolbar {
     grid-template-columns: 1fr;
   }
 

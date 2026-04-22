@@ -13,7 +13,10 @@ from .security import get_password_hash
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = BASE_DIR / "data" / "portal.db"
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
+POOL_CALL_STATUSES = {"CALLED", "UNREACHABLE", "CALLBACK", "COMPLETED"}
+REACHED_RESULT_STATUSES = {"POSITIVE", "NEGATIVE", "NOT_INTERESTED"}
+UNREACHED_RESULT_STATUSES = {"NO_ANSWER", "WRONG_NUMBER"}
 
 
 def _migration_001_initial_schema() -> str:
@@ -122,10 +125,44 @@ def _migration_003_user_token_version() -> str:
     """
 
 
+def _migration_004_contact_pool() -> str:
+    return """
+        CREATE TABLE IF NOT EXISTS contact_pool_entries (
+            id TEXT PRIMARY KEY,
+            call_record_id TEXT NOT NULL UNIQUE,
+            call_list_id TEXT NOT NULL,
+            company_name TEXT,
+            address TEXT,
+            phone TEXT,
+            website TEXT,
+            email TEXT,
+            reach_status TEXT NOT NULL CHECK (reach_status IN ('REACHED', 'UNREACHED', 'FOLLOW_UP', 'UNKNOWN')),
+            reach_status_is_manual INTEGER NOT NULL DEFAULT 0,
+            call_status TEXT NOT NULL,
+            result_status TEXT NOT NULL,
+            record_note TEXT,
+            admin_note TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            last_record_updated_at TEXT NOT NULL,
+            updated_by_user_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (call_record_id) REFERENCES call_records(id) ON DELETE CASCADE,
+            FOREIGN KEY (call_list_id) REFERENCES call_lists(id) ON DELETE CASCADE,
+            FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_contact_pool_list ON contact_pool_entries(call_list_id);
+        CREATE INDEX IF NOT EXISTS idx_contact_pool_reach ON contact_pool_entries(reach_status, is_active);
+        CREATE INDEX IF NOT EXISTS idx_contact_pool_updated ON contact_pool_entries(updated_at);
+    """
+
+
 MIGRATIONS: tuple[tuple[int, str, str], ...] = (
     (1, "initial_schema", _migration_001_initial_schema()),
     (2, "login_attempts", _migration_002_login_attempts()),
     (3, "user_token_version", _migration_003_user_token_version()),
+    (4, "contact_pool", _migration_004_contact_pool()),
 )
 
 
@@ -218,10 +255,79 @@ def _ensure_admin_user(connection: sqlite3.Connection) -> None:
     )
 
 
+def _record_belongs_to_pool(call_status: str, result_status: str) -> bool:
+    return call_status in POOL_CALL_STATUSES or result_status != "PENDING"
+
+
+def _derive_reach_status(call_status: str, result_status: str) -> str:
+    if result_status in REACHED_RESULT_STATUSES:
+        return "REACHED"
+    if result_status in UNREACHED_RESULT_STATUSES:
+        return "UNREACHED"
+    if call_status in {"CALLED", "COMPLETED"}:
+        return "REACHED"
+    if call_status == "UNREACHABLE":
+        return "UNREACHED"
+    if call_status == "CALLBACK":
+        return "FOLLOW_UP"
+    return "UNKNOWN"
+
+
+def _backfill_contact_pool_entries(connection: sqlite3.Connection) -> None:
+    table = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'contact_pool_entries'"
+    ).fetchone()
+    if table is None:
+        return
+
+    rows = connection.execute(
+        """
+        SELECT
+            id, call_list_id, company_name, address, phone, website, email,
+            call_status, result_status, note, updated_by_user_id, updated_at
+        FROM call_records
+        WHERE call_status IN ('CALLED', 'UNREACHABLE', 'CALLBACK', 'COMPLETED')
+           OR result_status != 'PENDING'
+        """
+    ).fetchall()
+    now = utcnow()
+    for row in rows:
+        if not _record_belongs_to_pool(row["call_status"], row["result_status"]):
+            continue
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO contact_pool_entries (
+                id, call_record_id, call_list_id, company_name, address, phone, website, email,
+                reach_status, reach_status_is_manual, call_status, result_status, record_note,
+                admin_note, is_active, last_record_updated_at, updated_by_user_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, NULL, 1, ?, ?, ?, ?)
+            """,
+            (
+                str(uuid.uuid4()),
+                row["id"],
+                row["call_list_id"],
+                row["company_name"],
+                row["address"],
+                row["phone"],
+                row["website"],
+                row["email"],
+                _derive_reach_status(row["call_status"], row["result_status"]),
+                row["call_status"],
+                row["result_status"],
+                row["note"],
+                row["updated_at"],
+                row["updated_by_user_id"],
+                now,
+                now,
+            ),
+        )
+
+
 def init_db() -> None:
     with get_connection() as connection:
         _apply_migrations(connection)
         _ensure_admin_user(connection)
+        _backfill_contact_pool_entries(connection)
         connection.commit()
 
 

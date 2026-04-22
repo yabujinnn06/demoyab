@@ -50,6 +50,10 @@ RESULT_STATUS_VALUES = {
     "WRONG_NUMBER",
     "NOT_INTERESTED",
 }
+REACH_STATUS_VALUES = {"REACHED", "UNREACHED", "FOLLOW_UP", "UNKNOWN"}
+POOL_CALL_STATUSES = {"CALLED", "UNREACHABLE", "CALLBACK", "COMPLETED"}
+REACHED_RESULT_STATUSES = {"POSITIVE", "NEGATIVE", "NOT_INTERESTED"}
+UNREACHED_RESULT_STATUSES = {"NO_ANSWER", "WRONG_NUMBER"}
 
 
 def _password_policy_error(password: str) -> str | None:
@@ -118,6 +122,9 @@ VALIDATION_FIELD_LABELS = {
     "call_status": "Arama durumu",
     "result_status": "Sonuç durumu",
     "note": "Not",
+    "reach_status": "Ulaşım durumu",
+    "admin_note": "Havuz notu",
+    "include_inactive": "Pasif havuz kayıtları",
 }
 
 
@@ -270,6 +277,41 @@ class CallRecordPageResponse(BaseModel):
     offset: int
     limit: int
     summary: CallListSummaryRead | None = None
+
+
+class ContactPoolEntryRead(BaseModel):
+    id: str
+    call_record_id: str
+    call_list_id: str
+    call_list_name: str
+    company_name: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    website: str | None = None
+    email: str | None = None
+    reach_status: Literal["REACHED", "UNREACHED", "FOLLOW_UP", "UNKNOWN"]
+    call_status: str
+    result_status: str
+    record_note: str | None = None
+    admin_note: str | None = None
+    assigned_user_name: str | None = None
+    updated_by_user_name: str | None = None
+    is_active: bool
+    last_record_updated_at: str
+    updated_at: str
+
+
+class ContactPoolPageResponse(BaseModel):
+    items: list[ContactPoolEntryRead]
+    total: int
+    offset: int
+    limit: int
+
+
+class ContactPoolUpdateRequest(BaseModel):
+    reach_status: Literal["REACHED", "UNREACHED", "FOLLOW_UP", "UNKNOWN"] | None = None
+    admin_note: str | None = Field(default=None, max_length=4000)
+    is_active: bool | None = None
 
 
 class ActivityRead(BaseModel):
@@ -581,6 +623,193 @@ def _record_row(row: sqlite3.Row) -> CallRecordRead:
         last_contacted_at=row["last_contacted_at"],
         updated_by_user_id=row["updated_by_user_id"],
         updated_by_user_name=row["updated_by_user_name"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _record_belongs_to_pool(call_status: str, result_status: str) -> bool:
+    return call_status in POOL_CALL_STATUSES or result_status != "PENDING"
+
+
+def _derive_reach_status(call_status: str, result_status: str) -> str:
+    if result_status in REACHED_RESULT_STATUSES:
+        return "REACHED"
+    if result_status in UNREACHED_RESULT_STATUSES:
+        return "UNREACHED"
+    if call_status in {"CALLED", "COMPLETED"}:
+        return "REACHED"
+    if call_status == "UNREACHABLE":
+        return "UNREACHED"
+    if call_status == "CALLBACK":
+        return "FOLLOW_UP"
+    return "UNKNOWN"
+
+
+def _validate_reach_status(value: str) -> str:
+    normalized = value.strip().upper()
+    if normalized not in REACH_STATUS_VALUES:
+        raise _api_error(422, "Gecersiz havuz durumu.")
+    return normalized
+
+
+def _sync_contact_pool_entry(
+    connection: sqlite3.Connection,
+    *,
+    record_id: str,
+    updated_by_user_id: str,
+    now: str,
+) -> None:
+    row = connection.execute(
+        """
+        SELECT
+            id, call_list_id, company_name, address, phone, website, email,
+            call_status, result_status, note, updated_at
+        FROM call_records
+        WHERE id = ?
+        """,
+        (record_id,),
+    ).fetchone()
+    if row is None:
+        return
+
+    existing = connection.execute(
+        "SELECT id, reach_status_is_manual FROM contact_pool_entries WHERE call_record_id = ?",
+        (record_id,),
+    ).fetchone()
+
+    if not _record_belongs_to_pool(row["call_status"], row["result_status"]):
+        if existing is not None:
+            connection.execute(
+                """
+                UPDATE contact_pool_entries
+                SET is_active = 0,
+                    call_status = ?,
+                    result_status = ?,
+                    record_note = ?,
+                    last_record_updated_at = ?,
+                    updated_by_user_id = ?,
+                    updated_at = ?
+                WHERE call_record_id = ?
+                """,
+                (
+                    row["call_status"],
+                    row["result_status"],
+                    row["note"],
+                    row["updated_at"],
+                    updated_by_user_id,
+                    now,
+                    record_id,
+                ),
+            )
+        return
+
+    reach_status = _derive_reach_status(row["call_status"], row["result_status"])
+    if existing is None:
+        connection.execute(
+            """
+            INSERT INTO contact_pool_entries (
+                id, call_record_id, call_list_id, company_name, address, phone, website, email,
+                reach_status, reach_status_is_manual, call_status, result_status, record_note,
+                admin_note, is_active, last_record_updated_at, updated_by_user_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, NULL, 1, ?, ?, ?, ?)
+            """,
+            (
+                str(uuid.uuid4()),
+                record_id,
+                row["call_list_id"],
+                row["company_name"],
+                row["address"],
+                row["phone"],
+                row["website"],
+                row["email"],
+                reach_status,
+                row["call_status"],
+                row["result_status"],
+                row["note"],
+                row["updated_at"],
+                updated_by_user_id,
+                now,
+                now,
+            ),
+        )
+        return
+
+    manual_reach_status = bool(existing["reach_status_is_manual"])
+    connection.execute(
+        f"""
+        UPDATE contact_pool_entries
+        SET call_list_id = ?,
+            company_name = ?,
+            address = ?,
+            phone = ?,
+            website = ?,
+            email = ?,
+            {"reach_status = ?," if not manual_reach_status else ""}
+            call_status = ?,
+            result_status = ?,
+            record_note = ?,
+            is_active = 1,
+            last_record_updated_at = ?,
+            updated_by_user_id = ?,
+            updated_at = ?
+        WHERE call_record_id = ?
+        """,
+        tuple(
+            [
+                row["call_list_id"],
+                row["company_name"],
+                row["address"],
+                row["phone"],
+                row["website"],
+                row["email"],
+                *([] if manual_reach_status else [reach_status]),
+                row["call_status"],
+                row["result_status"],
+                row["note"],
+                row["updated_at"],
+                updated_by_user_id,
+                now,
+                record_id,
+            ]
+        ),
+    )
+
+
+def _contact_pool_select_sql() -> str:
+    return """
+        SELECT
+            p.*,
+            l.name AS call_list_name,
+            assigned.full_name AS assigned_user_name,
+            updater.full_name AS updated_by_user_name
+        FROM contact_pool_entries p
+        JOIN call_lists l ON l.id = p.call_list_id
+        LEFT JOIN call_records r ON r.id = p.call_record_id
+        LEFT JOIN users assigned ON assigned.id = r.assigned_user_id
+        LEFT JOIN users updater ON updater.id = p.updated_by_user_id
+    """
+
+
+def _contact_pool_row(row: sqlite3.Row) -> ContactPoolEntryRead:
+    return ContactPoolEntryRead(
+        id=row["id"],
+        call_record_id=row["call_record_id"],
+        call_list_id=row["call_list_id"],
+        call_list_name=row["call_list_name"],
+        company_name=row["company_name"],
+        address=row["address"],
+        phone=row["phone"],
+        website=row["website"],
+        email=row["email"],
+        reach_status=row["reach_status"],
+        call_status=row["call_status"],
+        result_status=row["result_status"],
+        record_note=row["record_note"],
+        admin_note=row["admin_note"],
+        assigned_user_name=row["assigned_user_name"],
+        updated_by_user_name=row["updated_by_user_name"],
+        is_active=bool(row["is_active"]),
+        last_record_updated_at=row["last_record_updated_at"],
         updated_at=row["updated_at"],
     )
 
@@ -1427,9 +1656,215 @@ def update_record(
             next_result_status=next_result_status,
             note=note,
         )
+        _sync_contact_pool_entry(connection, record_id=record_id, updated_by_user_id=user.id, now=now)
         connection.commit()
         updated = _load_record(connection, record_id)
         return _record_row(updated)
+
+
+@app.get("/api/contact-pool", response_model=ContactPoolPageResponse)
+def list_contact_pool(
+    call_list_id: str | None = None,
+    q: str | None = None,
+    reach_status: str | None = None,
+    result_status: str | None = None,
+    include_inactive: bool = False,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+    _admin: AuthUser = Depends(require_admin),
+) -> ContactPoolPageResponse:
+    filters: list[str] = []
+    params: list[Any] = []
+
+    if call_list_id:
+        filters.append("p.call_list_id = ?")
+        params.append(call_list_id)
+    if q:
+        pattern = f"%{q.strip()}%"
+        filters.append(
+            """
+            (
+                p.company_name LIKE ? OR p.phone LIKE ? OR p.address LIKE ? OR
+                p.email LIKE ? OR p.admin_note LIKE ? OR p.record_note LIKE ? OR l.name LIKE ?
+            )
+            """
+        )
+        params.extend([pattern, pattern, pattern, pattern, pattern, pattern, pattern])
+    if reach_status:
+        filters.append("p.reach_status = ?")
+        params.append(_validate_reach_status(reach_status))
+    if result_status:
+        filters.append("p.result_status = ?")
+        params.append(_validate_result_status(result_status))
+    if not include_inactive:
+        filters.append("p.is_active = 1")
+
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+    with get_connection() as connection:
+        total = connection.execute(
+            f"""
+            SELECT COUNT(*) AS total
+            FROM contact_pool_entries p
+            JOIN call_lists l ON l.id = p.call_list_id
+            {where_clause}
+            """,
+            tuple(params),
+        ).fetchone()["total"]
+        rows = connection.execute(
+            f"""
+            {_contact_pool_select_sql()}
+            {where_clause}
+            ORDER BY p.updated_at DESC, p.last_record_updated_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            tuple([*params, limit, offset]),
+        ).fetchall()
+    return ContactPoolPageResponse(
+        items=[_contact_pool_row(row) for row in rows],
+        total=total,
+        offset=offset,
+        limit=limit,
+    )
+
+
+@app.patch("/api/contact-pool/{entry_id}", response_model=ContactPoolEntryRead)
+def update_contact_pool_entry(
+    entry_id: str,
+    payload: ContactPoolUpdateRequest,
+    admin: AuthUser = Depends(require_admin),
+) -> ContactPoolEntryRead:
+    with get_connection() as connection:
+        row = connection.execute("SELECT * FROM contact_pool_entries WHERE id = ?", (entry_id,)).fetchone()
+        if row is None:
+            raise _api_error(404, "Havuz kaydi bulunamadi.")
+
+        reach_status = row["reach_status"]
+        reach_status_is_manual = int(row["reach_status_is_manual"] or 0)
+        if payload.reach_status is not None:
+            reach_status = _validate_reach_status(payload.reach_status)
+            reach_status_is_manual = 1
+
+        admin_note = row["admin_note"]
+        if isinstance(payload.admin_note, str):
+            admin_note = payload.admin_note.strip() or None
+
+        is_active = int(payload.is_active if payload.is_active is not None else bool(row["is_active"]))
+        now = utcnow()
+        connection.execute(
+            """
+            UPDATE contact_pool_entries
+            SET reach_status = ?,
+                reach_status_is_manual = ?,
+                admin_note = ?,
+                is_active = ?,
+                updated_by_user_id = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (reach_status, reach_status_is_manual, admin_note, is_active, admin.id, now, entry_id),
+        )
+        connection.commit()
+        updated = connection.execute(
+            f"{_contact_pool_select_sql()} WHERE p.id = ?",
+            (entry_id,),
+        ).fetchone()
+        assert updated is not None
+        return _contact_pool_row(updated)
+
+
+@app.get("/api/contact-pool/export.csv")
+def export_contact_pool(
+    call_list_id: str | None = None,
+    q: str | None = None,
+    reach_status: str | None = None,
+    result_status: str | None = None,
+    include_inactive: bool = False,
+    _admin: AuthUser = Depends(require_admin),
+) -> StreamingResponse:
+    filters: list[str] = []
+    params: list[Any] = []
+
+    if call_list_id:
+        filters.append("p.call_list_id = ?")
+        params.append(call_list_id)
+    if q:
+        pattern = f"%{q.strip()}%"
+        filters.append(
+            """
+            (
+                p.company_name LIKE ? OR p.phone LIKE ? OR p.address LIKE ? OR
+                p.email LIKE ? OR p.admin_note LIKE ? OR p.record_note LIKE ? OR l.name LIKE ?
+            )
+            """
+        )
+        params.extend([pattern, pattern, pattern, pattern, pattern, pattern, pattern])
+    if reach_status:
+        filters.append("p.reach_status = ?")
+        params.append(_validate_reach_status(reach_status))
+    if result_status:
+        filters.append("p.result_status = ?")
+        params.append(_validate_result_status(result_status))
+    if not include_inactive:
+        filters.append("p.is_active = 1")
+
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            {_contact_pool_select_sql()}
+            {where_clause}
+            ORDER BY p.updated_at DESC, p.last_record_updated_at DESC
+            """,
+            tuple(params),
+        ).fetchall()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "Liste",
+            "Firma",
+            "Adres",
+            "Telefon",
+            "Website",
+            "Email",
+            "Ulasim Durumu",
+            "Arama Durumu",
+            "Sonuc",
+            "Operator",
+            "Kayit Notu",
+            "Havuz Notu",
+            "Aktif",
+            "Son Kayit Guncelleme",
+            "Havuz Guncelleme",
+        ]
+    )
+    for row in rows:
+        writer.writerow(
+            [
+                _csv_cell(value)
+                for value in [
+                    row["call_list_name"],
+                    row["company_name"],
+                    row["address"],
+                    row["phone"],
+                    row["website"],
+                    row["email"],
+                    row["reach_status"],
+                    row["call_status"],
+                    row["result_status"],
+                    row["assigned_user_name"],
+                    row["record_note"],
+                    row["admin_note"],
+                    "aktif" if row["is_active"] else "pasif",
+                    row["last_record_updated_at"],
+                    row["updated_at"],
+                ]
+            ]
+        )
+    payload = io.BytesIO(buffer.getvalue().encode("utf-8-sig"))
+    headers = {"Content-Disposition": 'attachment; filename="islem-havuzu.csv"'}
+    return StreamingResponse(payload, media_type="text/csv; charset=utf-8", headers=headers)
 
 
 @app.get("/api/lists/{call_list_id}/export.csv")

@@ -12,6 +12,7 @@ Bu klasör, mevcut projelerden bağımsız kurulan Rainwater odaklı canlı aram
 - `.xlsx` içe aktarma
 - kayıtları operatörlere dağıtma
 - canlı durum, sonuç ve not güncelleme
+- işlem yapılmış şirketleri ulaşıldı / ulaşılamadı havuzunda toplama
 - CSV dışa aktarma
 - ekip ve liste yönetimi popup pencereleri
 - filtreli kayıt görünümü ve sayfalama

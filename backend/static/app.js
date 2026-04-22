@@ -26,6 +26,14 @@ const RESULT_STATUS_OPTIONS = [
   ["NOT_INTERESTED", "İlgilenmiyor"],
 ];
 
+const REACH_STATUS_OPTIONS = [
+  ["", "Tüm ulaşım durumları"],
+  ["REACHED", "Ulaşıldı"],
+  ["UNREACHED", "Ulaşılamadı"],
+  ["FOLLOW_UP", "Tekrar takip"],
+  ["UNKNOWN", "Belirsiz"],
+];
+
 const DEFAULT_FILTERS = {
   q: "",
   call_status: "",
@@ -37,11 +45,20 @@ const DEFAULT_FILTERS = {
   has_website: false,
 };
 
+const DEFAULT_CONTACT_POOL_FILTERS = {
+  q: "",
+  reach_status: "",
+  result_status: "",
+  active_only: true,
+  current_list_only: false,
+};
+
 const state = {
   token: persistedToken,
   me: null,
   lists: [],
   records: [],
+  contactPool: [],
   filteredSummary: null,
   users: [],
   activity: [],
@@ -58,10 +75,18 @@ const state = {
   pollingHandle: null,
   teamModalOpen: false,
   listsModalOpen: false,
+  contactPoolModalOpen: false,
   filters: { ...DEFAULT_FILTERS },
+  contactPoolFilters: { ...DEFAULT_CONTACT_POOL_FILTERS },
   assignStrategy: "equal",
   assignMode: "unassigned",
   assignDrafts: {},
+  contactPoolDrafts: {},
+  contactPoolPagination: {
+    offset: 0,
+    limit: 100,
+    total: 0,
+  },
   lastSyncAt: null,
   lastSyncSource: "",
   liveRefreshCount: 0,
@@ -75,6 +100,7 @@ function resetSessionState(message = "") {
   state.me = null;
   state.lists = [];
   state.records = [];
+  state.contactPool = [];
   state.filteredSummary = null;
   state.users = [];
   state.activity = [];
@@ -84,14 +110,19 @@ function resetSessionState(message = "") {
   state.recordDrafts = {};
   state.teamModalOpen = false;
   state.listsModalOpen = false;
+  state.contactPoolModalOpen = false;
   state.assignStrategy = "equal";
   state.assignMode = "unassigned";
   state.assignDrafts = {};
+  state.contactPoolDrafts = {};
+  state.contactPoolFilters = { ...DEFAULT_CONTACT_POOL_FILTERS };
   state.lastSyncAt = null;
   state.lastSyncSource = "";
   state.liveRefreshCount = 0;
   state.pagination.offset = 0;
   state.pagination.total = 0;
+  state.contactPoolPagination.offset = 0;
+  state.contactPoolPagination.total = 0;
   sessionStorage.removeItem("callPortalToken");
   localStorage.removeItem("callPortalToken");
   if (message) {
@@ -116,6 +147,10 @@ function roleLabel(role) {
   if (role === "admin") return "Yönetici";
   if (role === "agent") return "Operatör";
   return role || "-";
+}
+
+function reachStatusLabel(status) {
+  return REACH_STATUS_OPTIONS.find(([value]) => value === status)?.[1] || status || "-";
 }
 
 function setFlash(type, text) {
@@ -354,7 +389,11 @@ function markSync(source) {
 }
 
 async function refreshOperationalData(source = "manual") {
-  await Promise.all([loadLists(), loadRecords(), loadActivity()]);
+  const tasks = [loadLists(), loadRecords(), loadActivity()];
+  if (state.contactPoolModalOpen) {
+    tasks.push(loadContactPool());
+  }
+  await Promise.all(tasks);
   markSync(source);
 }
 
@@ -391,11 +430,18 @@ function hasLocalInteraction() {
   const active = document.activeElement;
   if (state.uploadFile) return true;
   if (Object.keys(state.recordDrafts).length > 0) return true;
-  return Boolean(active?.closest("#upload-form, #user-form, #assign-form, #team-modal, .records-table, #login-form"));
+  if (Object.keys(state.contactPoolDrafts).length > 0) return true;
+  return Boolean(
+    active?.closest("#upload-form, #user-form, #assign-form, #team-modal, #contact-pool-modal, .records-table, #login-form"),
+  );
 }
 
 function recordDraft(record) {
   return { ...record, ...(state.recordDrafts[record.id] || {}) };
+}
+
+function contactPoolDraft(entry) {
+  return { ...entry, ...(state.contactPoolDrafts[entry.id] || {}) };
 }
 
 async function loadSession() {
@@ -434,6 +480,37 @@ async function loadActivity() {
   if (state.selectedListId) params.set("call_list_id", state.selectedListId);
   params.set("limit", "25");
   state.activity = await api(`/api/activity?${params.toString()}`);
+}
+
+async function loadContactPool() {
+  if (state.me?.role !== "admin") {
+    state.contactPool = [];
+    state.contactPoolPagination.total = 0;
+    return;
+  }
+  const params = new URLSearchParams();
+  if (state.contactPoolFilters.current_list_only && state.selectedListId) {
+    params.set("call_list_id", state.selectedListId);
+  }
+  if (state.contactPoolFilters.q.trim()) params.set("q", state.contactPoolFilters.q.trim());
+  if (state.contactPoolFilters.reach_status) params.set("reach_status", state.contactPoolFilters.reach_status);
+  if (state.contactPoolFilters.result_status) params.set("result_status", state.contactPoolFilters.result_status);
+  if (!state.contactPoolFilters.active_only) params.set("include_inactive", "true");
+  params.set("offset", String(state.contactPoolPagination.offset));
+  params.set("limit", String(state.contactPoolPagination.limit));
+
+  let response = await api(`/api/contact-pool?${params.toString()}`);
+  if (response.total > 0 && state.contactPoolPagination.offset >= response.total) {
+    state.contactPoolPagination.offset = Math.max(
+      0,
+      Math.floor((response.total - 1) / state.contactPoolPagination.limit) * state.contactPoolPagination.limit,
+    );
+    params.set("offset", String(state.contactPoolPagination.offset));
+    response = await api(`/api/contact-pool?${params.toString()}`);
+  }
+
+  state.contactPool = response.items;
+  state.contactPoolPagination.total = response.total;
 }
 
 async function loadLists() {
@@ -539,6 +616,14 @@ function totalPages() {
 
 function currentPage() {
   return Math.floor(state.pagination.offset / state.pagination.limit) + 1;
+}
+
+function contactPoolTotalPages() {
+  return Math.max(1, Math.ceil(state.contactPoolPagination.total / state.contactPoolPagination.limit));
+}
+
+function contactPoolCurrentPage() {
+  return Math.floor(state.contactPoolPagination.offset / state.contactPoolPagination.limit) + 1;
 }
 
 function loginConsoleMarkup() {
@@ -811,6 +896,171 @@ function listsModalMarkup() {
                     )
                     .join("")
                 : `<p class="empty">Henüz liste yok.</p>`}
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function contactPoolSectionMarkup() {
+  if (state.me?.role !== "admin") return "";
+  return `
+    <section class="sidebar-section panel window-shell" data-window-title="İşlem Havuzu">
+      <div class="panel-head">
+        <div>
+          <h2>İşlem Havuzu</h2>
+          <p>Görüşülen, olumlu, olumsuz ve ulaşılamayan şirketleri ayrı havuzda tut.</p>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="mini-meta">
+          <span>${state.contactPoolPagination.total || 0} havuz kaydı</span>
+          <span>ulaşıldı / ulaşılamadı</span>
+        </div>
+        <button class="btn btn-primary" type="button" id="open-contact-pool-modal">Havuz Penceresini Aç</button>
+      </div>
+    </section>
+  `;
+}
+
+function contactPoolModalMarkup() {
+  if (state.me?.role !== "admin" || !state.contactPoolModalOpen) return "";
+  return `
+    <div class="modal-backdrop" id="contact-pool-modal-backdrop">
+      <section class="modal-window wide-modal" id="contact-pool-modal" role="dialog" aria-modal="true" aria-labelledby="contact-pool-modal-title">
+        <header class="modal-titlebar">
+          <strong id="contact-pool-modal-title">İşlem Havuzu</strong>
+          <button class="window-close" type="button" id="close-contact-pool-modal" aria-label="Kapat">X</button>
+        </header>
+        <div class="modal-body single-column">
+          <section class="panel stack modal-panel">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Ulaşıldı / Ulaşılamadı</p>
+                <h2>Şirket Havuzu</h2>
+                <p>İşlem yapılmış şirketleri filtrele, havuz notu gir ve CSV çıktı al.</p>
+              </div>
+              <div class="mini-meta action-meta">
+                <button class="btn btn-soft" type="button" id="contact-pool-export">CSV İndir</button>
+              </div>
+            </div>
+            <div class="pool-toolbar">
+              <input class="field" id="contact-pool-q" value="${escapeHtml(state.contactPoolFilters.q)}" placeholder="Firma, telefon, email, adres veya not ara" />
+              <select class="select" id="contact-pool-reach">
+                ${REACH_STATUS_OPTIONS.map(
+                  ([value, label]) => `<option value="${value}" ${state.contactPoolFilters.reach_status === value ? "selected" : ""}>${label}</option>`,
+                ).join("")}
+              </select>
+              <select class="select" id="contact-pool-result">
+                ${[["", "Tüm sonuç durumları"], ...RESULT_STATUS_OPTIONS]
+                  .map(
+                    ([value, label]) => `<option value="${value}" ${state.contactPoolFilters.result_status === value ? "selected" : ""}>${label}</option>`,
+                  )
+                  .join("")}
+              </select>
+              <label class="check-item compact pool-check">
+                <input type="checkbox" id="contact-pool-current-list" ${state.contactPoolFilters.current_list_only ? "checked" : ""} />
+                <span>Seçili liste</span>
+              </label>
+              <label class="check-item compact pool-check">
+                <input type="checkbox" id="contact-pool-active-only" ${state.contactPoolFilters.active_only ? "checked" : ""} />
+                <span>Sadece aktif</span>
+              </label>
+              <button class="btn btn-primary" type="button" id="contact-pool-apply">Uygula</button>
+              <button class="btn btn-soft" type="button" id="contact-pool-reset">Temizle</button>
+            </div>
+            <div class="user-admin-table-wrap pool-table-wrap">
+              <table class="pool-table">
+                <colgroup>
+                  <col class="pool-company" />
+                  <col class="pool-contact" />
+                  <col class="pool-status" />
+                  <col class="pool-note" />
+                  <col class="pool-meta" />
+                  <col class="pool-action" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Şirket</th>
+                    <th>İletişim</th>
+                    <th>Havuz Durumu</th>
+                    <th>Not</th>
+                    <th>Kaynak</th>
+                    <th>İşlem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${state.contactPool.length
+                    ? state.contactPool
+                        .map((entry) => {
+                          const current = contactPoolDraft(entry);
+                          return `
+                            <tr class="pool-row ${current.reach_status?.toLowerCase() || "unknown"}">
+                              <td>
+                                <div class="record-name">${escapeHtml(current.company_name || "-")}</div>
+                                <div class="record-address">${escapeHtml(current.address || "-")}</div>
+                                <div class="record-meta">${escapeHtml(current.call_list_name || "-")}</div>
+                              </td>
+                              <td>
+                                <div class="table-cell-text">${escapeHtml(current.phone || "-")}</div>
+                                <div class="record-meta">${escapeHtml(current.email || "-")}</div>
+                                <div class="record-meta">${escapeHtml(current.website || "-")}</div>
+                              </td>
+                              <td>
+                                <select class="select table-select" data-pool-reach="${entry.id}">
+                                  ${REACH_STATUS_OPTIONS.filter(([value]) => value)
+                                    .map(
+                                      ([value, label]) =>
+                                        `<option value="${value}" ${current.reach_status === value ? "selected" : ""}>${label}</option>`,
+                                    )
+                                    .join("")}
+                                </select>
+                                <div class="record-meta">${escapeHtml(current.call_status)} / ${escapeHtml(current.result_status)}</div>
+                                <label class="inline-check pool-active-check">
+                                  <input type="checkbox" data-pool-active="${entry.id}" ${current.is_active ? "checked" : ""} />
+                                  <span>${current.is_active ? "Aktif" : "Pasif"}</span>
+                                </label>
+                              </td>
+                              <td>
+                                <textarea class="textarea table-note" data-pool-note="${entry.id}" rows="4">${escapeHtml(current.admin_note || "")}</textarea>
+                                ${current.record_note ? `<div class="record-meta">Kayıt: ${escapeHtml(current.record_note)}</div>` : ""}
+                              </td>
+                              <td>
+                                <div class="record-meta">Operatör: ${escapeHtml(current.assigned_user_name || "-")}</div>
+                                <div class="record-meta">Güncelleyen: ${escapeHtml(current.updated_by_user_name || "-")}</div>
+                                <div class="record-meta">${escapeHtml(formatDate(current.last_record_updated_at))}</div>
+                              </td>
+                              <td>
+                                <button class="btn btn-soft table-action" type="button" data-pool-save="${entry.id}">Kaydet</button>
+                              </td>
+                            </tr>
+                          `;
+                        })
+                        .join("")
+                    : `<tr><td colspan="6"><p class="empty">Havuzda kayıt yok. Bir kaydı arandı, olumlu, olumsuz veya ulaşılamadı yapınca buraya düşer.</p></td></tr>`}
+                </tbody>
+              </table>
+            </div>
+            <div class="table-pager">
+              <div class="table-pager-status">
+                ${state.contactPoolPagination.total
+                  ? `${state.contactPoolPagination.offset + 1}-${Math.min(
+                      state.contactPoolPagination.offset + state.contactPoolPagination.limit,
+                      state.contactPoolPagination.total,
+                    )} / ${state.contactPoolPagination.total} havuz kaydı`
+                  : "0 havuz kaydı"}
+                <span>Sayfa ${contactPoolCurrentPage()} / ${contactPoolTotalPages()}</span>
+              </div>
+              <div class="table-pager-actions">
+                <button class="btn btn-soft" type="button" id="contact-pool-page-prev" ${
+                  state.contactPoolPagination.offset <= 0 ? "disabled" : ""
+                }>Önceki Sayfa</button>
+                <button class="btn btn-soft" type="button" id="contact-pool-page-next" ${
+                  contactPoolCurrentPage() >= contactPoolTotalPages() ? "disabled" : ""
+                }>Sonraki Sayfa</button>
+              </div>
             </div>
           </section>
         </div>
@@ -1191,6 +1441,7 @@ function appMarkup() {
         ${uploadSectionMarkup()}
         ${usersSectionMarkup()}
         ${listsSectionMarkup()}
+        ${contactPoolSectionMarkup()}
       </aside>
 
       <main class="main">
@@ -1218,6 +1469,7 @@ function appMarkup() {
       </main>
       ${teamModalMarkup()}
       ${listsModalMarkup()}
+      ${contactPoolModalMarkup()}
     </div>
   `;
 }
@@ -1309,6 +1561,23 @@ function openListsModal() {
 
 function closeListsModal() {
   state.listsModalOpen = false;
+  render();
+}
+
+async function openContactPoolModal() {
+  state.contactPoolModalOpen = true;
+  state.contactPoolPagination.offset = 0;
+  try {
+    await loadContactPool();
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+  render();
+}
+
+function closeContactPoolModal() {
+  state.contactPoolModalOpen = false;
+  state.contactPoolDrafts = {};
   render();
 }
 
@@ -1521,6 +1790,90 @@ async function handleExport() {
   }
 }
 
+function contactPoolQueryParams(includePaging = true) {
+  const params = new URLSearchParams();
+  if (state.contactPoolFilters.current_list_only && state.selectedListId) {
+    params.set("call_list_id", state.selectedListId);
+  }
+  if (state.contactPoolFilters.q.trim()) params.set("q", state.contactPoolFilters.q.trim());
+  if (state.contactPoolFilters.reach_status) params.set("reach_status", state.contactPoolFilters.reach_status);
+  if (state.contactPoolFilters.result_status) params.set("result_status", state.contactPoolFilters.result_status);
+  if (!state.contactPoolFilters.active_only) params.set("include_inactive", "true");
+  if (includePaging) {
+    params.set("offset", String(state.contactPoolPagination.offset));
+    params.set("limit", String(state.contactPoolPagination.limit));
+  }
+  return params;
+}
+
+async function applyContactPoolFilters() {
+  state.contactPoolFilters.q = document.querySelector("#contact-pool-q")?.value ?? "";
+  state.contactPoolFilters.reach_status = document.querySelector("#contact-pool-reach")?.value ?? "";
+  state.contactPoolFilters.result_status = document.querySelector("#contact-pool-result")?.value ?? "";
+  state.contactPoolFilters.current_list_only = Boolean(document.querySelector("#contact-pool-current-list")?.checked);
+  state.contactPoolFilters.active_only = Boolean(document.querySelector("#contact-pool-active-only")?.checked);
+  state.contactPoolPagination.offset = 0;
+  try {
+    await loadContactPool();
+    render();
+    setFlash("success", `Havuz filtresi uygulandı: ${state.contactPoolPagination.total} kayıt.`);
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function resetContactPoolFilters() {
+  state.contactPoolFilters = { ...DEFAULT_CONTACT_POOL_FILTERS };
+  state.contactPoolPagination.offset = 0;
+  try {
+    await loadContactPool();
+    render();
+    setFlash("success", "Havuz filtresi temizlendi.");
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function handleContactPoolSave(entryId) {
+  const draft = state.contactPoolDrafts[entryId] || {};
+  const reachField = document.querySelector(`[data-pool-reach='${entryId}']`);
+  const noteField = document.querySelector(`[data-pool-note='${entryId}']`);
+  const activeField = document.querySelector(`[data-pool-active='${entryId}']`);
+  try {
+    await api(`/api/contact-pool/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reach_status: draft.reach_status ?? reachField?.value,
+        admin_note: draft.admin_note ?? noteField?.value ?? "",
+        is_active: draft.is_active ?? Boolean(activeField?.checked),
+      }),
+    });
+    delete state.contactPoolDrafts[entryId];
+    await loadContactPool();
+    render();
+    setFlash("success", "Havuz kaydı güncellendi.");
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function handleContactPoolExport() {
+  try {
+    const blob = await api(`/api/contact-pool/export.csv?${contactPoolQueryParams(false).toString()}`);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "islem-havuzu.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
 async function applyFilters() {
   state.filters.q = document.querySelector("#filter-q")?.value ?? "";
   state.filters.call_status = document.querySelector("#filter-call-status")?.value ?? "";
@@ -1559,6 +1912,13 @@ function updateDraft(recordId, patch) {
   };
 }
 
+function updateContactPoolDraft(entryId, patch) {
+  state.contactPoolDrafts[entryId] = {
+    ...(state.contactPoolDrafts[entryId] || {}),
+    ...patch,
+  };
+}
+
 function bindEvents() {
   document.querySelector("#login-form")?.addEventListener("submit", handleLogin);
   document.querySelector("#logout-button")?.addEventListener("click", logout);
@@ -1567,6 +1927,8 @@ function bindEvents() {
   document.querySelector("#close-team-modal")?.addEventListener("click", closeTeamModal);
   document.querySelector("#open-lists-modal")?.addEventListener("click", openListsModal);
   document.querySelector("#close-lists-modal")?.addEventListener("click", closeListsModal);
+  document.querySelector("#open-contact-pool-modal")?.addEventListener("click", openContactPoolModal);
+  document.querySelector("#close-contact-pool-modal")?.addEventListener("click", closeContactPoolModal);
   document.querySelector("#team-modal-backdrop")?.addEventListener("click", (event) => {
     if (event.target.id === "team-modal-backdrop") {
       closeTeamModal();
@@ -1575,6 +1937,11 @@ function bindEvents() {
   document.querySelector("#lists-modal-backdrop")?.addEventListener("click", (event) => {
     if (event.target.id === "lists-modal-backdrop") {
       closeListsModal();
+    }
+  });
+  document.querySelector("#contact-pool-modal-backdrop")?.addEventListener("click", (event) => {
+    if (event.target.id === "contact-pool-modal-backdrop") {
+      closeContactPoolModal();
     }
   });
   document.querySelector("#upload-form")?.addEventListener("submit", handleUpload);
@@ -1625,6 +1992,19 @@ function bindEvents() {
   document.querySelector("#export-button")?.addEventListener("click", handleExport);
   document.querySelector("#filters-apply")?.addEventListener("click", applyFilters);
   document.querySelector("#filters-reset")?.addEventListener("click", resetFilters);
+  document.querySelector("#contact-pool-apply")?.addEventListener("click", applyContactPoolFilters);
+  document.querySelector("#contact-pool-reset")?.addEventListener("click", resetContactPoolFilters);
+  document.querySelector("#contact-pool-export")?.addEventListener("click", handleContactPoolExport);
+  document.querySelector("#contact-pool-q")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applyContactPoolFilters();
+    }
+  });
+  document.querySelector("#contact-pool-reach")?.addEventListener("change", applyContactPoolFilters);
+  document.querySelector("#contact-pool-result")?.addEventListener("change", applyContactPoolFilters);
+  document.querySelector("#contact-pool-current-list")?.addEventListener("change", applyContactPoolFilters);
+  document.querySelector("#contact-pool-active-only")?.addEventListener("change", applyContactPoolFilters);
   document.querySelector("#filter-call-status")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-result-status")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-unassigned")?.addEventListener("change", applyFilters);
@@ -1649,6 +2029,17 @@ function bindEvents() {
     await loadRecords();
     render();
   });
+  document.querySelector("#contact-pool-page-prev")?.addEventListener("click", async () => {
+    state.contactPoolPagination.offset = Math.max(0, state.contactPoolPagination.offset - state.contactPoolPagination.limit);
+    await loadContactPool();
+    render();
+  });
+  document.querySelector("#contact-pool-page-next")?.addEventListener("click", async () => {
+    if (contactPoolCurrentPage() >= contactPoolTotalPages()) return;
+    state.contactPoolPagination.offset += state.contactPoolPagination.limit;
+    await loadContactPool();
+    render();
+  });
 
   document.querySelectorAll("[data-list-id]").forEach((node) => {
     node.addEventListener("click", async () => {
@@ -1664,6 +2055,10 @@ function bindEvents() {
 
   document.querySelectorAll("[data-save-record]").forEach((node) => {
     node.addEventListener("click", () => handleSaveRecord(node.getAttribute("data-save-record")));
+  });
+
+  document.querySelectorAll("[data-pool-save]").forEach((node) => {
+    node.addEventListener("click", () => handleContactPoolSave(node.getAttribute("data-pool-save")));
   });
 
   document.querySelectorAll("[data-user-save]").forEach((node) => {
@@ -1702,6 +2097,30 @@ function bindEvents() {
     node.addEventListener("input", (event) => {
       updateDraft(event.currentTarget.getAttribute("data-record-note"), {
         note: event.currentTarget.value,
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-pool-reach]").forEach((node) => {
+    node.addEventListener("change", (event) => {
+      updateContactPoolDraft(event.currentTarget.getAttribute("data-pool-reach"), {
+        reach_status: event.currentTarget.value,
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-pool-active]").forEach((node) => {
+    node.addEventListener("change", (event) => {
+      updateContactPoolDraft(event.currentTarget.getAttribute("data-pool-active"), {
+        is_active: Boolean(event.currentTarget.checked),
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-pool-note]").forEach((node) => {
+    node.addEventListener("input", (event) => {
+      updateContactPoolDraft(event.currentTarget.getAttribute("data-pool-note"), {
+        admin_note: event.currentTarget.value,
       });
     });
   });
