@@ -1141,7 +1141,7 @@ tbody tr:hover td {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 3px 7px 4px;
   border-top: 1px solid #fcfcfc;
   border-left: 1px solid #fcfcfc;
@@ -1151,10 +1151,6 @@ tbody tr:hover td {
   color: #4f5c67;
   font: 700 10px/1.2 var(--font);
   text-transform: none;
-}
-
-.login-console-statusline span:last-child {
-  margin-left: auto;
 }
 
 .login-console-shell,
@@ -1456,10 +1452,6 @@ strong {
   .login-console-statusline {
     gap: 4px 10px;
     justify-content: flex-start;
-  }
-
-  .login-console-statusline span:last-child {
-    margin-left: 0;
   }
 
   .assign-mode-grid,

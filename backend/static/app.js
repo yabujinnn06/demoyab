@@ -767,8 +767,6 @@ function loginConsoleMarkup() {
         <div class="login-console-scanlines"></div>
         <div class="login-console-statusline">
           <span>C:\\WINDOWS\\system32</span>
-          <span>Windows XP Professional</span>
-          <span>YABUJIN-OPS</span>
         </div>
         <div class="login-console-shell">
           <div class="login-console-stream">
