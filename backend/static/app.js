@@ -129,6 +129,40 @@ function setFlash(type, text) {
   }, 2600);
 }
 
+function formString(form, key) {
+  return String(form.get(key) ?? "").trim();
+}
+
+function formatApiDetail(detail) {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        const message = item?.msg || item?.message || "Geçersiz değer.";
+        const location = Array.isArray(item?.loc)
+          ? item.loc.filter((part) => part !== "body").join(".")
+          : "";
+        return location ? `${location}: ${message}` : message;
+      })
+      .join(" ");
+  }
+  if (typeof detail === "object") {
+    return detail.message || JSON.stringify(detail);
+  }
+  return String(detail);
+}
+
+function passwordPolicyError(password) {
+  if (password.length < 10) return "Şifre en az 10 karakter olmalı.";
+  if (!/[a-zçğıöşü]/.test(password)) return "Şifre en az bir küçük harf içermeli.";
+  if (!/[A-ZÇĞİÖŞÜ]/.test(password)) return "Şifre en az bir büyük harf içermeli.";
+  if (!/\d/.test(password)) return "Şifre en az bir rakam içermeli.";
+  if (!/[^\p{L}\p{N}]/u.test(password)) return "Şifre en az bir sembol içermeli.";
+  return "";
+}
+
 function formatDate(value) {
   if (!value) return "-";
   const date = new Date(value);
@@ -164,7 +198,7 @@ async function api(path, options = {}) {
     let detail = "İstek başarısız.";
     try {
       const data = await response.json();
-      detail = data.detail ?? detail;
+      detail = formatApiDetail(data.detail) || detail;
     } catch {
       // noop
     }
@@ -641,12 +675,13 @@ function teamModalMarkup() {
             </div>
             <form id="user-form" class="stack">
               <input class="field" name="full_name" placeholder="Adı / takma adı" required />
-              <input class="field" name="email" placeholder="Email" required />
-              <input class="field" name="password" placeholder="Geçici şifre" required />
+              <input class="field" type="email" name="email" placeholder="Email" required />
+              <input class="field" type="password" name="password" placeholder="Geçici şifre: Operator123!" required />
               <select class="select" name="role">
                 <option value="agent">Operatör</option>
                 <option value="admin">Yönetici</option>
               </select>
+              <p class="file-note">Şifre en az 10 karakter, büyük/küçük harf, rakam ve sembol içermeli.</p>
               <button class="btn btn-primary" type="submit">Kullanıcı Ekle</button>
             </form>
           </section>
@@ -1200,8 +1235,8 @@ async function handleLogin(event) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: form.get("email"),
-        password: form.get("password"),
+        email: formString(form, "email"),
+        password: formString(form, "password"),
       }),
     });
     state.token = response.access_token;
@@ -1217,15 +1252,34 @@ async function handleLogin(event) {
 async function handleUserCreate(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
+  const fullName = formString(form, "full_name");
+  const email = formString(form, "email").toLowerCase();
+  const password = formString(form, "password");
+  const role = formString(form, "role") || "agent";
+
+  if (fullName.length < 2) {
+    setFlash("error", "Ad / takma ad en az 2 karakter olmalı.");
+    return;
+  }
+  if (!email.includes("@")) {
+    setFlash("error", "Geçerli bir email gir.");
+    return;
+  }
+  const passwordError = passwordPolicyError(password);
+  if (passwordError) {
+    setFlash("error", passwordError);
+    return;
+  }
+
   try {
     await api("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        full_name: form.get("full_name"),
-        email: form.get("email"),
-        password: form.get("password"),
-        role: form.get("role"),
+        full_name: fullName,
+        email,
+        password,
+        role,
       }),
     });
     event.currentTarget.reset();
@@ -1266,6 +1320,11 @@ async function handleUserUpdate(userId) {
 
   if (!fullName) {
     setFlash("error", "Kullanıcı adı boş bırakılamaz.");
+    return;
+  }
+  const passwordError = password ? passwordPolicyError(password) : "";
+  if (passwordError) {
+    setFlash("error", passwordError);
     return;
   }
 

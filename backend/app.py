@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.concurrency import run_in_threadpool
@@ -102,6 +103,61 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-File-Name", "X-List-Name"],
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+VALIDATION_FIELD_LABELS = {
+    "email": "Email",
+    "password": "Şifre",
+    "full_name": "Ad / takma ad",
+    "role": "Rol",
+    "is_active": "Aktiflik",
+    "user_ids": "Kullanıcı seçimi",
+    "allocations": "Özel dağıtım",
+    "count": "Kayıt sayısı",
+    "name": "Liste adı",
+    "call_status": "Arama durumu",
+    "result_status": "Sonuç durumu",
+    "note": "Not",
+}
+
+
+def _validation_error_message(error: dict[str, Any]) -> str:
+    location = [str(item) for item in error.get("loc", []) if item not in {"body", "query", "path"}]
+    field_name = location[-1] if location else ""
+    label = VALIDATION_FIELD_LABELS.get(field_name, field_name or "Alan")
+    error_type = str(error.get("type", ""))
+    context = error.get("ctx") or {}
+    message = str(error.get("msg", "Geçersiz değer."))
+
+    if message.startswith("Value error, "):
+        message = message.removeprefix("Value error, ")
+    elif error_type == "missing":
+        message = "zorunlu."
+    elif error_type == "string_too_short":
+        message = f"en az {context.get('min_length', 1)} karakter olmalı."
+    elif error_type == "string_too_long":
+        message = f"en fazla {context.get('max_length', 255)} karakter olmalı."
+    elif error_type == "literal_error":
+        expected = context.get("expected")
+        message = f"geçersiz seçim. Beklenen: {expected}."
+    elif error_type in {"int_parsing", "int_type"}:
+        message = "sayı olmalı."
+    elif error_type == "greater_than_equal":
+        message = f"en az {context.get('ge', 0)} olmalı."
+
+    return f"{label}: {message}"
+
+
+def _validation_error_detail(errors: list[dict[str, Any]]) -> str:
+    return " ".join(_validation_error_message(error) for error in errors)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={"detail": _validation_error_detail(exc.errors())},
+    )
 
 
 class LoginRequest(BaseModel):
@@ -697,6 +753,11 @@ async def apply_security_headers(request: Request, call_next):
 @app.get("/")
 def root() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/favicon.ico")
+def favicon() -> FileResponse:
+    return FileResponse(STATIC_DIR / "yabujin-mark.svg", media_type="image/svg+xml")
 
 
 @app.get("/health")

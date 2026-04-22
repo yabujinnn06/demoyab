@@ -801,6 +801,54 @@ def test_csv_export_escapes_formula_values(monkeypatch) -> None:
     db_path.unlink(missing_ok=True)
 
 
+def test_user_create_validation_returns_readable_detail(monkeypatch) -> None:
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+
+    with TestClient(app) as client:
+        admin_login = client.post(
+            "/api/auth/login",
+            json={"email": "admin@test.local", "password": "Admin12345!"},
+        )
+        admin_token = admin_login.json()["access_token"]
+        response = client.post(
+            "/api/users",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "email": "operator@test.local",
+                "full_name": "Operator",
+                "password": "operator123!",
+                "role": "agent",
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Şifre: Şifre en az bir büyük harf içermeli."
+    db_path.unlink(missing_ok=True)
+
+
+def test_favicon_route_uses_brand_mark(monkeypatch) -> None:
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+
+    with TestClient(app) as client:
+        response = client.get("/favicon.ico")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    db_path.unlink(missing_ok=True)
+
+
 def test_xlsx_parser_rejects_oversized_zip_structure() -> None:
     from io import BytesIO
 
