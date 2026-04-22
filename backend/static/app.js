@@ -710,85 +710,69 @@ function contactPoolCurrentPage() {
 }
 
 function loginConsoleMarkup() {
-  const primaryLines = [
-    "[00:19:04] yabujin.node.a0  channel=open  session=stable",
-    "[00:19:05] matrix.index     queue=144  pointer=0x0af4",
-    "[00:19:06] crm.window       city=izmir  partition=bayrakli",
-    "[00:19:07] record.sync      mail=true  phone=true  address=true",
-    "[00:19:08] route.layer      carrier=tr-main  mirror=warm",
-    "[00:19:09] panel.cursor     focus=auth  state=ready",
-    "[00:19:10] source.map       shard=03  rows=active",
-    "[00:19:11] operator.bus     lane=primary  handoff=clean",
-    "[00:19:12] archive.pipe     snapshot=sealed  drift=0.02",
-    "[00:19:13] signal.trace     packet=green  response=200",
-    "[00:19:14] yabujin.fabric   relay=steady  checksum=ok",
-    "[00:19:15] buffer.commit    page=login  viewport=alive",
-  ];
-  const sideLines = [
-    "> init yabujin_surface --mode grid",
-    "> attach portal_index --scope live",
-    "> read contact_nodes --slice west",
-    "> fold session_cache --profile glass",
-    "> bind operator_matrix --tier alpha",
-    "> watch update_stream --cadence 5s",
-    "> hydrate auth_window --state cold",
-    "> commit frame_stack --pass green",
-    "> verify signal_gate --result pass",
-    "> render panel_shell --stage ready",
-  ];
-  const rainColumns = [
-    "A9F3 7C10 0D44 FF91 22AE 31C0",
-    "YBJN 0A17 44C2 9E11 7A0F 3301",
-    "0x01 0x8a 0x2c 0x3e 0xd1 0xf4",
-    "GATE OPEN ROUTE LIVE CACHE OK",
-    "SLOT-07 SLOT-09 SLOT-0C SLOT-0F",
-    "SYNC GRID NODE WIRE TRACE FLOW",
+  const lines = [
+    "Microsoft Windows XP [Version 5.1.2600]",
+    "(C) Copyright 1985-2001 Microsoft Corp.",
+    "",
+    "C:\\YABUJIN> set PROMPT=$P$G",
+    "C:\\YABUJIN> call boot_ops.bat /tr /segment:izmir",
+    "[OK] excel_bridge ............ loaded",
+    "[OK] queue_cache ............. ready",
+    "[OK] operator_index .......... ready",
+    "[OK] company_routes .......... locked",
+    "[OK] session_guard ........... active",
+    "",
+    "C:\\YABUJIN> dir /b inbound\\izmir",
+    "ALSANCAK_CAFE.XLSX",
+    "ALSANCAK_PUB.XLSX",
+    "BAYRAKLI_HASTANE.XLSX",
+    "BAYRAKLI_KLINIK.XLSX",
+    "dispatch_queue........ standby",
+    "",
+    "C:\\YABUJIN> call sync_watch.bat /manual",
+    "sync_mode............. manual",
+    "status................ ready",
+    "records............... 0144",
+    "operators............. 0006",
+    "",
+    "C:\\YABUJIN> _",
   ];
 
-  const primaryMarkup = [...primaryLines, ...primaryLines, ...primaryLines]
-    .map((line) => `<div class="console-line"><span>${escapeHtml(line)}</span></div>`)
-    .join("");
-  const sideMarkup = [...sideLines, ...sideLines, ...sideLines, ...sideLines]
-    .map((line) => `<div class="console-line console-line-dim"><span>${escapeHtml(line)}</span></div>`)
-    .join("");
-  const rainMarkup = [...rainColumns, ...rainColumns, ...rainColumns, ...rainColumns]
-    .map((line, index) => `<div class="console-rain-line console-rain-line-${(index % 3) + 1}"><span>${escapeHtml(line)}</span></div>`)
+  const markup = [...lines, ...lines, ...lines]
+    .map((line, index) => {
+      const isPrompt = line.startsWith("C:\\YABUJIN>");
+      const hasCursor = index === lines.length - 1;
+      return `
+        <div class="console-line ${isPrompt ? "console-line-prompt" : ""}">
+          <span>${escapeHtml(line.replace(/_$/, ""))}</span>${hasCursor ? `<span class="console-cursor"></span>` : ""}
+        </div>
+      `;
+    })
     .join("");
 
   return `
     <section class="login-console" aria-hidden="true">
-      <div class="login-console-head">
-        <div class="console-indicators">
-          <span></span><span></span><span></span>
+      <div class="login-console-xpbar">
+        <div class="login-console-title">
+          <span class="login-console-icon"></span>
+          <strong>C:\\WINDOWS\\system32\\cmd.exe</strong>
         </div>
-        <div class="console-head-copy">
-          <strong>YABUJIN TERMINAL</strong>
-          <small>node_a0 / session / auth-grid</small>
-        </div>
-        <div class="console-stat-strip">
-          <span>sync 05s</span>
-          <span>grid 144</span>
-          <span>signal ok</span>
+        <div class="login-console-buttons">
+          <span>_</span>
+          <span>&#9633;</span>
+          <span>X</span>
         </div>
       </div>
       <div class="login-console-viewport">
-        <div class="login-console-glow"></div>
-        <div class="login-console-noise"></div>
-        <div class="login-console-grid">
-          <div class="login-console-main">
-            <div class="login-console-stream login-console-stream-main">
-              ${primaryMarkup}
-            </div>
-          </div>
-          <div class="login-console-side">
-            <div class="login-console-stream login-console-stream-side">
-              ${sideMarkup}
-            </div>
-          </div>
-          <div class="login-console-rain">
-            <div class="login-console-stream login-console-stream-rain">
-              ${rainMarkup}
-            </div>
+        <div class="login-console-scanlines"></div>
+        <div class="login-console-statusline">
+          <span>C:\\WINDOWS\\system32</span>
+          <span>Windows XP Professional</span>
+          <span>YABUJIN-OPS</span>
+        </div>
+        <div class="login-console-shell">
+          <div class="login-console-stream">
+            ${markup}
           </div>
         </div>
       </div>
