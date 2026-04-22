@@ -710,26 +710,86 @@ function contactPoolCurrentPage() {
 }
 
 function loginConsoleMarkup() {
-  const lines = [
-    "[09:14:02] YABUJIN_NODE_01  hazır",
-    "[09:14:06] e-posta sütunu   doğrulandı",
-    "[09:14:10] telefon alanı    sırada",
-    "[09:14:14] liste bölümü     eşitlendi",
-    "[09:14:18] durum hücresi    işlendi",
-    "[09:14:22] sayfa bölümü     etkin",
-    "[09:14:26] operatör kanalı  açık",
-    "[09:14:30] YABUJIN_LAYER    dengede",
+  const primaryLines = [
+    "[00:19:04] yabujin.node.a0  channel=open  session=stable",
+    "[00:19:05] matrix.index     queue=144  pointer=0x0af4",
+    "[00:19:06] crm.window       city=izmir  partition=bayrakli",
+    "[00:19:07] record.sync      mail=true  phone=true  address=true",
+    "[00:19:08] route.layer      carrier=tr-main  mirror=warm",
+    "[00:19:09] panel.cursor     focus=auth  state=ready",
+    "[00:19:10] source.map       shard=03  rows=active",
+    "[00:19:11] operator.bus     lane=primary  handoff=clean",
+    "[00:19:12] archive.pipe     snapshot=sealed  drift=0.02",
+    "[00:19:13] signal.trace     packet=green  response=200",
+    "[00:19:14] yabujin.fabric   relay=steady  checksum=ok",
+    "[00:19:15] buffer.commit    page=login  viewport=alive",
+  ];
+  const sideLines = [
+    "> init yabujin_surface --mode grid",
+    "> attach portal_index --scope live",
+    "> read contact_nodes --slice west",
+    "> fold session_cache --profile glass",
+    "> bind operator_matrix --tier alpha",
+    "> watch update_stream --cadence 5s",
+    "> hydrate auth_window --state cold",
+    "> commit frame_stack --pass green",
+    "> verify signal_gate --result pass",
+    "> render panel_shell --stage ready",
+  ];
+  const rainColumns = [
+    "A9F3 7C10 0D44 FF91 22AE 31C0",
+    "YBJN 0A17 44C2 9E11 7A0F 3301",
+    "0x01 0x8a 0x2c 0x3e 0xd1 0xf4",
+    "GATE OPEN ROUTE LIVE CACHE OK",
+    "SLOT-07 SLOT-09 SLOT-0C SLOT-0F",
+    "SYNC GRID NODE WIRE TRACE FLOW",
   ];
 
-  const markup = [...lines, ...lines, ...lines]
-    .map((line) => `<div class="console-line" aria-hidden="true"><span>${escapeHtml(line)}</span></div>`)
+  const primaryMarkup = [...primaryLines, ...primaryLines, ...primaryLines]
+    .map((line) => `<div class="console-line"><span>${escapeHtml(line)}</span></div>`)
+    .join("");
+  const sideMarkup = [...sideLines, ...sideLines, ...sideLines, ...sideLines]
+    .map((line) => `<div class="console-line console-line-dim"><span>${escapeHtml(line)}</span></div>`)
+    .join("");
+  const rainMarkup = [...rainColumns, ...rainColumns, ...rainColumns, ...rainColumns]
+    .map((line, index) => `<div class="console-rain-line console-rain-line-${(index % 3) + 1}"><span>${escapeHtml(line)}</span></div>`)
     .join("");
 
   return `
     <section class="login-console" aria-hidden="true">
+      <div class="login-console-head">
+        <div class="console-indicators">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="console-head-copy">
+          <strong>YABUJIN TERMINAL</strong>
+          <small>node_a0 / session / auth-grid</small>
+        </div>
+        <div class="console-stat-strip">
+          <span>sync 05s</span>
+          <span>grid 144</span>
+          <span>signal ok</span>
+        </div>
+      </div>
       <div class="login-console-viewport">
-        <div class="login-console-stream">
-          ${markup}
+        <div class="login-console-glow"></div>
+        <div class="login-console-noise"></div>
+        <div class="login-console-grid">
+          <div class="login-console-main">
+            <div class="login-console-stream login-console-stream-main">
+              ${primaryMarkup}
+            </div>
+          </div>
+          <div class="login-console-side">
+            <div class="login-console-stream login-console-stream-side">
+              ${sideMarkup}
+            </div>
+          </div>
+          <div class="login-console-rain">
+            <div class="login-console-stream login-console-stream-rain">
+              ${rainMarkup}
+            </div>
+          </div>
         </div>
       </div>
     </section>
