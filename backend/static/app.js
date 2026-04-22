@@ -507,7 +507,11 @@ async function loadSession() {
     state.me = await api("/api/auth/me");
     await Promise.all([loadLists(), loadUsersIfAdmin()]);
     await refreshOperationalData("login");
-    startPolling();
+    if (state.me?.role === "admin") {
+      startPolling();
+    } else {
+      stopPolling();
+    }
   } catch (error) {
     console.error(error);
     resetSessionState(error.message);
@@ -618,6 +622,10 @@ async function loadRecords() {
 }
 
 function startPolling() {
+  if (state.me?.role !== "admin") {
+    stopPolling();
+    return;
+  }
   if (state.pollingHandle) {
     window.clearInterval(state.pollingHandle);
   }
@@ -643,6 +651,16 @@ function stopPolling() {
 function logout() {
   resetSessionState();
   render();
+}
+
+async function handleManualRefresh() {
+  try {
+    await refreshOperationalData("manual-refresh");
+    render();
+    setFlash("success", "Ekran yenilendi.");
+  } catch (error) {
+    setFlash("error", error.message);
+  }
 }
 
 function statsMarkup() {
@@ -1613,7 +1631,16 @@ function appMarkup() {
             <p class="helper">${currentList ? escapeHtml(currentList.name) : "Liste seçilmedi"}</p>
           </div>
           <div class="topbar-meta">
-            ${state.me?.role === "admin" ? liveMonitorMarkup() : `<span class="topbar-chip">Durum: canlı izleme açık</span>`}
+            ${
+              state.me?.role === "admin"
+                ? liveMonitorMarkup()
+                : `
+                  <div class="manual-refresh-group">
+                    <span class="topbar-chip">Canlı yenileme kapalı</span>
+                    <button class="btn btn-soft" type="button" id="manual-refresh-button">Yenile</button>
+                  </div>
+                `
+            }
             <div class="user-strip">
               <span class="badge active">${escapeHtml(roleLabel(state.me?.role || ""))}</span>
               <span>${escapeHtml(state.me?.full_name || state.me?.email || "")}</span>
@@ -2091,6 +2118,7 @@ function updateContactPoolDraft(entryId, patch) {
 function bindEvents() {
   document.querySelector("#login-form")?.addEventListener("submit", handleLogin);
   document.querySelector("#logout-button")?.addEventListener("click", logout);
+  document.querySelector("#manual-refresh-button")?.addEventListener("click", handleManualRefresh);
   document.querySelector("#user-form")?.addEventListener("submit", handleUserCreate);
   document.querySelector("#open-team-modal")?.addEventListener("click", openTeamModal);
   document.querySelector("#close-team-modal")?.addEventListener("click", closeTeamModal);
