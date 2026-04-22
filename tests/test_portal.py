@@ -849,6 +849,24 @@ def test_favicon_route_uses_brand_mark(monkeypatch) -> None:
     db_path.unlink(missing_ok=True)
 
 
+def test_ping_route_is_public_and_lightweight(monkeypatch) -> None:
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+
+    with TestClient(app) as client:
+        response = client.get("/ping")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    assert response.headers["cache-control"] == "no-store"
+    db_path.unlink(missing_ok=True)
+
+
 def test_xlsx_parser_rejects_oversized_zip_structure() -> None:
     from io import BytesIO
 

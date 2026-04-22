@@ -744,7 +744,11 @@ async def apply_security_headers(request: Request, call_next):
         "frame-ancestors 'none'; "
         "form-action 'self'"
     )
-    if request.url.path == "/" or request.url.path.startswith("/api/") or request.url.path.startswith("/static/"):
+    if (
+        request.url.path in {"/", "/health", "/ping"}
+        or request.url.path.startswith("/api/")
+        or request.url.path.startswith("/static/")
+    ):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
     return response
@@ -758,6 +762,11 @@ def root() -> FileResponse:
 @app.get("/favicon.ico")
 def favicon() -> FileResponse:
     return FileResponse(STATIC_DIR / "yabujin-mark.svg", media_type="image/svg+xml")
+
+
+@app.get("/ping")
+def ping() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 @app.get("/health")

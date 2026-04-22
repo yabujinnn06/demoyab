@@ -36,6 +36,7 @@ Hazır ayarlar:
 - servis adı: `yabujindemo`
 - hedef adres: `https://yabujindemo.onrender.com`
 - health check: `/health`
+- uptime monitor: `/ping`
 - kalıcı disk: `/var/data`
 - SQLite dosyası: `/var/data/portal.db`
 
