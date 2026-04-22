@@ -1022,6 +1022,11 @@ def root() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.head("/", include_in_schema=False)
+def root_head() -> Response:
+    return Response(status_code=200)
+
+
 @app.get("/favicon.ico")
 def favicon() -> FileResponse:
     return FileResponse(STATIC_DIR / "yabujin-mark.svg", media_type="image/svg+xml")

@@ -1000,7 +1000,7 @@ def test_ping_route_is_public_and_lightweight(monkeypatch) -> None:
     db_path.unlink(missing_ok=True)
 
 
-def test_head_requests_work_for_ping_and_health(monkeypatch) -> None:
+def test_head_requests_work_for_root_ping_and_health(monkeypatch) -> None:
     db_path = make_test_db_path()
     monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
     monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
@@ -1010,11 +1010,14 @@ def test_head_requests_work_for_ping_and_health(monkeypatch) -> None:
     app = load_fresh_app()
 
     with TestClient(app) as client:
+        root_response = client.head("/")
         ping_response = client.head("/ping")
         health_response = client.head("/health")
 
+    assert root_response.status_code == 200
     assert ping_response.status_code == 200
     assert health_response.status_code == 200
+    assert root_response.text == ""
     assert ping_response.text == ""
     assert health_response.text == ""
     db_path.unlink(missing_ok=True)
