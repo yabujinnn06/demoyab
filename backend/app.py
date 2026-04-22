@@ -14,7 +14,7 @@ from typing import Any, Literal
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.concurrency import run_in_threadpool
@@ -1032,8 +1032,12 @@ def ping() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/health")
-def health() -> dict[str, str]:
+@app.head("/ping", include_in_schema=False)
+def ping_head() -> Response:
+    return Response(status_code=200)
+
+
+def _health_payload() -> dict[str, str]:
     try:
         with get_connection() as connection:
             connection.execute("SELECT 1").fetchone()
@@ -1044,6 +1048,17 @@ def health() -> dict[str, str]:
     except sqlite3.Error as exc:
         raise _api_error(503, "Veri tabani hazir degil.") from exc
     return {"status": "ok", "db": "ok"}
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return _health_payload()
+
+
+@app.head("/health", include_in_schema=False)
+def health_head() -> Response:
+    _health_payload()
+    return Response(status_code=200)
 
 
 @app.post("/api/auth/login", response_model=UserLoginResponse)

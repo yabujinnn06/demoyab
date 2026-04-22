@@ -1000,6 +1000,26 @@ def test_ping_route_is_public_and_lightweight(monkeypatch) -> None:
     db_path.unlink(missing_ok=True)
 
 
+def test_head_requests_work_for_ping_and_health(monkeypatch) -> None:
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+
+    with TestClient(app) as client:
+        ping_response = client.head("/ping")
+        health_response = client.head("/health")
+
+    assert ping_response.status_code == 200
+    assert health_response.status_code == 200
+    assert ping_response.text == ""
+    assert health_response.text == ""
+    db_path.unlink(missing_ok=True)
+
+
 def test_xlsx_parser_rejects_oversized_zip_structure() -> None:
     from io import BytesIO
 
