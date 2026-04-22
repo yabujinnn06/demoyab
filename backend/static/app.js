@@ -95,6 +95,23 @@ const state = {
 };
 
 const appNode = document.querySelector("#app");
+const interactionState = {
+  lastUserInteractionAt: 0,
+  globalActivityBound: false,
+};
+
+function noteUserInteraction() {
+  interactionState.lastUserInteractionAt = Date.now();
+}
+
+function bindGlobalActivityListeners() {
+  if (interactionState.globalActivityBound) return;
+  interactionState.globalActivityBound = true;
+  const handler = () => noteUserInteraction();
+  ["pointerdown", "keydown", "focusin", "input", "change"].forEach((eventName) => {
+    document.addEventListener(eventName, handler, true);
+  });
+}
 
 function resetSessionState(message = "") {
   stopPolling();
@@ -431,12 +448,19 @@ function liveMonitorMarkup() {
 
 function hasLocalInteraction() {
   const active = document.activeElement;
+  const recentlyTouched = Date.now() - interactionState.lastUserInteractionAt < 12000;
+  if (recentlyTouched) return true;
+  if (state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen) return true;
   if (state.uploadFile) return true;
   if (Object.keys(state.recordDrafts).length > 0) return true;
   if (Object.keys(state.contactPoolDrafts).length > 0) return true;
-  return Boolean(
-    active?.closest("#upload-form, #user-form, #assign-form, #team-modal, #contact-pool-modal, .records-table, #login-form"),
-  );
+  if (active && active !== document.body && active !== document.documentElement) {
+    if (active.matches("input, select, textarea, button")) return true;
+    if (active.closest("#upload-form, #user-form, #assign-form, #team-modal, #contact-pool-modal, .records-table, .filter-panel, #login-form")) {
+      return true;
+    }
+  }
+  return Boolean(document.querySelector("input:focus, select:focus, textarea:focus, button:focus"));
 }
 
 function recordDraft(record) {
@@ -577,11 +601,12 @@ function startPolling() {
     if (hasLocalInteraction()) return;
     try {
       await refreshOperationalData("poll");
+      if (hasLocalInteraction()) return;
       render();
     } catch (error) {
       console.error(error);
     }
-  }, 3000);
+  }, 5000);
 }
 
 function stopPolling() {
@@ -2261,4 +2286,6 @@ function bindEvents() {
 }
 
 render();
+bindGlobalActivityListeners();
+noteUserInteraction();
 loadSession().then(render);
