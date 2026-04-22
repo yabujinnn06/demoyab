@@ -505,7 +505,7 @@ a {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(190px, 1.1fr) repeat(2, 136px) 118px auto auto;
+  grid-template-columns: minmax(190px, 1.1fr) repeat(3, 136px) 118px auto auto;
   gap: 8px;
 }
 
@@ -687,6 +687,43 @@ a {
   border-collapse: collapse;
   table-layout: fixed;
   background: #ffffff;
+}
+
+.operator-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  background: #ffffff;
+}
+
+.operator-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #ffffff;
+}
+
+.operator-table th,
+.operator-table td {
+  padding: 5px;
+  border-right: 1px solid #c9d4e2;
+  border-bottom: 1px solid #d6deea;
+  vertical-align: middle;
+  font-size: 11px;
+}
+
+.operator-table th:first-child,
+.operator-table td:first-child {
+  width: 160px;
+}
+
+.operator-table th:last-child,
+.operator-table td:last-child {
+  border-right: 0;
+}
+
+.active-operator-row td {
+  background: #eef4fd;
 }
 
 .pool-table .pool-company {

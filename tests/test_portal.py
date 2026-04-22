@@ -324,6 +324,31 @@ def test_processed_records_are_added_to_contact_pool(monkeypatch) -> None:
         assert "Havuz Klinik" in exported_text
         assert "Tekrar teyit edilecek" in exported_text
 
+        stats = client.get(
+            f"/api/operator-stats?call_list_id={call_list_id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert stats.status_code == 200
+        operator_stat = next(item for item in stats.json() if item["user_id"] == agent_id)
+        assert operator_stat["assigned_count"] == 1
+        assert operator_stat["processed_count"] == 1
+        assert operator_stat["reached_count"] == 1
+        assert operator_stat["positive_count"] == 1
+        assert operator_stat["negative_count"] == 0
+
+        filtered_records = client.get(
+            f"/api/records?call_list_id={call_list_id}&assigned_user_id={agent_id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert filtered_records.status_code == 200
+        assert filtered_records.json()["total"] == 1
+
+        operator_stats_denied = client.get(
+            "/api/operator-stats",
+            headers={"Authorization": f"Bearer {agent_token}"},
+        )
+        assert operator_stats_denied.status_code == 403
+
     db_path.unlink(missing_ok=True)
 
 

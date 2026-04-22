@@ -314,6 +314,22 @@ class ContactPoolUpdateRequest(BaseModel):
     is_active: bool | None = None
 
 
+class OperatorStatsRead(BaseModel):
+    user_id: str
+    full_name: str | None = None
+    email: str
+    is_active: bool
+    assigned_count: int
+    processed_count: int
+    reached_count: int
+    unreached_count: int
+    positive_count: int
+    negative_count: int
+    no_answer_count: int
+    callback_count: int
+    last_activity_at: str | None = None
+
+
 class ActivityRead(BaseModel):
     id: str
     call_record_id: str
@@ -814,6 +830,24 @@ def _contact_pool_row(row: sqlite3.Row) -> ContactPoolEntryRead:
     )
 
 
+def _operator_stats_row(row: sqlite3.Row) -> OperatorStatsRead:
+    return OperatorStatsRead(
+        user_id=row["user_id"],
+        full_name=row["full_name"],
+        email=row["email"],
+        is_active=bool(row["is_active"]),
+        assigned_count=int(row["assigned_count"] or 0),
+        processed_count=int(row["processed_count"] or 0),
+        reached_count=int(row["reached_count"] or 0),
+        unreached_count=int(row["unreached_count"] or 0),
+        positive_count=int(row["positive_count"] or 0),
+        negative_count=int(row["negative_count"] or 0),
+        no_answer_count=int(row["no_answer_count"] or 0),
+        callback_count=int(row["callback_count"] or 0),
+        last_activity_at=row["last_activity_at"],
+    )
+
+
 def _activity_select_sql() -> str:
     return """
         SELECT
@@ -1301,6 +1335,7 @@ def list_records(
     q: str | None = None,
     call_status: str | None = None,
     result_status: str | None = None,
+    assigned_user_id: str | None = None,
     unassigned: bool = False,
     has_email: bool = False,
     has_phone: bool = False,
@@ -1326,6 +1361,9 @@ def list_records(
     if result_status:
         filters.append("r.result_status = ?")
         params.append(_validate_result_status(result_status))
+    if assigned_user_id and user.role == "admin":
+        filters.append("r.assigned_user_id = ?")
+        params.append(assigned_user_id)
     if unassigned:
         filters.append("r.assigned_user_id IS NULL")
     if has_email:
@@ -1401,6 +1439,59 @@ def list_records(
             }
         ),
     )
+
+
+@app.get("/api/operator-stats", response_model=list[OperatorStatsRead])
+def operator_stats(
+    call_list_id: str | None = None,
+    _admin: AuthUser = Depends(require_admin),
+) -> list[OperatorStatsRead]:
+    join_filters = ["r.assigned_user_id = u.id"]
+    params: list[Any] = []
+    if call_list_id:
+        join_filters.append("r.call_list_id = ?")
+        params.append(call_list_id)
+
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT
+                u.id AS user_id,
+                u.full_name,
+                u.email,
+                u.is_active,
+                COUNT(r.id) AS assigned_count,
+                SUM(CASE
+                    WHEN r.id IS NOT NULL AND (r.call_status != 'NOT_CALLED' OR r.result_status != 'PENDING')
+                    THEN 1 ELSE 0
+                END) AS processed_count,
+                SUM(CASE
+                    WHEN r.call_status IN ('CALLED', 'COMPLETED')
+                      OR r.result_status IN ('POSITIVE', 'NEGATIVE', 'NOT_INTERESTED')
+                    THEN 1 ELSE 0
+                END) AS reached_count,
+                SUM(CASE
+                    WHEN r.call_status = 'UNREACHABLE'
+                      OR r.result_status IN ('NO_ANSWER', 'WRONG_NUMBER')
+                    THEN 1 ELSE 0
+                END) AS unreached_count,
+                SUM(CASE WHEN r.result_status = 'POSITIVE' THEN 1 ELSE 0 END) AS positive_count,
+                SUM(CASE WHEN r.result_status IN ('NEGATIVE', 'NOT_INTERESTED') THEN 1 ELSE 0 END) AS negative_count,
+                SUM(CASE WHEN r.result_status = 'NO_ANSWER' THEN 1 ELSE 0 END) AS no_answer_count,
+                SUM(CASE WHEN r.call_status = 'CALLBACK' THEN 1 ELSE 0 END) AS callback_count,
+                MAX(CASE
+                    WHEN r.call_status != 'NOT_CALLED' OR r.result_status != 'PENDING'
+                    THEN r.updated_at ELSE NULL
+                END) AS last_activity_at
+            FROM users u
+            LEFT JOIN call_records r ON {' AND '.join(join_filters)}
+            WHERE u.role = 'agent'
+            GROUP BY u.id, u.full_name, u.email, u.is_active
+            ORDER BY u.is_active DESC, processed_count DESC, positive_count DESC, u.full_name, u.email
+            """,
+            tuple(params),
+        ).fetchall()
+    return [_operator_stats_row(row) for row in rows]
 
 
 @app.get("/api/activity", response_model=list[ActivityRead])

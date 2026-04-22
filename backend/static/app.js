@@ -38,6 +38,7 @@ const DEFAULT_FILTERS = {
   q: "",
   call_status: "",
   result_status: "",
+  assigned_user_id: "",
   unassigned: false,
   has_email: true,
   has_phone: false,
@@ -59,6 +60,7 @@ const state = {
   lists: [],
   records: [],
   contactPool: [],
+  operatorStats: [],
   filteredSummary: null,
   users: [],
   activity: [],
@@ -101,6 +103,7 @@ function resetSessionState(message = "") {
   state.lists = [];
   state.records = [];
   state.contactPool = [];
+  state.operatorStats = [];
   state.filteredSummary = null;
   state.users = [];
   state.activity = [];
@@ -389,7 +392,7 @@ function markSync(source) {
 }
 
 async function refreshOperationalData(source = "manual") {
-  const tasks = [loadLists(), loadRecords(), loadActivity()];
+  const tasks = [loadLists(), loadRecords(), loadActivity(), loadOperatorStats()];
   if (state.contactPoolModalOpen) {
     tasks.push(loadContactPool());
   }
@@ -482,6 +485,16 @@ async function loadActivity() {
   state.activity = await api(`/api/activity?${params.toString()}`);
 }
 
+async function loadOperatorStats() {
+  if (state.me?.role !== "admin") {
+    state.operatorStats = [];
+    return;
+  }
+  const params = new URLSearchParams();
+  if (state.selectedListId) params.set("call_list_id", state.selectedListId);
+  state.operatorStats = await api(`/api/operator-stats?${params.toString()}`);
+}
+
 async function loadContactPool() {
   if (state.me?.role !== "admin") {
     state.contactPool = [];
@@ -531,6 +544,9 @@ async function loadRecords() {
   if (state.filters.q.trim()) params.set("q", state.filters.q.trim());
   if (state.filters.call_status) params.set("call_status", state.filters.call_status);
   if (state.filters.result_status) params.set("result_status", state.filters.result_status);
+  if (state.me?.role === "admin" && state.filters.assigned_user_id) {
+    params.set("assigned_user_id", state.filters.assigned_user_id);
+  }
   if (state.filters.unassigned) params.set("unassigned", "true");
   if (state.filters.has_email) params.set("has_email", "true");
   if (state.filters.has_phone) params.set("has_phone", "true");
@@ -1162,6 +1178,86 @@ function assignPanelMarkup() {
   `;
 }
 
+function operatorStatsPanelMarkup() {
+  if (state.me?.role !== "admin") return "";
+  const totals = state.operatorStats.reduce(
+    (sum, item) => ({
+      assigned: sum.assigned + item.assigned_count,
+      processed: sum.processed + item.processed_count,
+      reached: sum.reached + item.reached_count,
+      positive: sum.positive + item.positive_count,
+      negative: sum.negative + item.negative_count,
+    }),
+    { assigned: 0, processed: 0, reached: 0, positive: 0, negative: 0 },
+  );
+  return `
+    <section class="panel stack operator-panel window-shell" data-window-title="Operatör Performansı">
+      <div class="panel-head">
+        <div>
+          <p class="section-kicker">Operatör Takibi</p>
+          <h2>Operatör Performansı</h2>
+          <p>${selectedList() ? escapeHtml(selectedList().name) : "Tüm listeler"} için canlı operatör özeti.</p>
+        </div>
+        <div class="mini-meta action-meta">
+          <span>${totals.processed} işlem</span>
+          <span>${totals.reached} bağlantı</span>
+          <span>${totals.positive} olumlu</span>
+        </div>
+      </div>
+      <div class="operator-table-wrap">
+        <table class="operator-table">
+          <thead>
+            <tr>
+              <th>Operatör</th>
+              <th>Atanan</th>
+              <th>Arama</th>
+              <th>Bağlandı</th>
+              <th>Ulaşılamadı</th>
+              <th>Olumlu</th>
+              <th>Olumsuz</th>
+              <th>Son İşlem</th>
+              <th>Filtre</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              state.operatorStats.length
+                ? state.operatorStats
+                    .map(
+                      (item) => `
+                        <tr class="${state.filters.assigned_user_id === item.user_id ? "active-operator-row" : ""}">
+                          <td>
+                            <div class="record-name">${escapeHtml(item.full_name || item.email)}</div>
+                            <div class="record-meta">${escapeHtml(item.email)}</div>
+                            <span class="badge ${item.is_active ? "active" : "inactive"}">${item.is_active ? "Aktif" : "Pasif"}</span>
+                          </td>
+                          <td>${item.assigned_count}</td>
+                          <td>${item.processed_count}</td>
+                          <td>${item.reached_count}</td>
+                          <td>${item.unreached_count}</td>
+                          <td>${item.positive_count}</td>
+                          <td>${item.negative_count}</td>
+                          <td class="record-meta">${escapeHtml(formatDate(item.last_activity_at))}</td>
+                          <td>
+                            <button class="btn btn-soft mini-button" type="button" data-filter-operator="${item.user_id}">Göster</button>
+                          </td>
+                        </tr>
+                      `,
+                    )
+                    .join("")
+                : `<tr><td colspan="9"><p class="empty">Operatör yok.</p></td></tr>`
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="mini-meta">
+        <span>Toplam atanan: ${totals.assigned}</span>
+        <span>Toplam olumsuz: ${totals.negative}</span>
+      </div>
+    </section>
+  `;
+}
+
 function filtersMarkup() {
   const activePresence = [];
   if (state.filters.has_email) activePresence.push("e-posta");
@@ -1174,7 +1270,7 @@ function filtersMarkup() {
         <div>
           <p class="section-kicker">Filtreleme</p>
           <h2>Kayıt Filtresi</h2>
-          <p>Firma, durum ve atama bazında havuzu daralt.</p>
+          <p>Firma, durum, operatör ve atama bazında havuzu daralt.</p>
         </div>
         <div class="filter-state">
           <span class="badge active">Aktif görünüm: ${activePresence.length ? escapeHtml(activePresence.join(" + ")) : "genel liste"}</span>
@@ -1194,6 +1290,22 @@ function filtersMarkup() {
             .map(([value, label]) => `<option value="${value}" ${state.filters.result_status === value ? "selected" : ""}>${label}</option>`)
             .join("")}
         </select>
+        ${
+          state.me?.role === "admin"
+            ? `<select class="select" id="filter-assigned-user">
+                <option value="">Tüm operatörler</option>
+                ${state.users
+                  .filter((user) => user.role === "agent")
+                  .map(
+                    (user) =>
+                      `<option value="${user.id}" ${state.filters.assigned_user_id === user.id ? "selected" : ""}>${escapeHtml(
+                        user.full_name || user.email,
+                      )}</option>`,
+                  )
+                  .join("")}
+              </select>`
+            : ""
+        }
         <label class="check-item compact">
           <input type="checkbox" id="filter-unassigned" ${state.filters.unassigned ? "checked" : ""} />
           <span>Atanmamış</span>
@@ -1464,7 +1576,11 @@ function appMarkup() {
         ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
         ${statsMarkup()}
         ${filtersMarkup()}
-        ${state.me?.role === "admin" ? `<div class="command-grid">${assignPanelMarkup()}${activityPanelMarkup()}</div>` : ""}
+        ${
+          state.me?.role === "admin"
+            ? `<div class="command-grid">${assignPanelMarkup()}${operatorStatsPanelMarkup()}${activityPanelMarkup()}</div>`
+            : ""
+        }
         ${recordsTableMarkup()}
       </main>
       ${teamModalMarkup()}
@@ -1878,7 +1994,11 @@ async function applyFilters() {
   state.filters.q = document.querySelector("#filter-q")?.value ?? "";
   state.filters.call_status = document.querySelector("#filter-call-status")?.value ?? "";
   state.filters.result_status = document.querySelector("#filter-result-status")?.value ?? "";
+  state.filters.assigned_user_id = document.querySelector("#filter-assigned-user")?.value ?? "";
   state.filters.unassigned = Boolean(document.querySelector("#filter-unassigned")?.checked);
+  if (state.filters.assigned_user_id) {
+    state.filters.unassigned = false;
+  }
   state.filters.has_email = Boolean(document.querySelector("#filter-has-email")?.checked);
   state.filters.has_phone = Boolean(document.querySelector("#filter-has-phone")?.checked);
   state.filters.has_address = Boolean(document.querySelector("#filter-has-address")?.checked);
@@ -2007,6 +2127,7 @@ function bindEvents() {
   document.querySelector("#contact-pool-active-only")?.addEventListener("change", applyContactPoolFilters);
   document.querySelector("#filter-call-status")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-result-status")?.addEventListener("change", applyFilters);
+  document.querySelector("#filter-assigned-user")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-unassigned")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-has-email")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-has-phone")?.addEventListener("change", applyFilters);
@@ -2055,6 +2176,17 @@ function bindEvents() {
 
   document.querySelectorAll("[data-save-record]").forEach((node) => {
     node.addEventListener("click", () => handleSaveRecord(node.getAttribute("data-save-record")));
+  });
+
+  document.querySelectorAll("[data-filter-operator]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      state.filters.assigned_user_id = node.getAttribute("data-filter-operator") || "";
+      state.filters.unassigned = false;
+      state.pagination.offset = 0;
+      await loadRecords();
+      render();
+      setFlash("success", "Operatör filtresi uygulandı.");
+    });
   });
 
   document.querySelectorAll("[data-pool-save]").forEach((node) => {
