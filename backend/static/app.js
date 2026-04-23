@@ -40,7 +40,7 @@ const DEFAULT_FILTERS = {
   result_status: "",
   assigned_user_id: "",
   unassigned: false,
-  has_email: true,
+  has_email: false,
   has_phone: false,
   has_address: false,
   has_website: false,
