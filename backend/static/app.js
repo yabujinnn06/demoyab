@@ -1303,6 +1303,15 @@ function assignPanelMarkup() {
 
 function operatorStatsPanelMarkup() {
   if (state.me?.role !== "admin") return "";
+  const percent = (value, total) => (total > 0 ? Math.round((value / total) * 100) : 0);
+  const operatorStatus = (item) => {
+    const remaining = Math.max(0, item.assigned_count - item.processed_count);
+    if (!item.is_active) return ["Pasif", "inactive"];
+    if (!item.assigned_count) return ["Boşta", "idle"];
+    if (!remaining) return ["Tamamladı", "done"];
+    if (item.processed_count > 0) return ["Çalışıyor", "working"];
+    return ["Bekliyor", "waiting"];
+  };
   const totals = state.operatorStats.reduce(
     (sum, item) => ({
       assigned: sum.assigned + item.assigned_count,
@@ -1310,30 +1319,111 @@ function operatorStatsPanelMarkup() {
       reached: sum.reached + item.reached_count,
       positive: sum.positive + item.positive_count,
       negative: sum.negative + item.negative_count,
+      remaining: sum.remaining + Math.max(0, item.assigned_count - item.processed_count),
+      activeOperators: sum.activeOperators + (item.is_active ? 1 : 0),
+      idleOperators: sum.idleOperators + (item.is_active && item.assigned_count === 0 ? 1 : 0),
     }),
-    { assigned: 0, processed: 0, reached: 0, positive: 0, negative: 0 },
+    { assigned: 0, processed: 0, reached: 0, positive: 0, negative: 0, remaining: 0, activeOperators: 0, idleOperators: 0 },
   );
+  const completionRate = percent(totals.processed, totals.assigned);
+  const reachRate = percent(totals.reached, totals.processed);
+  const positiveRate = percent(totals.positive, totals.processed);
   return `
-    <section class="panel stack operator-panel window-shell" data-window-title="Operatör Performansı">
+    <section class="panel stack operator-panel window-shell" data-window-title="Operatör Kontrol Merkezi">
       <div class="panel-head">
         <div>
-          <p class="section-kicker">Operatör Takibi</p>
-          <h2>Operatör Performansı</h2>
-          <p>${selectedList() ? escapeHtml(selectedList().name) : "Tüm listeler"} için canlı operatör özeti.</p>
+          <p class="section-kicker">Kullanıcı Odaklı Kontrol</p>
+          <h2>Operatör Kontrol Merkezi</h2>
+          <p>${selectedList() ? escapeHtml(selectedList().name) : "Tüm listeler"} için kimin üstünde ne iş var, ne kadarı bitmiş ve son hareket ne.</p>
         </div>
         <div class="mini-meta action-meta">
-          <span>${totals.processed} işlem</span>
-          <span>${totals.reached} bağlantı</span>
+          <span>${totals.activeOperators} aktif operatör</span>
+          <span>${totals.remaining} kalan kayıt</span>
           <span>${totals.positive} olumlu</span>
         </div>
       </div>
+      <div class="operator-control-summary">
+        <div>
+          <span>Atanan</span>
+          <strong>${totals.assigned}</strong>
+        </div>
+        <div>
+          <span>İşlenen</span>
+          <strong>${totals.processed}</strong>
+        </div>
+        <div>
+          <span>Tamamlanma</span>
+          <strong>%${completionRate}</strong>
+        </div>
+        <div>
+          <span>Bağlantı</span>
+          <strong>%${reachRate}</strong>
+        </div>
+        <div>
+          <span>Olumlu Oran</span>
+          <strong>%${positiveRate}</strong>
+        </div>
+        <div>
+          <span>Boşta</span>
+          <strong>${totals.idleOperators}</strong>
+        </div>
+      </div>
+      <div class="operator-card-grid">
+        ${
+          state.operatorStats.length
+            ? state.operatorStats
+                .map((item) => {
+                  const remaining = Math.max(0, item.assigned_count - item.processed_count);
+                  const doneRate = percent(item.processed_count, item.assigned_count);
+                  const itemReachRate = percent(item.reached_count, item.processed_count);
+                  const itemPositiveRate = percent(item.positive_count, item.processed_count);
+                  const [statusLabel, statusClass] = operatorStatus(item);
+                  return `
+                    <article class="operator-card ${state.filters.assigned_user_id === item.user_id ? "selected" : ""}">
+                      <div class="operator-card-head">
+                        <div>
+                          <h3>${escapeHtml(item.full_name || item.email)}</h3>
+                          <p>${escapeHtml(item.email)}</p>
+                        </div>
+                        <span class="operator-status ${statusClass}">${statusLabel}</span>
+                      </div>
+                      <div class="operator-progress">
+                        <div class="operator-progress-fill" style="width: ${doneRate}%"></div>
+                      </div>
+                      <div class="operator-metrics">
+                        <div><span>Atanan</span><strong>${item.assigned_count}</strong></div>
+                        <div><span>Kalan</span><strong>${remaining}</strong></div>
+                        <div><span>İşlem</span><strong>${item.processed_count}</strong></div>
+                        <div><span>Bağlandı</span><strong>${item.reached_count}</strong></div>
+                        <div><span>Olumlu</span><strong>${item.positive_count}</strong></div>
+                        <div><span>Olumsuz</span><strong>${item.negative_count}</strong></div>
+                      </div>
+                      <div class="operator-card-foot">
+                        <span>İlerleme %${doneRate}</span>
+                        <span>Bağlantı %${itemReachRate}</span>
+                        <span>Olumlu %${itemPositiveRate}</span>
+                        <span>Son: ${escapeHtml(formatDate(item.last_activity_at))}</span>
+                      </div>
+                      <div class="operator-card-actions">
+                        <button class="btn btn-primary mini-button" type="button" data-filter-operator="${item.user_id}">Kayıtlarını Göster</button>
+                        <button class="btn btn-soft mini-button" type="button" data-filter-operator="">Tüm Operatörler</button>
+                      </div>
+                    </article>
+                  `;
+                })
+                .join("")
+            : `<p class="empty">Operatör yok.</p>`
+        }
+      </div>
       <div class="operator-table-wrap">
         <table class="operator-table">
+          <caption>Operatör detay dökümü</caption>
           <thead>
             <tr>
               <th>Operatör</th>
               <th>Atanan</th>
-              <th>Arama</th>
+              <th>Kalan</th>
+              <th>İşlem</th>
               <th>Bağlandı</th>
               <th>Ulaşılamadı</th>
               <th>Olumlu</th>
@@ -1347,7 +1437,9 @@ function operatorStatsPanelMarkup() {
               state.operatorStats.length
                 ? state.operatorStats
                     .map(
-                      (item) => `
+                      (item) => {
+                        const remaining = Math.max(0, item.assigned_count - item.processed_count);
+                        return `
                         <tr class="${state.filters.assigned_user_id === item.user_id ? "active-operator-row" : ""}">
                           <td>
                             <div class="record-name">${escapeHtml(item.full_name || item.email)}</div>
@@ -1355,6 +1447,7 @@ function operatorStatsPanelMarkup() {
                             <span class="badge ${item.is_active ? "active" : "inactive"}">${item.is_active ? "Aktif" : "Pasif"}</span>
                           </td>
                           <td>${item.assigned_count}</td>
+                          <td>${remaining}</td>
                           <td>${item.processed_count}</td>
                           <td>${item.reached_count}</td>
                           <td>${item.unreached_count}</td>
@@ -1365,10 +1458,11 @@ function operatorStatsPanelMarkup() {
                             <button class="btn btn-soft mini-button" type="button" data-filter-operator="${item.user_id}">Göster</button>
                           </td>
                         </tr>
-                      `,
+                      `;
+                      },
                     )
                     .join("")
-                : `<tr><td colspan="9"><p class="empty">Operatör yok.</p></td></tr>`
+                : `<tr><td colspan="10"><p class="empty">Operatör yok.</p></td></tr>`
             }
           </tbody>
         </table>
@@ -1376,6 +1470,7 @@ function operatorStatsPanelMarkup() {
       <div class="mini-meta">
         <span>Toplam atanan: ${totals.assigned}</span>
         <span>Toplam olumsuz: ${totals.negative}</span>
+        <span>Pasif operatörler raporda görünür ama yeni dağıtımda seçilmez.</span>
       </div>
     </section>
   `;
@@ -1710,7 +1805,7 @@ function appMarkup() {
         ${filtersMarkup()}
         ${
           state.me?.role === "admin"
-            ? `<div class="command-grid">${assignPanelMarkup()}${operatorStatsPanelMarkup()}${activityPanelMarkup()}</div>`
+            ? `<div class="command-grid">${assignPanelMarkup()}${activityPanelMarkup()}${operatorStatsPanelMarkup()}</div>`
             : ""
         }
         ${recordsTableMarkup()}

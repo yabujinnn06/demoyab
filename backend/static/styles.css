@@ -536,6 +536,10 @@ a {
   gap: 10px;
 }
 
+.operator-panel {
+  grid-column: 1 / -1;
+}
+
 .assign-mode-grid,
 .assign-grid {
   display: grid;
@@ -703,12 +707,173 @@ a {
   background: #ffffff;
 }
 
+.operator-control-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.operator-control-summary div {
+  min-width: 0;
+  padding: 8px;
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #98a9bf;
+  border-bottom: 1px solid #98a9bf;
+  background: linear-gradient(180deg, #f8fbff 0%, #dce7f3 100%);
+}
+
+.operator-control-summary span,
+.operator-card-foot span,
+.operator-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.operator-control-summary strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink);
+  font: 700 19px/1.1 var(--mono);
+}
+
+.operator-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.operator-card {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  background: #f7faff;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #b4c1d1;
+}
+
+.operator-card.selected {
+  background: #eaf3ff;
+  border-color: #4f77ab;
+}
+
+.operator-card-head,
+.operator-card-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.operator-card-head h3 {
+  margin: 0 0 3px;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.operator-card-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  word-break: break-word;
+}
+
+.operator-status {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border: 1px solid var(--line-strong);
+  background: #eef2f7;
+  color: #31475e;
+  font: 700 10px/1 var(--font);
+}
+
+.operator-status.working {
+  background: #e7f4ff;
+  color: #1b5d89;
+}
+
+.operator-status.done {
+  background: #e7f5e9;
+  color: #2d6a3d;
+}
+
+.operator-status.waiting {
+  background: #fff4d8;
+  color: #7a5a0c;
+}
+
+.operator-status.idle,
+.operator-status.inactive {
+  background: #edf0f4;
+  color: #667382;
+}
+
+.operator-progress {
+  height: 12px;
+  margin: 8px 0;
+  border-top: 1px solid #69788a;
+  border-left: 1px solid #69788a;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  background: #ffffff;
+}
+
+.operator-progress-fill {
+  height: 100%;
+  min-width: 0;
+  background: linear-gradient(180deg, #7eb7ef 0%, #226dc0 100%);
+}
+
+.operator-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.operator-metrics div {
+  padding: 6px;
+  border: 1px solid #c8d3e1;
+  background: #ffffff;
+}
+
+.operator-metrics strong {
+  display: block;
+  margin-top: 2px;
+  font: 700 15px/1.1 var(--mono);
+  color: var(--ink);
+}
+
+.operator-card-foot {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 8px;
+  margin-top: 8px;
+}
+
+.operator-card-actions {
+  align-items: stretch;
+  margin-top: 8px;
+}
+
+.operator-card-actions .btn {
+  flex: 1 1 0;
+}
+
 .operator-table {
   width: 100%;
-  min-width: 780px;
+  min-width: 860px;
   border-collapse: collapse;
   table-layout: fixed;
   background: #ffffff;
+}
+
+.operator-table caption {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--line-strong);
+  background: #e8eef7;
+  color: #2f4861;
+  font: 700 11px/1.2 var(--font);
 }
 
 .operator-table th,
@@ -1465,6 +1630,14 @@ strong {
     justify-content: flex-start;
   }
 
+  .operator-control-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .operator-card-grid {
+    grid-template-columns: 1fr;
+  }
+
   .assign-mode-grid,
   .assign-monitor,
   .assign-row {
@@ -1499,6 +1672,19 @@ strong {
 
   .stats-band {
     grid-template-columns: 1fr;
+  }
+
+  .operator-control-summary,
+  .operator-metrics,
+  .operator-card-foot,
+  .operator-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .operator-card-head,
+  .operator-card-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .login-console-xpbar {
