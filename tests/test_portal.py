@@ -213,6 +213,14 @@ def test_login_import_assign_and_agent_update(monkeypatch) -> None:
         assert updated.json()["call_status"] == "CALLING"
         assert updated.json()["assigned_user_id"] == agent_id
 
+        processed_records = client.get(
+            f"/api/records?call_list_id={call_list_id}&assigned_user_id={agent_id}&processed=true",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert processed_records.status_code == 200
+        assert processed_records.json()["total"] == 1
+        assert processed_records.json()["items"][0]["id"] == record_id
+
         health = client.get("/health")
         assert health.status_code == 200
         assert health.json() == {"status": "ok", "db": "ok"}

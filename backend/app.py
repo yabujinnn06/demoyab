@@ -1357,6 +1357,7 @@ def list_records(
     result_status: str | None = None,
     assigned_user_id: str | None = None,
     unassigned: bool = False,
+    processed: bool = False,
     has_email: bool = False,
     has_phone: bool = False,
     has_address: bool = False,
@@ -1386,6 +1387,8 @@ def list_records(
         params.append(assigned_user_id)
     if unassigned:
         filters.append("r.assigned_user_id IS NULL")
+    if processed:
+        filters.append("(r.call_status != 'NOT_CALLED' OR r.result_status != 'PENDING')")
     if has_email:
         filters.append("r.email IS NOT NULL AND trim(r.email) != ''")
     if has_phone:

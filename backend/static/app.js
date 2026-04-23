@@ -80,6 +80,7 @@ const state = {
   contactPoolModalOpen: false,
   operatorControlModalOpen: false,
   operatorDetailUserId: "",
+  operatorDetailFilter: "all",
   operatorDetailRecords: [],
   operatorDetailSummary: null,
   operatorDetailPagination: {
@@ -151,6 +152,7 @@ function resetSessionState(message = "") {
   state.contactPoolModalOpen = false;
   state.operatorControlModalOpen = false;
   state.operatorDetailUserId = "";
+  state.operatorDetailFilter = "all";
   state.operatorDetailRecords = [];
   state.operatorDetailSummary = null;
   state.operatorDetailPagination.offset = 0;
@@ -589,6 +591,8 @@ async function loadOperatorDetailRecords() {
   const params = new URLSearchParams();
   if (state.selectedListId) params.set("call_list_id", state.selectedListId);
   params.set("assigned_user_id", state.operatorDetailUserId);
+  if (state.operatorDetailFilter === "processed") params.set("processed", "true");
+  if (state.operatorDetailFilter === "positive") params.set("result_status", "POSITIVE");
   params.set("offset", String(state.operatorDetailPagination.offset));
   params.set("limit", String(state.operatorDetailPagination.limit));
 
@@ -1554,13 +1558,14 @@ function operatorControlContentMarkup() {
 
 function operatorDetailRecordsMarkup() {
   const operator = selectedOperatorStat();
-  const summary = state.operatorDetailSummary || {
-    total: 0,
-    assigned: 0,
-    calling: 0,
-    positive: 0,
-  };
-
+  const detailFilter = state.operatorDetailFilter || "all";
+  const filterLabel =
+    {
+      all: "Toplam",
+      processed: "İşlenen",
+      positive: "Olumlu",
+      assigned: "Atanan",
+    }[detailFilter] || "Toplam";
   if (!state.operatorDetailUserId || !operator) {
     return `
       <section class="operator-detail-panel">
@@ -1586,10 +1591,22 @@ function operatorDetailRecordsMarkup() {
         </div>
       </div>
       <div class="operator-detail-summary">
-        <div><span>Toplam</span><strong>${state.operatorDetailPagination.total}</strong></div>
-        <div><span>İşlenen</span><strong>${summary.calling || 0}</strong></div>
-        <div><span>Olumlu</span><strong>${summary.positive || 0}</strong></div>
-        <div><span>Atanan</span><strong>${summary.assigned || 0}</strong></div>
+        <button class="${detailFilter === "all" ? "active" : ""}" type="button" data-operator-detail-filter="all">
+          <span>Toplam</span><strong>${operator.assigned_count}</strong>
+        </button>
+        <button class="${detailFilter === "processed" ? "active" : ""}" type="button" data-operator-detail-filter="processed">
+          <span>İşlenen</span><strong>${operator.processed_count}</strong>
+        </button>
+        <button class="${detailFilter === "positive" ? "active" : ""}" type="button" data-operator-detail-filter="positive">
+          <span>Olumlu</span><strong>${operator.positive_count}</strong>
+        </button>
+        <button class="${detailFilter === "assigned" ? "active" : ""}" type="button" data-operator-detail-filter="assigned">
+          <span>Atanan</span><strong>${operator.assigned_count}</strong>
+        </button>
+      </div>
+      <div class="mini-meta operator-detail-filter-state">
+        <span>Aktif detay: ${escapeHtml(filterLabel)}</span>
+        <span>${state.operatorDetailPagination.total} kayıt gösteriliyor</span>
       </div>
       <div class="operator-detail-table-wrap">
         <table class="operator-detail-table">
@@ -2194,6 +2211,18 @@ function closeOperatorControlModal() {
 
 async function selectOperatorDetail(userId) {
   state.operatorDetailUserId = userId || "";
+  state.operatorDetailFilter = "all";
+  state.operatorDetailPagination.offset = 0;
+  try {
+    await loadOperatorDetailRecords();
+    render();
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+}
+
+async function setOperatorDetailFilter(filter) {
+  state.operatorDetailFilter = filter || "all";
   state.operatorDetailPagination.offset = 0;
   try {
     await loadOperatorDetailRecords();
@@ -2713,6 +2742,12 @@ function bindEvents() {
 
   document.querySelector("[data-operator-detail-clear]")?.addEventListener("click", async () => {
     await selectOperatorDetail("");
+  });
+
+  document.querySelectorAll("[data-operator-detail-filter]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      await setOperatorDetailFilter(node.getAttribute("data-operator-detail-filter"));
+    });
   });
 
   document.querySelectorAll("[data-save-record]").forEach((node) => {

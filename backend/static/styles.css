@@ -905,7 +905,7 @@ a {
   gap: 6px;
 }
 
-.operator-detail-summary div {
+.operator-detail-summary button {
   min-width: 0;
   padding: 7px;
   border-top: 1px solid #ffffff;
@@ -913,6 +913,14 @@ a {
   border-right: 1px solid #a2afbf;
   border-bottom: 1px solid #a2afbf;
   background: #ffffff;
+  color: var(--text);
+  text-align: left;
+}
+
+.operator-detail-summary button:hover,
+.operator-detail-summary button.active {
+  border-color: #5e83b1;
+  background: linear-gradient(180deg, #eef7ff 0%, #dcecff 100%);
 }
 
 .operator-detail-summary span {
@@ -925,6 +933,10 @@ a {
   display: block;
   margin-top: 2px;
   font: 700 16px/1.1 var(--mono);
+}
+
+.operator-detail-filter-state {
+  margin-top: -2px;
 }
 
 .operator-detail-empty {
