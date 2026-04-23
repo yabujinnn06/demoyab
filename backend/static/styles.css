@@ -34,6 +34,10 @@ body {
   font: 12px/1.4 var(--font);
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 button,
 input,
 select,
@@ -1579,6 +1583,11 @@ tbody tr:hover td {
   z-index: 40;
 }
 
+#operator-control-modal-backdrop {
+  align-items: stretch;
+  overflow: hidden;
+}
+
 .modal-window {
   width: min(1180px, 100%);
   border: 1px solid #2b4f89;
@@ -1588,6 +1597,14 @@ tbody tr:hover td {
 
 .modal-window.wide-modal {
   width: min(1500px, 100%);
+}
+
+#operator-control-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1560px, 100%);
+  max-height: calc(100vh - 36px);
+  min-height: 0;
 }
 
 .modal-titlebar {
@@ -1622,6 +1639,16 @@ tbody tr:hover td {
 
 .modal-body.single-column {
   grid-template-columns: 1fr;
+}
+
+.operator-control-modal-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.operator-control-modal-body .operator-panel {
+  min-height: 0;
 }
 
 .modal-panel {

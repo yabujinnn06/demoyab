@@ -1400,7 +1400,7 @@ function operatorControlContentMarkup() {
   const reachRate = percent(totals.reached, totals.processed);
   const positiveRate = percent(totals.positive, totals.processed);
   return `
-    <section class="panel stack operator-panel window-shell" data-window-title="Operatör Kontrol Merkezi">
+    <section class="panel stack operator-panel">
       <div class="panel-head">
         <div>
           <p class="section-kicker">Kullanıcı Odaklı Kontrol</p>
@@ -2056,6 +2056,10 @@ function appMarkup() {
 }
 
 function render() {
+  document.body.classList.toggle(
+    "modal-open",
+    Boolean(state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen),
+  );
   appNode.innerHTML = state.token && state.me ? appMarkup() : loginMarkup();
   bindEvents();
 }
