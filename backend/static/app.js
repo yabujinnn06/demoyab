@@ -56,6 +56,7 @@ const DEFAULT_CONTACT_POOL_FILTERS = {
 
 const state = {
   token: persistedToken,
+  booting: Boolean(persistedToken),
   me: null,
   lists: [],
   records: [],
@@ -135,6 +136,7 @@ function resetSessionState(message = "") {
   stopPolling();
   cancelDeferredRender();
   state.token = null;
+  state.booting = false;
   state.me = null;
   state.lists = [];
   state.records = [];
@@ -530,6 +532,7 @@ function contactPoolDraft(entry) {
 
 async function loadSession() {
   if (!state.token) {
+    state.booting = false;
     resetSessionState();
     render();
     return;
@@ -539,6 +542,7 @@ async function loadSession() {
     state.me = await api("/api/auth/me");
     await Promise.all([loadLists(), loadUsersIfAdmin()]);
     await refreshOperationalData("login");
+    state.booting = false;
     if (state.me?.role === "admin") {
       startPolling();
     } else {
@@ -546,6 +550,7 @@ async function loadSession() {
     }
   } catch (error) {
     console.error(error);
+    state.booting = false;
     resetSessionState(error.message);
     setFlash("error", error.message);
   }
@@ -888,6 +893,24 @@ function loginMarkup() {
             <button class="btn btn-primary" type="submit">Oturum Aç</button>
           </form>
         </section>
+      </div>
+    </section>
+  `;
+}
+
+function bootMarkup() {
+  return `
+    <section class="login-screen">
+      <div class="boot-window window-shell" data-window-title="Oturum Doğrulanıyor">
+        ${brandMark()}
+        <div>
+          <p class="brand-kicker">Rainwater Systems</p>
+          <h1>Yabujin Scrap Controller</h1>
+          <p>Oturum ve operasyon verileri yükleniyor.</p>
+        </div>
+        <div class="boot-progress" aria-hidden="true">
+          <span></span>
+        </div>
       </div>
     </section>
   `;
@@ -2077,7 +2100,7 @@ function render() {
     "modal-open",
     Boolean(state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen),
   );
-  appNode.innerHTML = state.token && state.me ? appMarkup() : loginMarkup();
+  appNode.innerHTML = state.booting ? bootMarkup() : state.token && state.me ? appMarkup() : loginMarkup();
   bindEvents();
 }
 

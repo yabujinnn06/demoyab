@@ -1540,6 +1540,61 @@ tbody tr:hover td {
   overflow: hidden;
 }
 
+.boot-window {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: min(520px, calc(100vw - 32px));
+  margin: auto;
+  padding: 18px;
+}
+
+.boot-window .brand-logo {
+  width: 40px;
+  height: 40px;
+}
+
+.boot-window h1 {
+  margin: 2px 0 4px;
+  font-size: 22px;
+}
+
+.boot-window p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.boot-progress {
+  grid-column: 1 / -1;
+  height: 18px;
+  padding: 2px;
+  border-top: 1px solid #6d7d91;
+  border-left: 1px solid #6d7d91;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.boot-progress span {
+  display: block;
+  width: 34%;
+  height: 100%;
+  background: linear-gradient(180deg, #79b6ef 0%, #1e67ba 100%);
+  animation: boot-progress 1.1s linear infinite;
+}
+
+@keyframes boot-progress {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(310%);
+  }
+}
+
 .hero-lockup,
 .hero-strip,
 .login-card-head,
