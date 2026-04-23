@@ -78,6 +78,15 @@ const state = {
   teamModalOpen: false,
   listsModalOpen: false,
   contactPoolModalOpen: false,
+  operatorControlModalOpen: false,
+  operatorDetailUserId: "",
+  operatorDetailRecords: [],
+  operatorDetailSummary: null,
+  operatorDetailPagination: {
+    offset: 0,
+    limit: 25,
+    total: 0,
+  },
   filters: { ...DEFAULT_FILTERS },
   contactPoolFilters: { ...DEFAULT_CONTACT_POOL_FILTERS },
   assignStrategy: "equal",
@@ -140,6 +149,12 @@ function resetSessionState(message = "") {
   state.teamModalOpen = false;
   state.listsModalOpen = false;
   state.contactPoolModalOpen = false;
+  state.operatorControlModalOpen = false;
+  state.operatorDetailUserId = "";
+  state.operatorDetailRecords = [];
+  state.operatorDetailSummary = null;
+  state.operatorDetailPagination.offset = 0;
+  state.operatorDetailPagination.total = 0;
   state.assignStrategy = "equal";
   state.assignMode = "unassigned";
   state.assignDrafts = {};
@@ -180,6 +195,14 @@ function roleLabel(role) {
 
 function reachStatusLabel(status) {
   return REACH_STATUS_OPTIONS.find(([value]) => value === status)?.[1] || status || "-";
+}
+
+function callStatusLabel(status) {
+  return CALL_STATUS_OPTIONS.find(([value]) => value === status)?.[1] || status || "-";
+}
+
+function resultStatusLabel(status) {
+  return RESULT_STATUS_OPTIONS.find(([value]) => value === status)?.[1] || status || "-";
 }
 
 function setFlash(type, text) {
@@ -422,6 +445,9 @@ async function refreshOperationalData(source = "manual") {
   if (state.contactPoolModalOpen) {
     tasks.push(loadContactPool());
   }
+  if (state.operatorControlModalOpen && state.operatorDetailUserId) {
+    tasks.push(loadOperatorDetailRecords());
+  }
   await Promise.all(tasks);
   markSync(source);
 }
@@ -459,13 +485,17 @@ function hasLocalInteraction() {
   const active = document.activeElement;
   const recentlyTouched = Date.now() - interactionState.lastUserInteractionAt < 12000;
   if (recentlyTouched) return true;
-  if (state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen) return true;
+  if (state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen) return true;
   if (state.uploadFile) return true;
   if (Object.keys(state.recordDrafts).length > 0) return true;
   if (Object.keys(state.contactPoolDrafts).length > 0) return true;
   if (active && active !== document.body && active !== document.documentElement) {
     if (active.matches("input, select, textarea, button")) return true;
-    if (active.closest("#upload-form, #user-form, #assign-form, #team-modal, #contact-pool-modal, .records-table, .filter-panel, #login-form")) {
+    if (
+      active.closest(
+        "#upload-form, #user-form, #assign-form, #team-modal, #contact-pool-modal, #operator-control-modal, .records-table, .filter-panel, #login-form",
+      )
+    ) {
       return true;
     }
   }
@@ -546,6 +576,35 @@ async function loadOperatorStats() {
   const params = new URLSearchParams();
   if (state.selectedListId) params.set("call_list_id", state.selectedListId);
   state.operatorStats = await api(`/api/operator-stats?${params.toString()}`);
+}
+
+async function loadOperatorDetailRecords() {
+  if (state.me?.role !== "admin" || !state.operatorDetailUserId) {
+    state.operatorDetailRecords = [];
+    state.operatorDetailSummary = null;
+    state.operatorDetailPagination.total = 0;
+    return;
+  }
+
+  const params = new URLSearchParams();
+  if (state.selectedListId) params.set("call_list_id", state.selectedListId);
+  params.set("assigned_user_id", state.operatorDetailUserId);
+  params.set("offset", String(state.operatorDetailPagination.offset));
+  params.set("limit", String(state.operatorDetailPagination.limit));
+
+  let response = await api(`/api/records?${params.toString()}`);
+  if (response.total > 0 && state.operatorDetailPagination.offset >= response.total) {
+    state.operatorDetailPagination.offset = Math.max(
+      0,
+      Math.floor((response.total - 1) / state.operatorDetailPagination.limit) * state.operatorDetailPagination.limit,
+    );
+    params.set("offset", String(state.operatorDetailPagination.offset));
+    response = await api(`/api/records?${params.toString()}`);
+  }
+
+  state.operatorDetailRecords = response.items;
+  state.operatorDetailPagination.total = response.total;
+  state.operatorDetailSummary = compactSummary(response.summary) || summarizeRecords(response.items);
 }
 
 async function loadContactPool() {
@@ -708,6 +767,18 @@ function contactPoolTotalPages() {
 
 function contactPoolCurrentPage() {
   return Math.floor(state.contactPoolPagination.offset / state.contactPoolPagination.limit) + 1;
+}
+
+function operatorDetailTotalPages() {
+  return Math.max(1, Math.ceil(state.operatorDetailPagination.total / state.operatorDetailPagination.limit));
+}
+
+function operatorDetailCurrentPage() {
+  return Math.floor(state.operatorDetailPagination.offset / state.operatorDetailPagination.limit) + 1;
+}
+
+function selectedOperatorStat() {
+  return state.operatorStats.find((item) => item.user_id === state.operatorDetailUserId) || null;
 }
 
 function loginConsoleMarkup() {
@@ -1301,7 +1372,7 @@ function assignPanelMarkup() {
   `;
 }
 
-function operatorStatsPanelMarkup() {
+function operatorControlContentMarkup() {
   if (state.me?.role !== "admin") return "";
   const percent = (value, total) => (total > 0 ? Math.round((value / total) * 100) : 0);
   const operatorStatus = (item) => {
@@ -1379,7 +1450,9 @@ function operatorStatsPanelMarkup() {
                   const itemPositiveRate = percent(item.positive_count, item.processed_count);
                   const [statusLabel, statusClass] = operatorStatus(item);
                   return `
-                    <article class="operator-card ${state.filters.assigned_user_id === item.user_id ? "selected" : ""}">
+                    <article class="operator-card ${
+                      state.operatorDetailUserId === item.user_id || state.filters.assigned_user_id === item.user_id ? "selected" : ""
+                    }">
                       <div class="operator-card-head">
                         <div>
                           <h3>${escapeHtml(item.full_name || item.email)}</h3>
@@ -1405,8 +1478,8 @@ function operatorStatsPanelMarkup() {
                         <span>Son: ${escapeHtml(formatDate(item.last_activity_at))}</span>
                       </div>
                       <div class="operator-card-actions">
-                        <button class="btn btn-primary mini-button" type="button" data-filter-operator="${item.user_id}">Kayıtlarını Göster</button>
-                        <button class="btn btn-soft mini-button" type="button" data-filter-operator="">Tüm Operatörler</button>
+                        <button class="btn btn-primary mini-button" type="button" data-operator-detail="${item.user_id}">Kayıt Penceresi</button>
+                        <button class="btn btn-soft mini-button" type="button" data-filter-operator="${item.user_id}">Ana Tabloda Göster</button>
                       </div>
                     </article>
                   `;
@@ -1415,6 +1488,7 @@ function operatorStatsPanelMarkup() {
             : `<p class="empty">Operatör yok.</p>`
         }
       </div>
+      ${operatorDetailRecordsMarkup()}
       <div class="operator-table-wrap">
         <table class="operator-table">
           <caption>Operatör detay dökümü</caption>
@@ -1440,7 +1514,9 @@ function operatorStatsPanelMarkup() {
                       (item) => {
                         const remaining = Math.max(0, item.assigned_count - item.processed_count);
                         return `
-                        <tr class="${state.filters.assigned_user_id === item.user_id ? "active-operator-row" : ""}">
+                        <tr class="${
+                          state.operatorDetailUserId === item.user_id || state.filters.assigned_user_id === item.user_id ? "active-operator-row" : ""
+                        }">
                           <td>
                             <div class="record-name">${escapeHtml(item.full_name || item.email)}</div>
                             <div class="record-meta">${escapeHtml(item.email)}</div>
@@ -1455,7 +1531,7 @@ function operatorStatsPanelMarkup() {
                           <td>${item.negative_count}</td>
                           <td class="record-meta">${escapeHtml(formatDate(item.last_activity_at))}</td>
                           <td>
-                            <button class="btn btn-soft mini-button" type="button" data-filter-operator="${item.user_id}">Göster</button>
+                            <button class="btn btn-soft mini-button" type="button" data-operator-detail="${item.user_id}">Detay</button>
                           </td>
                         </tr>
                       `;
@@ -1473,6 +1549,166 @@ function operatorStatsPanelMarkup() {
         <span>Pasif operatörler raporda görünür ama yeni dağıtımda seçilmez.</span>
       </div>
     </section>
+  `;
+}
+
+function operatorDetailRecordsMarkup() {
+  const operator = selectedOperatorStat();
+  const summary = state.operatorDetailSummary || {
+    total: 0,
+    assigned: 0,
+    calling: 0,
+    positive: 0,
+  };
+
+  if (!state.operatorDetailUserId || !operator) {
+    return `
+      <section class="operator-detail-panel">
+        <div class="operator-detail-empty">
+          <strong>Operatör seçilmedi</strong>
+          <span>Kartlardan bir operatör seçince o kişinin operasyon kayıtları burada ayrı olarak açılır.</span>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="operator-detail-panel">
+      <div class="operator-detail-head">
+        <div>
+          <p class="section-kicker">Operatör Kayıtları</p>
+          <h3>${escapeHtml(operator.full_name || operator.email)}</h3>
+          <p>${escapeHtml(operator.email)} / ${selectedList() ? escapeHtml(selectedList().name) : "Tüm listeler"}</p>
+        </div>
+        <div class="operator-detail-actions">
+          <button class="btn btn-soft mini-button" type="button" data-filter-operator="${operator.user_id}">Ana Tabloda Aç</button>
+          <button class="btn btn-soft mini-button" type="button" data-operator-detail-clear="true">Seçimi Temizle</button>
+        </div>
+      </div>
+      <div class="operator-detail-summary">
+        <div><span>Toplam</span><strong>${state.operatorDetailPagination.total}</strong></div>
+        <div><span>İşlenen</span><strong>${summary.calling || 0}</strong></div>
+        <div><span>Olumlu</span><strong>${summary.positive || 0}</strong></div>
+        <div><span>Atanan</span><strong>${summary.assigned || 0}</strong></div>
+      </div>
+      <div class="operator-detail-table-wrap">
+        <table class="operator-detail-table">
+          <thead>
+            <tr>
+              <th>Firma</th>
+              <th>İletişim</th>
+              <th>Durum</th>
+              <th>Not</th>
+              <th>Güncel</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              state.operatorDetailRecords.length
+                ? state.operatorDetailRecords
+                    .map(
+                      (record) => `
+                        <tr>
+                          <td>
+                            <div class="record-name">${escapeHtml(record.company_name || "-")}</div>
+                            <div class="record-meta">${escapeHtml(record.call_list_name || "-")}</div>
+                            <div class="record-address">${escapeHtml(record.address || "-")}</div>
+                          </td>
+                          <td>
+                            <div class="table-cell-text">${escapeHtml(record.phone || "-")}</div>
+                            <div class="record-meta">${escapeHtml(record.email || "-")}</div>
+                            <div class="record-meta">${escapeHtml(record.website || "-")}</div>
+                          </td>
+                          <td>
+                            <span class="badge active">${escapeHtml(callStatusLabel(record.call_status))}</span>
+                            <span class="badge ${record.result_status === "POSITIVE" ? "active" : "inactive"}">${escapeHtml(
+                              resultStatusLabel(record.result_status),
+                            )}</span>
+                          </td>
+                          <td>
+                            <div class="record-meta">${escapeHtml(record.note || "-")}</div>
+                          </td>
+                          <td>
+                            <div class="record-meta">${escapeHtml(formatDate(record.updated_at))}</div>
+                            <div class="record-meta">${escapeHtml(record.updated_by_user_name || "-")}</div>
+                          </td>
+                        </tr>
+                      `,
+                    )
+                    .join("")
+                : `<tr><td colspan="5"><p class="empty">Bu operatör için kayıt bulunamadı.</p></td></tr>`
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="table-pager">
+        <div class="table-pager-status">
+          ${state.operatorDetailPagination.total
+            ? `${state.operatorDetailPagination.offset + 1}-${Math.min(
+                state.operatorDetailPagination.offset + state.operatorDetailPagination.limit,
+                state.operatorDetailPagination.total,
+              )} / ${state.operatorDetailPagination.total} kayıt`
+            : "0 kayıt"}
+          <span>Sayfa ${operatorDetailCurrentPage()} / ${operatorDetailTotalPages()}</span>
+        </div>
+        <div class="table-pager-actions">
+          <button class="btn btn-soft" type="button" id="operator-detail-page-prev" ${
+            state.operatorDetailPagination.offset <= 0 ? "disabled" : ""
+          }>Önceki</button>
+          <button class="btn btn-soft" type="button" id="operator-detail-page-next" ${
+            operatorDetailCurrentPage() >= operatorDetailTotalPages() ? "disabled" : ""
+          }>Sonraki</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function operatorStatsPanelMarkup() {
+  if (state.me?.role !== "admin") return "";
+  const totals = state.operatorStats.reduce(
+    (sum, item) => ({
+      assigned: sum.assigned + item.assigned_count,
+      processed: sum.processed + item.processed_count,
+      remaining: sum.remaining + Math.max(0, item.assigned_count - item.processed_count),
+      activeOperators: sum.activeOperators + (item.is_active ? 1 : 0),
+    }),
+    { assigned: 0, processed: 0, remaining: 0, activeOperators: 0 },
+  );
+  return `
+    <section class="sidebar-section panel window-shell operator-launch-panel" data-window-title="Operatör Kontrolü">
+      <div class="panel-head">
+        <div>
+          <h2>Operatör Kontrolü</h2>
+          <p>Operatör bazlı iş yükü ve kayıt dökümünü ayrı pencerede yönet.</p>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="mini-meta">
+          <span>${totals.activeOperators} aktif operatör</span>
+          <span>${totals.remaining} kalan</span>
+          <span>${totals.processed}/${totals.assigned} işlem</span>
+        </div>
+        <button class="btn btn-primary" type="button" id="open-operator-control-modal">Kontrol Penceresini Aç</button>
+      </div>
+    </section>
+  `;
+}
+
+function operatorControlModalMarkup() {
+  if (state.me?.role !== "admin" || !state.operatorControlModalOpen) return "";
+  return `
+    <div class="modal-backdrop" id="operator-control-modal-backdrop">
+      <section class="modal-window wide-modal" id="operator-control-modal" role="dialog" aria-modal="true" aria-labelledby="operator-control-modal-title">
+        <header class="modal-titlebar">
+          <strong id="operator-control-modal-title">Operatör Kontrol Merkezi</strong>
+          <button class="window-close" type="button" id="close-operator-control-modal" aria-label="Kapat">X</button>
+        </header>
+        <div class="modal-body single-column operator-control-modal-body">
+          ${operatorControlContentMarkup()}
+        </div>
+      </section>
+    </div>
   `;
 }
 
@@ -1772,6 +2008,7 @@ function appMarkup() {
         ${usersSectionMarkup()}
         ${listsSectionMarkup()}
         ${contactPoolSectionMarkup()}
+        ${operatorStatsPanelMarkup()}
       </aside>
 
       <main class="main">
@@ -1805,7 +2042,7 @@ function appMarkup() {
         ${filtersMarkup()}
         ${
           state.me?.role === "admin"
-            ? `<div class="command-grid">${assignPanelMarkup()}${activityPanelMarkup()}${operatorStatsPanelMarkup()}</div>`
+            ? `<div class="command-grid">${assignPanelMarkup()}${activityPanelMarkup()}</div>`
             : ""
         }
         ${recordsTableMarkup()}
@@ -1813,6 +2050,7 @@ function appMarkup() {
       ${teamModalMarkup()}
       ${listsModalMarkup()}
       ${contactPoolModalMarkup()}
+      ${operatorControlModalMarkup()}
     </div>
   `;
 }
@@ -1922,6 +2160,43 @@ function closeContactPoolModal() {
   state.contactPoolModalOpen = false;
   state.contactPoolDrafts = {};
   render();
+}
+
+async function openOperatorControlModal() {
+  state.operatorControlModalOpen = true;
+  if (!state.operatorDetailUserId && state.operatorStats.length) {
+    state.operatorDetailUserId = state.operatorStats.find((item) => item.is_active)?.user_id || state.operatorStats[0].user_id;
+    state.operatorDetailPagination.offset = 0;
+  }
+  try {
+    await loadOperatorStats();
+    if (!state.operatorDetailUserId && state.operatorStats.length) {
+      state.operatorDetailUserId = state.operatorStats.find((item) => item.is_active)?.user_id || state.operatorStats[0].user_id;
+      state.operatorDetailPagination.offset = 0;
+    }
+    if (state.operatorDetailUserId) {
+      await loadOperatorDetailRecords();
+    }
+  } catch (error) {
+    setFlash("error", error.message);
+  }
+  render();
+}
+
+function closeOperatorControlModal() {
+  state.operatorControlModalOpen = false;
+  render();
+}
+
+async function selectOperatorDetail(userId) {
+  state.operatorDetailUserId = userId || "";
+  state.operatorDetailPagination.offset = 0;
+  try {
+    await loadOperatorDetailRecords();
+    render();
+  } catch (error) {
+    setFlash("error", error.message);
+  }
 }
 
 async function handleUserUpdate(userId) {
@@ -2277,6 +2552,8 @@ function bindEvents() {
   document.querySelector("#close-lists-modal")?.addEventListener("click", closeListsModal);
   document.querySelector("#open-contact-pool-modal")?.addEventListener("click", openContactPoolModal);
   document.querySelector("#close-contact-pool-modal")?.addEventListener("click", closeContactPoolModal);
+  document.querySelector("#open-operator-control-modal")?.addEventListener("click", openOperatorControlModal);
+  document.querySelector("#close-operator-control-modal")?.addEventListener("click", closeOperatorControlModal);
   document.querySelector("#team-modal-backdrop")?.addEventListener("click", (event) => {
     if (event.target.id === "team-modal-backdrop") {
       closeTeamModal();
@@ -2290,6 +2567,11 @@ function bindEvents() {
   document.querySelector("#contact-pool-modal-backdrop")?.addEventListener("click", (event) => {
     if (event.target.id === "contact-pool-modal-backdrop") {
       closeContactPoolModal();
+    }
+  });
+  document.querySelector("#operator-control-modal-backdrop")?.addEventListener("click", (event) => {
+    if (event.target.id === "operator-control-modal-backdrop") {
+      closeOperatorControlModal();
     }
   });
   document.querySelector("#upload-form")?.addEventListener("submit", handleUpload);
@@ -2389,6 +2671,17 @@ function bindEvents() {
     await loadContactPool();
     render();
   });
+  document.querySelector("#operator-detail-page-prev")?.addEventListener("click", async () => {
+    state.operatorDetailPagination.offset = Math.max(0, state.operatorDetailPagination.offset - state.operatorDetailPagination.limit);
+    await loadOperatorDetailRecords();
+    render();
+  });
+  document.querySelector("#operator-detail-page-next")?.addEventListener("click", async () => {
+    if (operatorDetailCurrentPage() >= operatorDetailTotalPages()) return;
+    state.operatorDetailPagination.offset += state.operatorDetailPagination.limit;
+    await loadOperatorDetailRecords();
+    render();
+  });
 
   document.querySelectorAll("[data-list-id]").forEach((node) => {
     node.addEventListener("click", async () => {
@@ -2408,6 +2701,16 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll("[data-operator-detail]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      await selectOperatorDetail(node.getAttribute("data-operator-detail"));
+    });
+  });
+
+  document.querySelector("[data-operator-detail-clear]")?.addEventListener("click", async () => {
+    await selectOperatorDetail("");
+  });
+
   document.querySelectorAll("[data-save-record]").forEach((node) => {
     node.addEventListener("click", () => handleSaveRecord(node.getAttribute("data-save-record")));
   });
@@ -2416,6 +2719,9 @@ function bindEvents() {
     node.addEventListener("click", async () => {
       state.filters.assigned_user_id = node.getAttribute("data-filter-operator") || "";
       state.filters.unassigned = false;
+      if (node.closest("#operator-control-modal")) {
+        state.operatorControlModalOpen = false;
+      }
       state.pagination.offset = 0;
       await loadRecords();
       render();
