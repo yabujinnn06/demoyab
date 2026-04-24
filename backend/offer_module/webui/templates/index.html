@@ -369,10 +369,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Teklif Ofisi</title>
-  <link rel="stylesheet" href="{{ request.url_for('static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('static', path='styles.css') }}?v=20260419-workspace-shell">
-  <script defer src="{{ request.url_for('static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('static', path='app.js') }}?v=20260419-workspace-shell"></script>
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260424-offer-layout">
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260424-offer-layout"></script>
 </head>
 <body class="app-body">
   <div class="offcanvas offcanvas-start app-offcanvas" tabindex="-1" id="workspaceDrawer" aria-labelledby="workspaceDrawerLabel">
@@ -389,11 +389,11 @@
   </div>
 
   <header class="hero-shell border-bottom">
-    <div class="container-fluid px-3 px-md-4 px-xxl-5 py-4">
-      <div class="row g-4 align-items-start">
+    <div class="container-fluid px-3 px-md-4 px-xxl-5 py-3">
+      <div class="row g-3 align-items-center">
         <div class="col-12 col-xl-8">
           <p class="section-kicker mb-2">Rainwater Teklif Ofisi</p>
-          <h1 class="hero-title mb-3">Teklif akislarini tek merkezden yonet</h1>
+          <h1 class="hero-title mb-2">Teklif akislarini tek merkezden yonet</h1>
           <p class="hero-copy mb-0">
             Fiyat listesi, teklif PDF, sablon ve cikti klasorlerini ayni akista yonet. Kontrol et, fiyatlari karsilastir,
             duzeltmeleri uygula ve yeni teklifleri tek ekrandan uret.
@@ -401,10 +401,10 @@
         </div>
         <div class="col-12 col-xl-4">
           <div class="hero-actions d-flex flex-wrap gap-2 justify-content-xl-end">
-            <button class="btn btn-primary btn-lg" type="button" data-open-workspace="compare">Kontrole git</button>
-            <button class="btn btn-outline-secondary btn-lg" type="button" data-open-workspace="create">Teklif olustur</button>
-            <a class="btn btn-outline-dark btn-lg" href="/">Ana sayfaya don</a>
-            <button class="btn btn-outline-dark btn-lg d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#workspaceDrawer" aria-controls="workspaceDrawer">
+            <button class="btn btn-primary" type="button" data-open-workspace="compare">Kontrole git</button>
+            <button class="btn btn-outline-secondary" type="button" data-open-workspace="create">Teklif olustur</button>
+            <a class="btn btn-outline-dark" href="/">Ana sayfaya don</a>
+            <button class="btn btn-outline-dark d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#workspaceDrawer" aria-controls="workspaceDrawer">
               Calisma alanlari
             </button>
           </div>
@@ -424,8 +424,8 @@
     </div>
   </header>
 
-  <div class="container-fluid px-3 px-md-4 px-xxl-5 py-4">
-    <div class="row g-4 align-items-start">
+  <div class="container-fluid px-3 px-md-4 px-xxl-5 py-3">
+    <div class="row g-3 align-items-start">
       <aside class="col-xl-3 d-none d-xl-block">
         <div class="sidebar-sticky">
           {{ workspace_sidebar() }}

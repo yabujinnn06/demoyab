@@ -154,7 +154,7 @@ class ComparisonSession:
 
 app = FastAPI(title="Rainwater Teklif Kontrol")
 app.middleware("http")(enforce_offer_access)
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="offer_static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 _template_response = templates.TemplateResponse
 
