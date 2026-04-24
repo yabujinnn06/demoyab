@@ -1544,25 +1544,34 @@ tbody tr:hover td {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: 10px 12px;
   width: min(520px, calc(100vw - 32px));
   margin: auto;
-  padding: 18px;
+  padding: 44px 18px 18px;
 }
 
 .boot-window .brand-logo {
   width: 40px;
   height: 40px;
+  align-self: start;
+  margin-top: 1px;
+}
+
+.boot-window > div {
+  min-width: 0;
 }
 
 .boot-window h1 {
   margin: 2px 0 4px;
   font-size: 22px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .boot-window p {
   margin: 0;
   color: var(--muted);
+  line-height: 1.45;
 }
 
 .boot-progress {
@@ -1592,6 +1601,23 @@ tbody tr:hover td {
 
   100% {
     transform: translateX(310%);
+  }
+}
+
+@media (max-width: 520px) {
+  .boot-window {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    padding: 42px 14px 14px;
+  }
+
+  .boot-window .brand-logo {
+    width: 34px;
+    height: 34px;
+  }
+
+  .boot-window h1 {
+    font-size: 18px;
   }
 }
 
