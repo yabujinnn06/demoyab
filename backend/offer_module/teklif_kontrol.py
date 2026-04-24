@@ -2122,6 +2122,12 @@ def _turkish_upper(value: str) -> str:
     return value.translate(str.maketrans({"i": "İ", "ı": "I"})).upper()
 
 
+def _offer_product_display_name(value: str) -> str:
+    display_text = _turkish_upper(value)
+    display_text = re.sub(r"\bRAİNWATER\b", "RAINWATER", display_text)
+    return re.sub(r"\bSUPERİOR\b", "SUPERIOR", display_text)
+
+
 def _coerce_offer_selection(raw_selection: OfferSelection | tuple) -> OfferSelection:
     if isinstance(raw_selection, OfferSelection):
         return raw_selection
@@ -3080,7 +3086,7 @@ def generate_offer_pdf(
             f"Ödeme Bilgisi :{payment_info_text}",
             "Montaj Bilgisi : Montaj alanına elektrik hat çekimi tarafınıza aittir.",
             "Ürün nakliye ve montajı tarafımıza aittir.",
-            f"Fiyatlarımıza KDV (%{vat_rate:g}) {'dahildir' if vat_included else 'dahil DEĞİLDİR'}.",
+            f"Fiyatlarımıza KDV (%{vat_rate:g}) {'dahildir' if vat_included else 'dahil değildir'}.",
             f"Teklif süresi : {valid_until:%d.%m.%Y} tarihine kadar geçerlidir.",
         ]
 
@@ -3101,17 +3107,12 @@ def generate_offer_pdf(
             sum(item.discount_amount * item.quantity for item in offer_items),
             2,
         )
-        discounted_header = (
-            "KURUMSAL\nİNDİRİMLİ\nFİYAT"
-            if "KURUMSAL" in normalize_text(selected_column)
-            else "SEÇİLEN\nFİYAT"
-        )
         table_regular = fonts.table_regular
         table_bold = fonts.table_bold
         table_header_top = 320
         _draw_textbox(
             page,
-            fitz.Rect(84, table_header_top + 13, 184, table_header_top + 27),
+            fitz.Rect(96, table_header_top + 13, 170, table_header_top + 27),
             "MALZEME",
             fontname=table_bold.name,
             fontfile=table_bold.file,
@@ -3121,7 +3122,7 @@ def generate_offer_pdf(
         )
         _draw_textbox(
             page,
-            fitz.Rect(252, table_header_top + 13, 314, table_header_top + 27),
+            fitz.Rect(258, table_header_top + 13, 306, table_header_top + 27),
             "MİKTAR",
             fontname=table_bold.name,
             fontfile=table_bold.file,
@@ -3131,33 +3132,53 @@ def generate_offer_pdf(
         )
         _draw_textbox(
             page,
-            fitz.Rect(314, table_header_top + 13, 376, table_header_top + 27),
+            fitz.Rect(316, table_header_top + 13, 374, table_header_top + 27),
             "BİRİM FİYAT",
             fontname=table_bold.name,
             fontfile=table_bold.file,
-            fontsize=10.2,
+            fontsize=9.9,
+            color=PDF_BLACK,
+            align=1,
+            min_fontsize=8.5,
+        )
+        if "KURUMSAL" in normalize_text(selected_column):
+            price_header_lines = ("KURUMSAL", "İNDİRİMLİ", "FİYAT")
+        elif "PERAKENDE" in normalize_text(selected_column):
+            price_header_lines = ("PERAKENDE", "SEÇİLEN", "FİYAT")
+        else:
+            price_header_lines = ("SEÇİLEN", "FİYAT", "")
+        for line_offset, header_text in enumerate(price_header_lines):
+            if not header_text:
+                continue
+            _draw_textbox(
+                page,
+                fitz.Rect(386, table_header_top + line_offset * 12.3, 448, table_header_top + 13 + line_offset * 12.3),
+                header_text,
+                fontname=table_bold.name,
+                fontfile=table_bold.file,
+                fontsize=10.0,
+                color=PDF_BLACK,
+                align=1,
+                min_fontsize=8.5,
+            )
+        _draw_textbox(
+            page,
+            fitz.Rect(466, table_header_top + 7, 516, table_header_top + 20),
+            "TOPLAM",
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=10.0,
             color=PDF_BLACK,
             align=1,
             min_fontsize=8.5,
         )
         _draw_textbox(
             page,
-            fitz.Rect(386, table_header_top, 448, table_header_top + 38),
-            discounted_header,
+            fitz.Rect(466, table_header_top + 20, 516, table_header_top + 33),
+            "TUTAR",
             fontname=table_bold.name,
             fontfile=table_bold.file,
-            fontsize=10.2,
-            color=PDF_BLACK,
-            align=1,
-            min_fontsize=8,
-        )
-        _draw_textbox(
-            page,
-            fitz.Rect(464, table_header_top + 6, 516, table_header_top + 32),
-            "TOPLAM\nTUTAR",
-            fontname=table_bold.name,
-            fontfile=table_bold.file,
-            fontsize=10.2,
+            fontsize=10.0,
             color=PDF_BLACK,
             align=1,
             min_fontsize=8.5,
@@ -3168,27 +3189,36 @@ def generate_offer_pdf(
         row_height = max(32.0, min(52.0, (620.0 - row_top) / max(len(offer_items), 1)))
         for row_index, item in enumerate(offer_items):
             row_bottom = row_top + row_height
+            row_fill = PDF_TEMPLATE_ROW if row_index % 2 == 1 else (1, 1, 1)
             if row_index % 2 == 1:
                 page.draw_rect(
                     fitz.Rect(10, row_top - 4, 530, row_bottom + 2),
-                    color=PDF_TEMPLATE_ROW,
-                    fill=PDF_TEMPLATE_ROW,
+                    color=row_fill,
+                    fill=row_fill,
                     overlay=True,
                 )
             _draw_textbox(
                 page,
-                fitz.Rect(23, row_top, 238, row_bottom - 2),
-                item.product_name,
+                fitz.Rect(23, row_top, 181, row_bottom - 2),
+                _offer_product_display_name(item.product_name),
                 fontname=table_bold.name,
                 fontfile=table_bold.file,
                 fontsize=10,
                 color=PDF_BLACK,
                 min_fontsize=7.2,
             )
+            _draw_offer_badges(
+                page,
+                badge_source,
+                badge_clips,
+                row_top,
+                has_discount_layout=False,
+                background_fill=row_fill,
+            )
             price_line_top = row_top + max(2, (row_height - 13) / 2)
             _draw_textbox(
                 page,
-                fitz.Rect(252, price_line_top, 306, price_line_top + 14),
+                fitz.Rect(260, price_line_top, 302, price_line_top + 14),
                 _format_quantity(item.quantity),
                 fontname=table_regular.name,
                 fontfile=table_regular.file,
@@ -3199,7 +3229,7 @@ def generate_offer_pdf(
             )
             _draw_textbox(
                 page,
-                fitz.Rect(314, price_line_top, 372, price_line_top + 14),
+                fitz.Rect(316, price_line_top, 372, price_line_top + 14),
                 format_pdf_money(item.base_unit_price or item.unit_price),
                 fontname=table_regular.name,
                 fontfile=table_regular.file,
@@ -3221,7 +3251,7 @@ def generate_offer_pdf(
             )
             _draw_textbox(
                 page,
-                fitz.Rect(452, price_line_top, 518, price_line_top + 14),
+                fitz.Rect(454, price_line_top, 518, price_line_top + 14),
                 format_pdf_money(item.total_price),
                 fontname=table_regular.name,
                 fontfile=table_regular.file,
@@ -3312,24 +3342,40 @@ def generate_offer_pdf(
             )
 
         signature_name = _turkish_upper(contact_name or company_name or "-")
-        _draw_textbox(
-            page,
-            fitz.Rect(25, 652, 245, 670),
-            "Yetkili Adı",
-            fontname=table_bold.name,
-            fontfile=table_bold.file,
-            fontsize=12.2,
-            color=PDF_BLACK,
-            min_fontsize=9,
+        signature_rect = fitz.Rect(330, 638, 525, 704)
+        page.draw_rect(
+            signature_rect,
+            color=PDF_HEADER_BLUE,
+            fill=PDF_HEADER_BLUE,
+            width=0.8,
+            overlay=True,
+        )
+        page.draw_line(
+            fitz.Point(signature_rect.x0, signature_rect.y0),
+            fitz.Point(signature_rect.x1, signature_rect.y0),
+            color=PDF_ACCENT,
+            width=1.1,
         )
         _draw_textbox(
             page,
-            fitz.Rect(25, 673, 245, 692),
-            signature_name,
+            fitz.Rect(338, 657, 518, 674),
+            "YETKİLİ ADI",
             fontname=table_bold.name,
             fontfile=table_bold.file,
-            fontsize=12.2,
-            color=PDF_BLACK,
+            fontsize=12.8,
+            color=PDF_HEADER_TEXT,
+            align=1,
+            min_fontsize=10,
+        )
+        _draw_textbox(
+            page,
+            fitz.Rect(338, 678, 518, 696),
+            signature_name,
+            fontname=table_regular.name,
+            fontfile=table_regular.file,
+            fontsize=12.8,
+            color=PDF_HEADER_TEXT,
+            align=1,
             min_fontsize=9,
         )
 

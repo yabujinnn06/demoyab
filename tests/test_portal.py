@@ -1263,7 +1263,8 @@ def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) ->
     page = generated[0]
     text = page.get_text().replace("\xa0", " ")
     assert "\u00c7a\u011fr\u0131 \u0130leti\u015fim \u015eirketi" in text
-    assert "Rainwater \u00c7ift Filtre \u00d6zel \u0130\u00e7me Suyu Ar\u0131tma Sistemi" in text
+    assert "RAINWATER \u00c7\u0130FT F\u0130LTRE \u00d6ZEL \u0130\u00c7ME" in text
+    assert "SUYU ARITMA S\u0130STEM\u0130" in text
     assert "T\u00fcrk\u00e7e karakter kontrol\u00fc: \u015f, \u011f, \u00fc, \u00f6, \u00e7, \u0130" in text
     assert "\u0130SKONTO TUTARI" in text
     assert "YATIRIM MAL\u0130YET\u0130" in text
@@ -1275,7 +1276,7 @@ def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) ->
             continue
         for line in block.get("lines", []):
             line_text = "".join(span.get("text", "") for span in line.get("spans", []))
-            if "Yetkili" in line_text and fitz.Rect(line["bbox"]).y0 > 630:
+            if "YETK\u0130L\u0130" in line_text and fitz.Rect(line["bbox"]).y0 > 630:
                 bottom_signature_lines.append(fitz.Rect(line["bbox"]))
     assert bottom_signature_lines
-    assert bottom_signature_lines[0].x0 < 40
+    assert bottom_signature_lines[0].x0 > 330
