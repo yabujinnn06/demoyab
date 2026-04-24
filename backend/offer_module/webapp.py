@@ -1277,6 +1277,7 @@ async def admin_import_template(
     admin_pin: str = Form(""),
     template_file_upload: UploadFile = File(...),
     activate_after_import: str | None = Form(default="on"),
+    active_workspace: str = Form(default="settings"),
 ) -> HTMLResponse:
     admin_state = {
         "selected_template_file": default_template_file(),
@@ -1290,6 +1291,7 @@ async def admin_import_template(
             request,
             admin_state=admin_state,
             error=str(exc),
+            active_workspace=active_workspace,
         )
         return templates.TemplateResponse("index.html", context, status_code=403)
 
@@ -1303,18 +1305,23 @@ async def admin_import_template(
             request,
             admin_state=admin_state,
             error=str(exc),
+            active_workspace=active_workspace,
         )
         return templates.TemplateResponse("index.html", context, status_code=400)
 
-    admin_state["selected_template_file"] = relative_runtime_path(imported_path)
+    imported_template_file = relative_runtime_path(imported_path)
+    admin_state["selected_template_file"] = imported_template_file
+    create_state = default_create_state(default_price_file())
+    create_state["template_file"] = imported_template_file
     context = build_context(
         request,
         admin_state=admin_state,
-        create_state=default_create_state(default_price_file()),
+        create_state=create_state,
         notice=(
-            f"Yeni sablon eklendi: {imported_path.name}."
-            + (" Aktif sablon guncellendi." if activate_after_import is not None else "")
+            f"Yeni şablon eklendi: {imported_path.name}."
+            + (" Aktif şablon güncellendi." if activate_after_import is not None else "")
         ),
+        active_workspace=active_workspace,
     )
     return templates.TemplateResponse("index.html", context)
 

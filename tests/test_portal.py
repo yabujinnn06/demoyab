@@ -1149,6 +1149,7 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         assert admin_offer.status_code == 200
         assert "Rainwater Teklif Ofisi" in admin_offer.text
         assert "Teklif akışlarını tek merkezden yönet" in admin_offer.text
+        assert "Şablon PDF yükle" in admin_offer.text
         assert "/teklif/static/vendor/bootstrap/bootstrap.min.css" in admin_offer.text
         assert "/teklif/static/styles.css" in admin_offer.text
 
@@ -1201,4 +1202,5 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
             granted_offer = grant_client.get("/teklif/")
             assert granted_offer.status_code == 200
             assert "Teklif akışlarını tek merkezden yönet" in granted_offer.text
+            assert "Şablon PDF yükle" not in granted_offer.text
             assert "/teklif/static/styles.css" in granted_offer.text
