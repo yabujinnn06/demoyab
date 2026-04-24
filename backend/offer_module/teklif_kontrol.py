@@ -2159,17 +2159,20 @@ def _draw_offer_badges(
     row_top: float,
     *,
     has_discount_layout: bool,
+    row_height: float = 32.0,
     background_fill: tuple[float, float, float] = (1, 1, 1),
 ) -> None:
     if has_discount_layout:
+        badge_top = row_top + max(4, (row_height - 18) / 2)
         target_rects = (
-            fitz.Rect(184, row_top + 4, 212, row_top + 22),
-            fitz.Rect(216, row_top + 4, 242, row_top + 22),
+            fitz.Rect(184, badge_top, 211, badge_top + 18),
+            fitz.Rect(215, badge_top, 239, badge_top + 18),
         )
     else:
+        badge_top = row_top + max(5, (row_height - 20) / 2)
         target_rects = (
-            fitz.Rect(188, row_top + 4, 220, row_top + 24),
-            fitz.Rect(226, row_top + 4, 255, row_top + 24),
+            fitz.Rect(188, badge_top, 220, badge_top + 20),
+            fitz.Rect(226, badge_top, 250, badge_top + 20),
         )
 
     badge_asset_paths = tuple(_offer_asset_path(name) for name in OFFER_BADGE_ASSET_NAMES)
@@ -3101,18 +3104,20 @@ def generate_offer_pdf(
             )
             bullet_y += 15.6
 
-        page.draw_line(fitz.Point(10, 342), fitz.Point(530, 342), color=PDF_ACCENT, width=0.8)
-
         total_discount_amount = round(
             sum(item.discount_amount * item.quantity for item in offer_items),
             2,
         )
         table_regular = fonts.table_regular
         table_bold = fonts.table_bold
-        table_header_top = 320
+        table_left = 10
+        table_right = 530
+        table_header_top = 340
+        table_header_bottom = 378
+        page.draw_line(fitz.Point(table_left, table_header_top), fitz.Point(table_right, table_header_top), color=PDF_ACCENT, width=0.8)
         _draw_textbox(
             page,
-            fitz.Rect(96, table_header_top + 13, 170, table_header_top + 27),
+            fitz.Rect(96, table_header_top + 14, 170, table_header_top + 28),
             "MALZEME",
             fontname=table_bold.name,
             fontfile=table_bold.file,
@@ -3122,7 +3127,7 @@ def generate_offer_pdf(
         )
         _draw_textbox(
             page,
-            fitz.Rect(258, table_header_top + 13, 306, table_header_top + 27),
+            fitz.Rect(258, table_header_top + 14, 306, table_header_top + 28),
             "MİKTAR",
             fontname=table_bold.name,
             fontfile=table_bold.file,
@@ -3132,7 +3137,7 @@ def generate_offer_pdf(
         )
         _draw_textbox(
             page,
-            fitz.Rect(316, table_header_top + 13, 374, table_header_top + 27),
+            fitz.Rect(316, table_header_top + 14, 374, table_header_top + 28),
             "BİRİM FİYAT",
             fontname=table_bold.name,
             fontfile=table_bold.file,
@@ -3152,42 +3157,42 @@ def generate_offer_pdf(
                 continue
             _draw_textbox(
                 page,
-                fitz.Rect(386, table_header_top + line_offset * 12.3, 448, table_header_top + 13 + line_offset * 12.3),
+                fitz.Rect(386, table_header_top + 2.5 + line_offset * 11.5, 448, table_header_top + 14.5 + line_offset * 11.5),
                 header_text,
                 fontname=table_bold.name,
                 fontfile=table_bold.file,
-                fontsize=10.0,
+                fontsize=9.2,
                 color=PDF_BLACK,
                 align=1,
-                min_fontsize=8.5,
+                min_fontsize=7.8,
             )
         _draw_textbox(
             page,
-            fitz.Rect(466, table_header_top + 7, 516, table_header_top + 20),
+            fitz.Rect(466, table_header_top + 8, 516, table_header_top + 21),
             "TOPLAM",
             fontname=table_bold.name,
             fontfile=table_bold.file,
-            fontsize=10.0,
+            fontsize=9.8,
             color=PDF_BLACK,
             align=1,
-            min_fontsize=8.5,
+            min_fontsize=8.0,
         )
         _draw_textbox(
             page,
-            fitz.Rect(466, table_header_top + 20, 516, table_header_top + 33),
+            fitz.Rect(466, table_header_top + 21, 516, table_header_top + 34),
             "TUTAR",
             fontname=table_bold.name,
             fontfile=table_bold.file,
-            fontsize=10.0,
+            fontsize=9.8,
             color=PDF_BLACK,
             align=1,
-            min_fontsize=8.5,
+            min_fontsize=8.0,
         )
-        page.draw_line(fitz.Point(10, 360), fitz.Point(530, 360), color=PDF_ACCENT, width=0.8)
+        page.draw_line(fitz.Point(table_left, table_header_bottom), fitz.Point(table_right, table_header_bottom), color=PDF_ACCENT, width=0.8)
 
-        row_top = 362
-        table_row_left = 10
-        table_row_right = 530
+        row_top = table_header_bottom + 2
+        table_row_left = table_left
+        table_row_right = table_right
         table_column_rules = (252, 310, 378, 448)
         row_height = max(48.0, min(70.0, (525.0 - row_top) / max(len(offer_items), 1)))
         for row_index, item in enumerate(offer_items):
@@ -3228,6 +3233,7 @@ def generate_offer_pdf(
                 badge_clips,
                 row_top,
                 has_discount_layout=False,
+                row_height=row_height,
                 background_fill=row_fill,
             )
             price_line_top = row_top + max(2, (row_height - 13) / 2)
