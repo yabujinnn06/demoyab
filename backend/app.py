@@ -11,16 +11,17 @@ import uuid
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from .database import CURRENT_SCHEMA_VERSION, get_connection, init_db, utcnow
-from .security import create_token, decode_token, get_password_hash, verify_password
+from .offer_module.webapp import create_offer_app
+from .security import create_token, decode_token, get_password_hash, get_token_ttl_hours, verify_password
 from .xlsx_reader import parse_xlsx_records, raw_payload_json
 
 
@@ -34,6 +35,7 @@ DEFAULT_ALLOWED_ORIGINS = tuple(
 )
 LOGIN_WINDOW_SECONDS = 10 * 60
 LOGIN_MAX_ATTEMPTS = 8
+SESSION_COOKIE_NAME = "call_portal_session"
 CALL_STATUS_VALUES = {
     "NOT_CALLED",
     "CALLING",
@@ -107,6 +109,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-File-Name", "X-List-Name"],
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/teklif", create_offer_app(), name="offer-tool")
 
 
 VALIDATION_FIELD_LABELS = {
@@ -115,6 +118,7 @@ VALIDATION_FIELD_LABELS = {
     "full_name": "Ad / takma ad",
     "role": "Rol",
     "is_active": "Aktiflik",
+    "can_access_offer_tool": "Teklif modulu erisimi",
     "user_ids": "Kullanıcı seçimi",
     "allocations": "Özel dağıtım",
     "count": "Kayıt sayısı",
@@ -177,6 +181,7 @@ class UserCreateRequest(BaseModel):
     password: str = Field(min_length=10, max_length=255)
     full_name: str = Field(min_length=2, max_length=255)
     role: Literal["admin", "agent"] = "agent"
+    can_access_offer_tool: bool = False
 
     @field_validator("password")
     @classmethod
@@ -189,6 +194,7 @@ class UserUpdateRequest(BaseModel):
     password: str | None = Field(default=None, min_length=10, max_length=255)
     role: Literal["admin", "agent"] | None = None
     is_active: bool | None = None
+    can_access_offer_tool: bool | None = None
 
     @field_validator("password")
     @classmethod
@@ -204,6 +210,7 @@ class UserRead(BaseModel):
     full_name: str | None = None
     role: Literal["admin", "agent"]
     is_active: bool
+    can_access_offer_tool: bool = False
     created_at: str
     updated_at: str
 
@@ -392,6 +399,7 @@ class AuthUser(BaseModel):
     full_name: str | None
     role: Literal["admin", "agent"]
     is_active: bool
+    can_access_offer_tool: bool = False
     token_version: int = 0
 
 def _api_error(status_code: int, message: str) -> HTTPException:
@@ -590,6 +598,7 @@ def _user_read(row: sqlite3.Row) -> UserRead:
         full_name=row["full_name"],
         role=row["role"],
         is_active=bool(row["is_active"]),
+        can_access_offer_tool=bool(row["can_access_offer_tool"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -885,7 +894,7 @@ def _activity_row(row: sqlite3.Row) -> ActivityRead:
 
 def _load_user(connection: sqlite3.Connection, user_id: str) -> AuthUser:
     row = connection.execute(
-        "SELECT id, email, full_name, role, is_active, token_version FROM users WHERE id = ?",
+        "SELECT id, email, full_name, role, is_active, can_access_offer_tool, token_version FROM users WHERE id = ?",
         (user_id,),
     ).fetchone()
     if row is None:
@@ -896,6 +905,7 @@ def _load_user(connection: sqlite3.Connection, user_id: str) -> AuthUser:
         full_name=row["full_name"],
         role=row["role"],
         is_active=bool(row["is_active"]),
+        can_access_offer_tool=bool(row["can_access_offer_tool"]),
         token_version=int(row["token_version"] or 0),
     )
 
@@ -954,11 +964,49 @@ def _append_event(
     )
 
 
+def _session_cookie_secure(request: Request | None = None) -> bool:
+    if os.getenv("RENDER"):
+        return True
+    if request is None:
+        return False
+    return request.url.scheme == "https"
+
+
+def _set_session_cookie(response: Response, token: str, request: Request | None = None) -> None:
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        token,
+        max_age=get_token_ttl_hours() * 3600,
+        httponly=True,
+        secure=_session_cookie_secure(request),
+        samesite="lax",
+        path="/",
+    )
+
+
+def _clear_session_cookie(response: Response, request: Request | None = None) -> None:
+    response.delete_cookie(
+        SESSION_COOKIE_NAME,
+        httponly=True,
+        secure=_session_cookie_secure(request),
+        samesite="lax",
+        path="/",
+    )
+
+
+def user_can_access_offer_tool(user: AuthUser | UserRead | None) -> bool:
+    if user is None:
+        return False
+    return user.role == "admin" or bool(getattr(user, "can_access_offer_tool", False))
+
+
 def get_current_user(request: Request) -> AuthUser:
     authorization = request.headers.get("Authorization", "")
-    if not authorization.startswith("Bearer "):
-        raise _api_error(401, "Oturum gerekli.")
-    token = authorization.split(" ", 1)[1].strip()
+    token = ""
+    if authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        token = request.cookies.get(SESSION_COOKIE_NAME, "").strip()
     if not token:
         raise _api_error(401, "Oturum gerekli.")
     try:
@@ -1011,6 +1059,7 @@ async def apply_security_headers(request: Request, call_next):
         request.url.path in {"/", "/health", "/ping"}
         or request.url.path.startswith("/api/")
         or request.url.path.startswith("/static/")
+        or request.url.path.startswith("/teklif")
     ):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
@@ -1024,6 +1073,16 @@ def root() -> FileResponse:
 
 @app.head("/", include_in_schema=False)
 def root_head() -> Response:
+    return Response(status_code=200)
+
+
+@app.get("/teklif", include_in_schema=False)
+def teklif_root() -> RedirectResponse:
+    return RedirectResponse(url="/teklif/", status_code=307)
+
+
+@app.head("/teklif", include_in_schema=False)
+def teklif_root_head() -> Response:
     return Response(status_code=200)
 
 
@@ -1067,12 +1126,12 @@ def health_head() -> Response:
 
 
 @app.post("/api/auth/login", response_model=UserLoginResponse)
-def login(payload: LoginRequest, request: Request) -> UserLoginResponse:
+def login(payload: LoginRequest, request: Request, response: Response) -> UserLoginResponse:
     with get_connection() as connection:
         ip_address = _ensure_login_allowed(connection, request)
         row = connection.execute(
             """
-            SELECT id, email, full_name, role, is_active, password_hash, token_version, created_at, updated_at
+            SELECT id, email, full_name, role, is_active, can_access_offer_tool, password_hash, token_version, created_at, updated_at
             FROM users
             WHERE lower(email) = ?
             """,
@@ -1094,6 +1153,7 @@ def login(payload: LoginRequest, request: Request) -> UserLoginResponse:
             email=row["email"],
             token_version=int(row["token_version"] or 0),
         )
+        _set_session_cookie(response, token, request)
         return UserLoginResponse(
             access_token=token,
             user=UserRead(
@@ -1102,10 +1162,17 @@ def login(payload: LoginRequest, request: Request) -> UserLoginResponse:
                 full_name=row["full_name"],
                 role=row["role"],
                 is_active=bool(row["is_active"]),
+                can_access_offer_tool=bool(row["can_access_offer_tool"]),
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
             ),
         )
+
+
+@app.post("/api/auth/logout", response_model=OkResponse)
+def logout_api(request: Request, response: Response) -> OkResponse:
+    _clear_session_cookie(response, request)
+    return OkResponse(ok=True)
 
 
 @app.get("/api/auth/me", response_model=UserRead)
@@ -1122,7 +1189,7 @@ def list_users(_admin: AuthUser = Depends(require_admin)) -> list[UserRead]:
     with get_connection() as connection:
         rows = connection.execute(
             """
-            SELECT id, email, full_name, role, is_active, created_at, updated_at
+            SELECT id, email, full_name, role, is_active, can_access_offer_tool, created_at, updated_at
             FROM users
             ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END, full_name, email
             """
@@ -1133,6 +1200,7 @@ def list_users(_admin: AuthUser = Depends(require_admin)) -> list[UserRead]:
 @app.post("/api/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(payload: UserCreateRequest, _admin: AuthUser = Depends(require_admin)) -> UserRead:
     now = utcnow()
+    can_access_offer_tool = True if payload.role == "admin" else bool(payload.can_access_offer_tool)
     with get_connection() as connection:
         existing = connection.execute(
             "SELECT id FROM users WHERE lower(email) = ?",
@@ -1143,8 +1211,10 @@ def create_user(payload: UserCreateRequest, _admin: AuthUser = Depends(require_a
         user_id = str(uuid.uuid4())
         connection.execute(
             """
-            INSERT INTO users (id, email, password_hash, full_name, role, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+            INSERT INTO users (
+                id, email, password_hash, full_name, role, is_active, can_access_offer_tool, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
             """,
             (
                 user_id,
@@ -1152,6 +1222,7 @@ def create_user(payload: UserCreateRequest, _admin: AuthUser = Depends(require_a
                 get_password_hash(payload.password),
                 payload.full_name.strip(),
                 payload.role,
+                1 if can_access_offer_tool else 0,
                 now,
                 now,
             ),
@@ -1176,6 +1247,13 @@ def update_user(
 
         next_role = payload.role or row["role"]
         next_active = bool(row["is_active"]) if payload.is_active is None else bool(payload.is_active)
+        next_offer_access = (
+            bool(row["can_access_offer_tool"])
+            if payload.can_access_offer_tool is None
+            else bool(payload.can_access_offer_tool)
+        )
+        if next_role == "admin":
+            next_offer_access = True
         next_name = row["full_name"]
         if payload.full_name is not None:
             next_name = payload.full_name.strip()
@@ -1211,7 +1289,7 @@ def update_user(
         connection.execute(
             """
             UPDATE users
-            SET full_name = ?, password_hash = ?, role = ?, is_active = ?, token_version = ?, updated_at = ?
+            SET full_name = ?, password_hash = ?, role = ?, is_active = ?, can_access_offer_tool = ?, token_version = ?, updated_at = ?
             WHERE id = ?
             """,
             (
@@ -1219,6 +1297,7 @@ def update_user(
                 password_hash,
                 next_role,
                 1 if next_active else 0,
+                1 if next_offer_access else 0,
                 token_version,
                 now,
                 user_id,

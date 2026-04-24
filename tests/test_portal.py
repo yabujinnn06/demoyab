@@ -19,7 +19,16 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 def load_fresh_app():
-    for module_name in ("backend.security", "backend.database", "backend.xlsx_reader", "backend.app"):
+    for module_name in (
+        "backend.security",
+        "backend.database",
+        "backend.xlsx_reader",
+        "backend.offer_module.teklif_kontrol",
+        "backend.offer_module.portal_auth",
+        "backend.offer_module.webapp",
+        "backend.offer_module",
+        "backend.app",
+    ):
         if module_name in sys.modules:
             importlib.reload(sys.modules[module_name])
         else:
@@ -1095,13 +1104,15 @@ def test_startup_creates_schema_migration_state(monkeypatch) -> None:
             row[0]
             for row in connection.execute("SELECT version FROM schema_migrations ORDER BY version").fetchall()
         }
-        assert applied_versions == {1, 2, 3, 4}
+        assert applied_versions == {1, 2, 3, 4, 5}
         login_attempts_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'login_attempts'"
         ).fetchone()
         assert login_attempts_table is not None
         token_version_column = connection.execute("PRAGMA table_info(users)").fetchall()
-        assert "token_version" in {row[1] for row in token_version_column}
+        user_columns = {row[1] for row in token_version_column}
+        assert "token_version" in user_columns
+        assert "can_access_offer_tool" in user_columns
         contact_pool_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'contact_pool_entries'"
         ).fetchone()
@@ -1109,3 +1120,70 @@ def test_startup_creates_schema_migration_state(monkeypatch) -> None:
     finally:
         connection.close()
     db_path.unlink(missing_ok=True)
+
+
+def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -> None:
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+
+    with TestClient(app) as client:
+        denied_redirect = client.get("/teklif/", follow_redirects=False)
+        assert denied_redirect.status_code in {303, 307, 401}
+
+        admin_login = client.post(
+            "/api/auth/login",
+            json={"email": "admin@test.local", "password": "Admin12345!"},
+        )
+        assert admin_login.status_code == 200
+        assert "call_portal_session" in admin_login.cookies
+
+        admin_offer = client.get("/teklif/")
+        assert admin_offer.status_code == 200
+        assert "Rainwater Teklif Ofisi" in admin_offer.text
+
+        created_user = client.post(
+            "/api/users",
+            headers={"Authorization": f"Bearer {admin_login.json()['access_token']}"},
+            json={
+                "full_name": "Teklifsiz Operator",
+                "email": "agent@test.local",
+                "password": "Operator123!",
+                "role": "agent",
+                "can_access_offer_tool": False,
+            },
+        )
+        assert created_user.status_code == 201
+
+        agent_client = TestClient(app)
+        with agent_client:
+            agent_login = agent_client.post(
+                "/api/auth/login",
+                json={"email": "agent@test.local", "password": "Operator123!"},
+            )
+            assert agent_login.status_code == 200
+            denied_offer = agent_client.get("/teklif/", follow_redirects=False)
+            assert denied_offer.status_code == 403
+
+        updated_user = client.patch(
+            f"/api/users/{created_user.json()['id']}",
+            headers={"Authorization": f"Bearer {admin_login.json()['access_token']}"},
+            json={"can_access_offer_tool": True},
+        )
+        assert updated_user.status_code == 200
+        assert updated_user.json()["can_access_offer_tool"] is True
+
+        grant_client = TestClient(app)
+        with grant_client:
+            grant_login = grant_client.post(
+                "/api/auth/login",
+                json={"email": "agent@test.local", "password": "Operator123!"},
+            )
+            assert grant_login.status_code == 200
+            granted_offer = grant_client.get("/teklif/")
+            assert granted_offer.status_code == 200
+            assert "Teklif akislarini tek merkezden yonet" in granted_offer.text

@@ -13,7 +13,7 @@ from .security import get_password_hash
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = BASE_DIR / "data" / "portal.db"
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 POOL_CALL_STATUSES = {"CALLED", "UNREACHABLE", "CALLBACK", "COMPLETED"}
 REACHED_RESULT_STATUSES = {"POSITIVE", "NEGATIVE", "NOT_INTERESTED"}
 UNREACHED_RESULT_STATUSES = {"NO_ANSWER", "WRONG_NUMBER"}
@@ -28,6 +28,7 @@ def _migration_001_initial_schema() -> str:
             full_name TEXT,
             role TEXT NOT NULL CHECK (role IN ('admin', 'agent')),
             is_active INTEGER NOT NULL DEFAULT 1,
+            can_access_offer_tool INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
@@ -158,11 +159,16 @@ def _migration_004_contact_pool() -> str:
     """
 
 
+def _migration_005_offer_permission() -> str:
+    return "SELECT 1;"
+
+
 MIGRATIONS: tuple[tuple[int, str, str], ...] = (
     (1, "initial_schema", _migration_001_initial_schema()),
     (2, "login_attempts", _migration_002_login_attempts()),
     (3, "user_token_version", _migration_003_user_token_version()),
     (4, "contact_pool", _migration_004_contact_pool()),
+    (5, "offer_permission", _migration_005_offer_permission()),
 )
 
 
@@ -241,8 +247,8 @@ def _ensure_admin_user(connection: sqlite3.Connection) -> None:
     now = utcnow()
     connection.execute(
         """
-        INSERT INTO users (id, email, password_hash, full_name, role, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'admin', 1, ?, ?)
+        INSERT INTO users (id, email, password_hash, full_name, role, is_active, can_access_offer_tool, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'admin', 1, 1, ?, ?)
         """,
         (
             str(uuid.uuid4()),
@@ -252,6 +258,20 @@ def _ensure_admin_user(connection: sqlite3.Connection) -> None:
             now,
             now,
         ),
+    )
+
+
+def _ensure_user_offer_permission_column(connection: sqlite3.Connection) -> None:
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(users)").fetchall()
+    }
+    if "can_access_offer_tool" not in columns:
+        connection.execute(
+            "ALTER TABLE users ADD COLUMN can_access_offer_tool INTEGER NOT NULL DEFAULT 0"
+        )
+    connection.execute(
+        "UPDATE users SET can_access_offer_tool = 1 WHERE role = 'admin'"
     )
 
 
@@ -326,6 +346,7 @@ def _backfill_contact_pool_entries(connection: sqlite3.Connection) -> None:
 def init_db() -> None:
     with get_connection() as connection:
         _apply_migrations(connection)
+        _ensure_user_offer_permission_column(connection)
         _ensure_admin_user(connection)
         _backfill_contact_pool_entries(connection)
         connection.commit()

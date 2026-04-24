@@ -24,5 +24,7 @@ services:
         value: https://yabujindemo.onrender.com
       - key: CALL_PORTAL_DB_PATH
         value: /var/data/portal.db
+      - key: CALL_PORTAL_OFFER_DATA_DIR
+        value: /var/data/offer-tool
       - key: CALL_PORTAL_TOKEN_HOURS
         value: 12

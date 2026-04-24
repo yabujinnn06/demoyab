@@ -30,6 +30,10 @@ def _token_ttl_hours() -> int:
     return max(MIN_TOKEN_TTL_HOURS, min(MAX_TOKEN_TTL_HOURS, value))
 
 
+def get_token_ttl_hours() -> int:
+    return _token_ttl_hours()
+
+
 def _b64url_encode(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 

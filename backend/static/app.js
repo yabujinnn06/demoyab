@@ -197,6 +197,11 @@ function roleLabel(role) {
   return role || "-";
 }
 
+function canOpenOfferTool(user = state.me) {
+  if (!user) return false;
+  return user.role === "admin" || Boolean(user.can_access_offer_tool);
+}
+
 function reachStatusLabel(status) {
   return REACH_STATUS_OPTIONS.find(([value]) => value === status)?.[1] || status || "-";
 }
@@ -281,6 +286,7 @@ function getAuthHeaders(extra = {}) {
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
+    credentials: "same-origin",
     ...options,
     headers: getAuthHeaders(options.headers ?? {}),
   });
@@ -717,7 +723,12 @@ function stopPolling() {
   }
 }
 
-function logout() {
+async function logout() {
+  try {
+    await api("/api/auth/logout", { method: "POST" });
+  } catch (_error) {
+    // Çerez temizleme isteği başarısız olsa da yerel oturumu kapat.
+  }
   resetSessionState();
   render();
 }
@@ -944,6 +955,7 @@ function usersSectionMarkup() {
   if (state.me?.role !== "admin") return "";
   const agentCount = state.users.filter((user) => user.role === "agent").length;
   const adminCount = state.users.filter((user) => user.role === "admin").length;
+  const offerAccessCount = state.users.filter((user) => canOpenOfferTool(user)).length;
   return `
     <section class="sidebar-section panel window-shell" data-window-title="Ekip Yetkilendirme">
       <div class="panel-head">
@@ -956,6 +968,7 @@ function usersSectionMarkup() {
         <div class="mini-meta">
           <span>${adminCount} yönetici</span>
           <span>${agentCount} operatör</span>
+          <span>${offerAccessCount} teklif erişimi</span>
           <span>${state.users.length} hesap</span>
         </div>
         <button class="btn btn-primary" type="button" id="open-team-modal">Ekip Penceresini Aç</button>
@@ -990,6 +1003,10 @@ function teamModalMarkup() {
                 <option value="agent">Operatör</option>
                 <option value="admin">Yönetici</option>
               </select>
+              <label class="check-item">
+                <input type="checkbox" name="can_access_offer_tool" />
+                <span>Teklif modülüne erişsin</span>
+              </label>
               <p class="file-note">Şifre en az 10 karakter, büyük/küçük harf, rakam ve sembol içermeli.</p>
               <button class="btn btn-primary" type="submit">Kullanıcı Ekle</button>
             </form>
@@ -1010,6 +1027,7 @@ function teamModalMarkup() {
                     <th>Email</th>
                     <th>Adı / Takma Adı</th>
                     <th>Rol</th>
+                    <th>Teklif</th>
                     <th>Yeni Şifre</th>
                     <th>Durum</th>
                     <th>İşlem</th>
@@ -1029,6 +1047,14 @@ function teamModalMarkup() {
                               <option value="agent" ${user.role === "agent" ? "selected" : ""}>Operatör</option>
                               <option value="admin" ${user.role === "admin" ? "selected" : ""}>Yönetici</option>
                             </select>
+                          </td>
+                          <td>
+                            <label class="inline-check">
+                              <input type="checkbox" data-user-offer-access="${user.id}" ${canOpenOfferTool(user) ? "checked" : ""} ${
+                                user.role === "admin" ? "disabled" : ""
+                              } />
+                              <span>${canOpenOfferTool(user) ? "Açık" : "Kapalı"}</span>
+                            </label>
                           </td>
                           <td>
                             <input class="field compact-field" type="password" data-user-password="${user.id}" placeholder="Boş bırak = aynı kalsın" />
@@ -2070,6 +2096,7 @@ function appMarkup() {
                 `
             }
             <div class="user-strip">
+              ${canOpenOfferTool() ? `<a class="btn btn-soft" href="/teklif/" target="_blank" rel="noreferrer">Teklif Modülü</a>` : ""}
               <span class="badge active">${escapeHtml(roleLabel(state.me?.role || ""))}</span>
               <span>${escapeHtml(state.me?.full_name || state.me?.email || "")}</span>
               <button class="btn btn-soft" type="button" id="logout-button">Çıkış</button>
@@ -2133,6 +2160,7 @@ async function handleUserCreate(event) {
   const email = formString(form, "email").toLowerCase();
   const password = formString(form, "password");
   const role = formString(form, "role") || "agent";
+  const canAccessOfferTool = form.has("can_access_offer_tool");
 
   if (fullName.length < 2) {
     setFlash("error", "Ad / takma ad en az 2 karakter olmalı.");
@@ -2157,6 +2185,7 @@ async function handleUserCreate(event) {
         email,
         password,
         role,
+        can_access_offer_tool: role === "admin" ? true : canAccessOfferTool,
       }),
     });
     event.currentTarget.reset();
@@ -2258,6 +2287,7 @@ async function setOperatorDetailFilter(filter) {
 async function handleUserUpdate(userId) {
   const fullName = document.querySelector(`[data-user-name='${userId}']`)?.value?.trim() ?? "";
   const role = document.querySelector(`[data-user-role='${userId}']`)?.value ?? "agent";
+  const canAccessOfferTool = Boolean(document.querySelector(`[data-user-offer-access='${userId}']`)?.checked);
   const password = document.querySelector(`[data-user-password='${userId}']`)?.value?.trim() ?? "";
   const isActive = Boolean(document.querySelector(`[data-user-active='${userId}']`)?.checked);
 
@@ -2278,6 +2308,7 @@ async function handleUserUpdate(userId) {
       body: JSON.stringify({
         full_name: fullName,
         role,
+        can_access_offer_tool: role === "admin" ? true : canAccessOfferTool,
         is_active: isActive,
         ...(password ? { password } : {}),
       }),
