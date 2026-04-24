@@ -3,15 +3,15 @@
   <section class="card app-card workspace-brand-card shadow-sm border-0">
     <div class="card-body">
       <p class="section-kicker mb-2">Rainwater Teklif Ofisi</p>
-      <h2 class="workspace-brand-title mb-2">Calisma alanlari</h2>
-      <p class="workspace-brand-copy mb-3">Uzun tek sayfa yerine her is adimini ayrik bir operasyon yuzeyi olarak ac.</p>
+      <h2 class="workspace-brand-title mb-2">Çalışma alanları</h2>
+      <p class="workspace-brand-copy mb-3">Uzun tek sayfa yerine her iş adımını ayrık bir operasyon yüzeyi olarak aç.</p>
       <div class="workspace-brand-active">
         <span>Aktif alan</span>
         <strong data-workspace-current>
-          {% if active_workspace == "results" %}Sonuc Analizi
+          {% if active_workspace == "results" %}Sonuç Analizi
           {% elif active_workspace == "apply" %}Karar Merkezi
-          {% elif active_workspace == "create" %}Teklif Uretimi
-          {% elif active_workspace == "settings" %}Sistem Ayarlari
+          {% elif active_workspace == "create" %}Teklif Üretimi
+          {% elif active_workspace == "settings" %}Sistem Ayarları
           {% else %}Kontrol Merkezi{% endif %}
         </strong>
       </div>
@@ -30,14 +30,14 @@
           data-workspace-link
           data-workspace-target="compare"
           data-workspace-title="Kontrol Merkezi"
-          data-workspace-summary="Fiyat listesi ve teklif PDF secerek karsilastirmayi baslat."
-          data-workspace-badge="Adim 01 / Kontrol"
+          data-workspace-summary="Fiyat listesi ve teklif PDF seçerek karşılaştırmayı başlat."
+          data-workspace-badge="Adım 01 / Kontrol"
           aria-selected="{% if active_workspace == 'compare' %}true{% else %}false{% endif %}"
         >
           <span class="workspace-nav-index">01</span>
           <span class="workspace-nav-copy">
             <strong>Kontrol</strong>
-            <small>Dosya sec ve karsilastir</small>
+            <small>Dosya seç ve karşılaştır</small>
           </span>
         </button>
 
@@ -48,16 +48,16 @@
           data-bs-target="#workspace-pane-results"
           data-workspace-link
           data-workspace-target="results"
-          data-workspace-title="Sonuc Analizi"
-          data-workspace-summary="Eslesmeleri, metrikleri ve finansal kontrolleri ayni operasyon yuzeyinde incele."
-          data-workspace-badge="Adim 02 / Sonuc"
+          data-workspace-title="Sonuç Analizi"
+          data-workspace-summary="Eşleşmeleri, metrikleri ve finansal kontrolleri aynı operasyon yüzeyinde incele."
+          data-workspace-badge="Adım 02 / Sonuç"
           aria-selected="{% if active_workspace == 'results' %}true{% else %}false{% endif %}"
           {% if not has_results %}disabled aria-disabled="true"{% endif %}
         >
           <span class="workspace-nav-index">02</span>
           <span class="workspace-nav-copy">
-            <strong>Sonuc</strong>
-            <small>Eslesme ve finansal durum</small>
+            <strong>Sonuç</strong>
+            <small>Eşleşme ve finansal durum</small>
           </span>
         </button>
 
@@ -69,8 +69,8 @@
           data-workspace-link
           data-workspace-target="apply"
           data-workspace-title="Karar Merkezi"
-          data-workspace-summary="Elle urun secimi yap, farki gor ve sadece secilen duzeltmeleri PDF'e uygula."
-          data-workspace-badge="Adim 03 / Karar"
+          data-workspace-summary="Elle ürün seçimi yap, farkı gör ve sadece seçilen düzeltmeleri PDF'e uygula."
+          data-workspace-badge="Adım 03 / Karar"
           aria-selected="{% if active_workspace == 'apply' %}true{% else %}false{% endif %}"
           {% if not has_results %}disabled aria-disabled="true"{% endif %}
         >
@@ -88,15 +88,15 @@
           data-bs-target="#workspace-pane-create"
           data-workspace-link
           data-workspace-target="create"
-          data-workspace-title="Teklif Uretimi"
-          data-workspace-summary="Sabit sablon, fiyat listesi ve urun secimleriyle yeni teklif PDF olustur."
-          data-workspace-badge="Adim 04 / Uret"
+          data-workspace-title="Teklif Üretimi"
+          data-workspace-summary="Sabit şablon, fiyat listesi ve ürün seçimleriyle yeni teklif PDF oluştur."
+          data-workspace-badge="Adım 04 / Üret"
           aria-selected="{% if active_workspace == 'create' %}true{% else %}false{% endif %}"
         >
           <span class="workspace-nav-index">04</span>
           <span class="workspace-nav-copy">
-            <strong>Teklif Olustur</strong>
-            <small>Sablondan yeni PDF uret</small>
+            <strong>Teklif Oluştur</strong>
+            <small>Şablondan yeni PDF üret</small>
           </span>
         </button>
 
@@ -108,15 +108,15 @@
           data-bs-target="#workspace-pane-settings"
           data-workspace-link
           data-workspace-target="settings"
-          data-workspace-title="Sistem Ayarlari"
-          data-workspace-summary="Aktif kutuphaneleri, varsayilan modlari ve sablon havuzunu yonet."
-          data-workspace-badge="Adim 05 / Ayarlar"
+          data-workspace-title="Sistem Ayarları"
+          data-workspace-summary="Aktif kütüphaneleri, varsayılan modları ve şablon havuzunu yönet."
+          data-workspace-badge="Adım 05 / Ayarlar"
           aria-selected="{% if active_workspace == 'settings' %}true{% else %}false{% endif %}"
         >
           <span class="workspace-nav-index">05</span>
           <span class="workspace-nav-copy">
             <strong>Ayarlar</strong>
-            <small>Kutuphane ve varsayilanlar</small>
+            <small>Kütüphane ve varsayılanlar</small>
           </span>
         </button>
         {% endif %}
@@ -126,22 +126,22 @@
 
   <section class="card app-card workspace-status-card shadow-sm border-0">
     <div class="card-body">
-      <p class="section-kicker mb-2">Canli baglam</p>
+      <p class="section-kicker mb-2">Canlı bağlam</p>
       <div class="workspace-mini-grid">
         <article class="workspace-mini-item">
           <span>Aktif fiyat listesi</span>
           <strong>{{ active_price_file or "-" }}</strong>
         </article>
         <article class="workspace-mini-item">
-          <span>Aktif sablon</span>
+          <span>Aktif şablon</span>
           <strong>{{ active_template_file or "-" }}</strong>
         </article>
         <article class="workspace-mini-item">
-          <span>Secili teklif</span>
+          <span>Seçili teklif</span>
           <strong>{{ selected_offer_file or "-" }}</strong>
         </article>
         <article class="workspace-mini-item">
-          <span>Hazir aksiyon</span>
+          <span>Hazır aksiyon</span>
           <strong>{{ apply_ready_count }}</strong>
         </article>
       </div>
@@ -152,7 +152,7 @@
     <div class="card-body">
       <div class="workspace-detail-stack">
         <details class="workspace-detail" open>
-          <summary>Klasor gorunumu</summary>
+          <summary>Klasör görünümü</summary>
           <ul class="workspace-detail-list">
             {% for folder in workspace_folders %}
               <li>
@@ -173,17 +173,17 @@
                 {% for item in recent_files.offers[:4] %}
                   <li>{{ item }}</li>
                 {% else %}
-                  <li>Kayitli teklif yok.</li>
+                  <li>Kayıtlı teklif yok.</li>
                 {% endfor %}
               </ul>
             </div>
             <div>
-              <span class="workspace-detail-heading">Sablonlar</span>
+              <span class="workspace-detail-heading">Şablonlar</span>
               <ul class="workspace-detail-list compact">
                 {% for item in recent_files.templates[:4] %}
                   <li>{{ item }}</li>
                 {% else %}
-                  <li>Kayitli sablon yok.</li>
+                  <li>Kayıtlı şablon yok.</li>
                 {% endfor %}
               </ul>
             </div>
@@ -193,7 +193,7 @@
                 {% for item in recent_files.reports[:4] %}
                   <li>{{ item }}</li>
                 {% else %}
-                  <li>Rapor uretilmedi.</li>
+                  <li>Rapor üretilmedi.</li>
                 {% endfor %}
               </ul>
             </div>
@@ -216,7 +216,7 @@
 
   <div class="result-product-grid">
     <section class="product-showcase">
-      <p class="product-label">Teklif satiri</p>
+      <p class="product-label">Teklif satırı</p>
       <h3 class="product-name">{{ row.product_name }}</h3>
       <p class="product-subtext">PDF icinden okunan kalem</p>
     </section>
@@ -226,11 +226,11 @@
       <h3 class="product-name">{{ row.matched_name }}</h3>
       <p class="product-subtext">
         {% if row.manual_selected %}
-          Elle secilen urun
+          Elle seçilen ürün
         {% elif row.matched_name != "-" %}
           Otomatik eslestirme sonucu
         {% else %}
-          Guvenilir eslesme bulunamadi
+          Güvenilir eşleşme bulunamadi
         {% endif %}
       </p>
     </section>
@@ -289,7 +289,7 @@
 <article class="decision-card status-{{ row.status_class }}">
   <div class="decision-card-head">
     <div class="result-review-meta">
-      <span class="result-order">Satir {{ row.index + 1 }}</span>
+      <span class="result-order">Satır {{ row.index + 1 }}</span>
       <span class="result-column">{{ row.selected_column }}</span>
     </div>
     <div class="decision-card-actions">
@@ -308,21 +308,21 @@
   <div class="decision-content">
     <div class="result-product-grid">
       <section class="product-showcase">
-        <p class="product-label">Teklif satiri</p>
+        <p class="product-label">Teklif satırı</p>
         <h3 class="product-name">{{ row.product_name }}</h3>
-        <p class="product-subtext">Teklifte yakalanan urun metni</p>
+        <p class="product-subtext">Teklifte yakalanan ürün metni</p>
       </section>
 
       <section class="product-showcase product-showcase-match">
-        <p class="product-label">Secilen eslesme</p>
+        <p class="product-label">Secilen eşleşme</p>
         <h3 class="product-name">{{ row.matched_name }}</h3>
         <p class="product-subtext">
           {% if row.manual_selected %}
-            Elle secilen urun aktif
+            Elle seçilen ürün aktif
           {% elif row.matched_name != "-" %}
-            Otomatik onerilen urun
+            Otomatik onerilen ürün
           {% else %}
-            Elle urun secimi bekleniyor
+            Elle ürün seçimi bekleniyor
           {% endif %}
         </p>
       </section>
@@ -345,9 +345,9 @@
 
     <div class="decision-control-grid">
       <div class="decision-select-panel">
-        <label class="form-label" for="manual-match-{{ row.index }}">Elle urun sec</label>
+        <label class="form-label" for="manual-match-{{ row.index }}">Elle ürün seç</label>
         <select class="form-select form-select-sm" id="manual-match-{{ row.index }}" name="manual_match_row_ids">
-          <option value="">Elle secme</option>
+          <option value="">Elle seçme</option>
           {% for item in result_catalog_options %}
             <option value="{{ item.value }}" {% if item.value == row.manual_match_row_id %}selected{% endif %}>{{ item.label }}</option>
           {% endfor %}
@@ -372,14 +372,14 @@
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260424-offer-layout">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260424-offer-layout"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260424-result-sound"></script>
 </head>
-<body class="app-body">
+<body class="app-body"{% if play_result_sound and result_sound_key %} data-result-sound-url="{{ request.url_for('offer-tool:offer_static', path='audio/choose2.wav') }}" data-result-sound-key="{{ result_sound_key }}"{% endif %}>
   <div class="offcanvas offcanvas-start app-offcanvas" tabindex="-1" id="workspaceDrawer" aria-labelledby="workspaceDrawerLabel">
     <div class="offcanvas-header border-bottom">
       <div>
         <p class="section-kicker mb-1">Rainwater Teklif Ofisi</p>
-        <h2 class="h5 mb-0" id="workspaceDrawerLabel">Calisma Alanlari</h2>
+        <h2 class="h5 mb-0" id="workspaceDrawerLabel">Çalışma Alanları</h2>
       </div>
       <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Kapat"></button>
     </div>
@@ -393,19 +393,19 @@
       <div class="row g-3 align-items-center">
         <div class="col-12 col-xl-8">
           <p class="section-kicker mb-2">Rainwater Teklif Ofisi</p>
-          <h1 class="hero-title mb-2">Teklif akislarini tek merkezden yonet</h1>
+          <h1 class="hero-title mb-2">Teklif akışlarını tek merkezden yönet</h1>
           <p class="hero-copy mb-0">
-            Fiyat listesi, teklif PDF, sablon ve cikti klasorlerini ayni akista yonet. Kontrol et, fiyatlari karsilastir,
-            duzeltmeleri uygula ve yeni teklifleri tek ekrandan uret.
+            Fiyat listesi, teklif PDF, şablon ve çıktı klasörlerini aynı akışta yönet. Kontrol et, fiyatları karşılaştır,
+            düzeltmeleri uygula ve yeni teklifleri tek ekrandan üret.
           </p>
         </div>
         <div class="col-12 col-xl-4">
           <div class="hero-actions d-flex flex-wrap gap-2 justify-content-xl-end">
             <button class="btn btn-primary" type="button" data-open-workspace="compare">Kontrole git</button>
-            <button class="btn btn-outline-secondary" type="button" data-open-workspace="create">Teklif olustur</button>
-            <a class="btn btn-outline-dark" href="/">Ana sayfaya don</a>
+            <button class="btn btn-outline-secondary" type="button" data-open-workspace="create">Teklif oluştur</button>
+            <a class="btn btn-outline-dark" href="/">Ana sayfaya dön</a>
             <button class="btn btn-outline-dark d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#workspaceDrawer" aria-controls="workspaceDrawer">
-              Calisma alanlari
+              Çalışma alanları
             </button>
           </div>
         </div>
@@ -434,25 +434,25 @@
 
       <main class="col-12 col-xl-9">
         {% if active_workspace == "results" %}
-          {% set workspace_title = "Sonuc Analizi" %}
-          {% set workspace_summary = "Eslesmeleri, metrikleri ve finansal kontrolleri tek operasyon yuzeyinde incele." %}
-          {% set workspace_badge = "Adim 02 / Sonuc" %}
+          {% set workspace_title = "Sonuç Analizi" %}
+          {% set workspace_summary = "Eşleşmeleri, metrikleri ve finansal kontrolleri tek operasyon yüzeyinde incele." %}
+          {% set workspace_badge = "Adım 02 / Sonuç" %}
         {% elif active_workspace == "apply" %}
           {% set workspace_title = "Karar Merkezi" %}
-          {% set workspace_summary = "Elle urun sec, fiyat farkini gor ve sadece secili duzeltmeleri PDF'e uygula." %}
-          {% set workspace_badge = "Adim 03 / Karar" %}
+          {% set workspace_summary = "Elle ürün seç, fiyat farkını gör ve sadece seçili düzeltmeleri PDF'e uygula." %}
+          {% set workspace_badge = "Adım 03 / Karar" %}
         {% elif active_workspace == "create" %}
-          {% set workspace_title = "Teklif Uretimi" %}
-          {% set workspace_summary = "Sabit sablon ve katalog secimleriyle yeni teklif PDF'ini tek akista uret." %}
-          {% set workspace_badge = "Adim 04 / Uret" %}
+          {% set workspace_title = "Teklif Üretimi" %}
+          {% set workspace_summary = "Sabit şablon ve katalog seçimleriyle yeni teklif PDF'ini tek akışta üret." %}
+          {% set workspace_badge = "Adım 04 / Üret" %}
         {% elif active_workspace == "settings" %}
-          {% set workspace_title = "Sistem Ayarlari" %}
-          {% set workspace_summary = "Aktif kutuphaneleri, varsayilan modlari ve sablon havuzunu bu alandan yonet." %}
-          {% set workspace_badge = "Adim 05 / Ayarlar" %}
+          {% set workspace_title = "Sistem Ayarları" %}
+          {% set workspace_summary = "Aktif kütüphaneleri, varsayılan modları ve şablon havuzunu bu alandan yönet." %}
+          {% set workspace_badge = "Adım 05 / Ayarlar" %}
         {% else %}
           {% set workspace_title = "Kontrol Merkezi" %}
-          {% set workspace_summary = "Fiyat listesi ve teklif PDF secerek karsilastirmayi baslat." %}
-          {% set workspace_badge = "Adim 01 / Kontrol" %}
+          {% set workspace_summary = "Fiyat listesi ve teklif PDF seçerek karşılaştırmayı başlat." %}
+          {% set workspace_badge = "Adım 01 / Kontrol" %}
         {% endif %}
 
         <div class="workspace-main">
@@ -465,18 +465,18 @@
 
           <section class="workspace-topbar">
             <div>
-              <p class="section-kicker mb-2">Calisma Alani</p>
+              <p class="section-kicker mb-2">Çalışma Alanı</p>
               <h2 class="workspace-topbar-title mb-2" data-workspace-heading>{{ workspace_title }}</h2>
               <p class="section-copy mb-0" data-workspace-summary>{{ workspace_summary }}</p>
             </div>
             <div class="workspace-topbar-meta">
-              <a class="btn btn-outline-secondary workspace-home-button" href="/">Ana sayfaya don</a>
+              <a class="btn btn-outline-secondary workspace-home-button" href="/">Ana sayfaya dön</a>
               <span class="status-pill status-info" data-workspace-badge>{{ workspace_badge }}</span>
               {% if token %}
                 <span class="status-pill status-info">Oturum: {{ token[:8] }}</span>
               {% endif %}
               {% if has_results %}
-                <span class="status-pill status-ok">Hazir aksiyon: {{ apply_ready_count }}</span>
+                <span class="status-pill status-ok">Hazır aksiyon: {{ apply_ready_count }}</span>
               {% endif %}
             </div>
           </section>
@@ -489,7 +489,7 @@
                 <div>
                   <p class="section-kicker mb-2">1. Kontrol</p>
                   <h2 class="h3 mb-2">Kontrol Merkezi</h2>
-                  <p class="section-copy mb-0">Kayitli veya yeni yuklenen fiyat listesi ile teklif PDF'ini tek akista karsilastir.</p>
+                  <p class="section-copy mb-0">Kayıtlı veya yeni yüklenen fiyat listesi ile teklif PDF'ini tek akışta karşılaştır.</p>
                 </div>
                 <span class="status-chip">{{ price_mode_labels.get(selected_mode, "-") }}</span>
               </div>
@@ -497,10 +497,10 @@
               <form method="post" action="compare" enctype="multipart/form-data" class="row g-3">
                 <input type="hidden" name="active_workspace" value="compare">
                 <div class="col-12 col-md-6">
-                  <label class="form-label" for="compare-price-file">Kayitli fiyat listesi</label>
+                  <label class="form-label" for="compare-price-file">Kayıtlı fiyat listesi</label>
                   <select class="form-select" id="compare-price-file" name="price_file">
                     {% if not price_files %}
-                      <option value="">Kayitli fiyat listesi yok</option>
+                      <option value="">Kayıtlı fiyat listesi yok</option>
                     {% endif %}
                     {% for file_name in price_files %}
                       <option value="{{ file_name }}" {% if file_name == selected_price_file %}selected{% endif %}>{{ file_name }}</option>
@@ -509,15 +509,15 @@
                 </div>
 
                 <div class="col-12 col-md-6">
-                  <label class="form-label" for="compare-price-upload">Yeni fiyat listesi yukle</label>
+                  <label class="form-label" for="compare-price-upload">Yeni fiyat listesi yükle</label>
                   <input class="form-control" id="compare-price-upload" type="file" name="price_file_upload" accept=".xlsx,.xlsm">
                 </div>
 
                 <div class="col-12 col-md-6">
-                  <label class="form-label" for="compare-offer-file">Kayitli teklif PDF</label>
+                  <label class="form-label" for="compare-offer-file">Kayıtlı teklif PDF</label>
                   <select class="form-select" id="compare-offer-file" name="offer_file">
                     {% if not offer_files %}
-                      <option value="">Kayitli teklif PDF yok</option>
+                      <option value="">Kayıtlı teklif PDF yok</option>
                     {% endif %}
                     {% for file_name in offer_files %}
                       <option value="{{ file_name }}" {% if file_name == selected_offer_file %}selected{% endif %}>{{ file_name }}</option>
@@ -526,7 +526,7 @@
                 </div>
 
                 <div class="col-12 col-md-6">
-                  <label class="form-label" for="compare-offer-upload">Yeni teklif PDF yukle</label>
+                  <label class="form-label" for="compare-offer-upload">Yeni teklif PDF yükle</label>
                   <input class="form-control" id="compare-offer-upload" type="file" name="offer_file_upload" accept=".pdf">
                 </div>
 
@@ -558,9 +558,9 @@
               <div class="card-body p-4 p-xxl-5">
                 <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-start gap-3 mb-4">
                   <div>
-                    <p class="section-kicker mb-2">2. Sonuc</p>
-                    <h2 class="h3 mb-2">Kontrol Sonucu</h2>
-                    <p class="section-copy mb-0">Eslesme, finansal kontrol ve uygulanabilir duzeltmeler tek tabloda toplanir.</p>
+                    <p class="section-kicker mb-2">2. Sonuç</p>
+                    <h2 class="h3 mb-2">Kontrol Sonuçu</h2>
+                    <p class="section-copy mb-0">Eşleşme, finansal kontrol ve uygulanabilir düzeltmeler tek tabloda toplanır.</p>
                   </div>
                   <div class="d-flex flex-wrap gap-2">
                     <span class="status-pill status-{{ financial_overall_status|lower if financial_overall_status != '-' else 'info' }}">
@@ -579,31 +579,31 @@
                   </div>
                   <div class="col">
                     <article class="metric-tile metric-tile-danger">
-                      <span class="metric-label">Duzelt</span>
+                      <span class="metric-label">Düzelt</span>
                       <strong class="metric-value">{{ metrics.get('DUZELT', 0) }}</strong>
                     </article>
                   </div>
                   <div class="col">
                     <article class="metric-tile metric-tile-warn">
-                      <span class="metric-label">Incele</span>
+                      <span class="metric-label">İncele</span>
                       <strong class="metric-value">{{ metrics.get('INCELE', 0) }}</strong>
                     </article>
                   </div>
                   <div class="col">
                     <article class="metric-tile metric-tile-info">
-                      <span class="metric-label">Eslesmedi</span>
+                      <span class="metric-label">Eşleşmedi</span>
                       <strong class="metric-value">{{ metrics.get('ESLESMEDI', 0) }}</strong>
                     </article>
                   </div>
                   <div class="col">
                     <article class="metric-tile">
-                      <span class="metric-label">Hazir aksiyon</span>
+                      <span class="metric-label">Hazır aksiyon</span>
                       <strong class="metric-value">{{ apply_ready_count }}</strong>
                     </article>
                   </div>
                   <div class="col">
                     <article class="metric-tile">
-                      <span class="metric-label">Manuel bakis</span>
+                      <span class="metric-label">Manuel bakış</span>
                       <strong class="metric-value">{{ review_needed_count }}</strong>
                     </article>
                   </div>
@@ -617,18 +617,18 @@
                         <div><dt>Fiyat listesi</dt><dd>{{ selected_price_file or "-" }}</dd></div>
                         <div><dt>Teklif PDF</dt><dd>{{ selected_offer_file or "-" }}</dd></div>
                         <div><dt>Excel raporu</dt><dd>{{ report_name }}</dd></div>
-                        <div><dt>Duzeltilmis PDF</dt><dd>{{ corrected_name }}</dd></div>
+                        <div><dt>Düzeltilmis PDF</dt><dd>{{ corrected_name }}</dd></div>
                       </dl>
                     </div>
                   </div>
                   <div class="col-12 col-lg-6">
                     <div class="soft-card h-100">
-                      <p class="soft-card-title mb-3">Finansal ozet</p>
+                      <p class="soft-card-title mb-3">Finansal özet</p>
                       <dl class="data-pairs mb-0">
-                        <div><dt>KDV orani</dt><dd>{{ vat_rate_label }}</dd></div>
+                        <div><dt>KDV oranı</dt><dd>{{ vat_rate_label }}</dd></div>
                         <div><dt>Kaynak</dt><dd>{{ vat_rate_source }}</dd></div>
-                        <div><dt>Secilen mod</dt><dd>{{ price_mode_labels.get(result_effective_price_mode, '-') }}</dd></div>
-                        <div><dt>Uygulanabilir satir</dt><dd>{{ apply_ready_count }}</dd></div>
+                        <div><dt>Seçilen mod</dt><dd>{{ price_mode_labels.get(result_effective_price_mode, '-') }}</dd></div>
+                        <div><dt>Uygulanabilir satır</dt><dd>{{ apply_ready_count }}</dd></div>
                       </dl>
                     </div>
                   </div>
@@ -637,9 +637,9 @@
                 <div class="d-flex flex-wrap gap-2 mb-4">
                   <a class="btn btn-outline-secondary" href="download/{{ token }}/report">Excel raporu indir</a>
                   {% if has_corrected_pdf %}
-                    <a class="btn btn-outline-secondary" href="download/{{ token }}/corrected">Duzeltilmis PDF indir</a>
+                    <a class="btn btn-outline-secondary" href="download/{{ token }}/corrected">Düzeltilmis PDF indir</a>
                   {% else %}
-                    <span class="btn btn-outline-secondary disabled">Duzeltilmis PDF henuz uretilmedi</span>
+                    <span class="btn btn-outline-secondary disabled">Düzeltilmis PDF henuz üretilmedi</span>
                   {% endif %}
                 </div>
 
@@ -684,10 +684,10 @@
               <div class="card-body p-4 p-xxl-5">
                 <div class="mb-4">
                   <p class="section-kicker mb-2">3. Uygula</p>
-                  <h2 class="h3 mb-2">Duzeltme Kararlari</h2>
+                  <h2 class="h3 mb-2">Düzeltme Kararlari</h2>
                   <p class="section-copy mb-0">
-                    Guvenilir eslesme cikmayan satirda urunu elle sec, sonucu yeniden karsilastir, sonra istersen sadece DUZELT
-                    satirlarini PDF'e uygula.
+                    Güvenilir eşleşme cikmayan satırda ürünü elle seç, sonucu yeniden karşılaştır, sonra istersen sadece DUZELT
+                    satırlarıni PDF'e uygula.
                   </p>
                 </div>
 
@@ -697,11 +697,11 @@
                   <div class="decision-toolbar">
                     <div>
                       <p class="soft-card-title mb-2">Karar panosu</p>
-                      <p class="helper-text mb-0">Her satir ayri bir karar karti olarak acilir. Elle secim, fiyat farki ve uygulanabilirlik ayni kart icinde gorulur.</p>
+                      <p class="helper-text mb-0">Her satır ayrı bir karar kartı olarak açılır. Elle seçim, fiyat farkı ve uygulanabilirlik aynı kart içinde görülür.</p>
                     </div>
                     <div class="decision-toolbar-metrics">
                       <article class="metric-tile metric-tile-danger">
-                        <span class="metric-label">PDF'e yazilabilir</span>
+                        <span class="metric-label">PDF'e yazılabilir</span>
                         <strong class="metric-value">{{ apply_ready_count }}</strong>
                       </article>
                       <article class="metric-tile metric-tile-warn">
@@ -718,9 +718,9 @@
                   </div>
 
                   <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-3">
-                    <button class="btn btn-outline-primary" type="submit" name="action" value="preview">Elle secilen urunlerle yeniden karsilastir</button>
-                    <button class="btn btn-primary" type="submit" name="action" value="apply">Secili duzeltmeleri yeni PDF'e uygula</button>
-                    <p class="helper-text mb-0">Once elle eslestirip sonucu kontrol edebilirsin. PDF'e sadece DUZELT satirlari yazilir.</p>
+                    <button class="btn btn-outline-primary" type="submit" name="action" value="preview">Elle seçilen ürünlerle yeniden karşılaştır</button>
+                    <button class="btn btn-primary" type="submit" name="action" value="apply">Seçili düzeltmeleri yeni PDF'e uygula</button>
+                    <p class="helper-text mb-0">Once elle eslestirip sonucu kontrol edebilirsin. PDF'e sadece DUZELT satırları yazılır.</p>
                   </div>
                 </form>
               </div>
@@ -732,9 +732,9 @@
               <section class="card app-card shadow-sm border-0" id="create">
             <div class="card-body p-4 p-xxl-5">
               <div class="mb-4">
-                <p class="section-kicker mb-2">4. Uret</p>
-                <h2 class="h3 mb-2">Yeni Teklif Olustur</h2>
-                <p class="section-copy mb-0">Sabit sablon, secili fiyat listesi ve secilen urun satirlari ile yeni teklif PDF'i olustur.</p>
+                <p class="section-kicker mb-2">4. Üret</p>
+                <h2 class="h3 mb-2">Yeni Teklif Oluştur</h2>
+                <p class="section-copy mb-0">Sabit şablon, seçili fiyat listesi ve seçilen ürün satırları ile yeni teklif PDF'i oluştur.</p>
               </div>
 
               <form method="post" action="create-offer" class="vstack gap-4">
@@ -745,10 +745,10 @@
 
                 <div class="row g-3">
                   <div class="col-12 col-md-6 col-xxl-4">
-                    <label class="form-label" for="create-template-file">Sabit sablon</label>
+                    <label class="form-label" for="create-template-file">Sabit şablon</label>
                     <select class="form-select" id="create-template-file" name="template_file" required>
                       {% if not template_files %}
-                        <option value="">Sablon yok</option>
+                        <option value="">Şablon yok</option>
                       {% endif %}
                       {% for file_name in template_files %}
                         <option value="{{ file_name }}" {% if file_name == create_state.template_file %}selected{% endif %}>{{ file_name }}</option>
@@ -801,7 +801,7 @@
                   </div>
 
                   <div class="col-12 col-md-6 col-xxl-4">
-                    <label class="form-label" for="create-valid-until">Gecerlilik</label>
+                    <label class="form-label" for="create-valid-until">Geçerlilik</label>
                     <input class="form-control" id="create-valid-until" type="date" name="valid_until" value="{{ create_state.valid_until }}">
                   </div>
 
@@ -811,7 +811,7 @@
                   </div>
 
                   <div class="col-12 col-md-6 col-xxl-4">
-                    <label class="form-label" for="create-contact-name">Yetkili adi</label>
+                    <label class="form-label" for="create-contact-name">Yetkili adı</label>
                     <input class="form-control" id="create-contact-name" type="text" name="contact_name" value="{{ create_state.contact_name }}">
                   </div>
 
@@ -835,9 +835,9 @@
                   <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
                     <div>
                       <p class="section-kicker mb-1">Kalemler</p>
-                      <h3 class="h5 mb-0">Teklif Satirlari</h3>
+                      <h3 class="h5 mb-0">Teklif Satırları</h3>
                     </div>
-                    <button class="btn btn-outline-primary btn-sm" type="button" data-add-item-row>Satir ekle</button>
+                    <button class="btn btn-outline-primary btn-sm" type="button" data-add-item-row>Satır ekle</button>
                   </div>
 
                   <div class="create-item-grid" data-item-rows>
@@ -845,14 +845,14 @@
                       <article class="create-item-row create-item-card">
                         <div class="create-item-card-head">
                           <span class="result-order">Kalem {{ loop.index }}</span>
-                          <span class="result-column">Teklif satiri</span>
+                          <span class="result-column">Teklif satırı</span>
                         </div>
 
                         <div class="row g-3">
                           <div class="col-12 col-xl-6">
-                            <label class="form-label">Urun</label>
+                            <label class="form-label">Ürün</label>
                             <select class="form-select form-select-sm" name="product_row_ids">
-                              <option value="">Urun sec</option>
+                              <option value="">Ürün seç</option>
                               {% for item in catalog_options %}
                                 <option value="{{ item.value }}" {% if item.value == row.product_row_id %}selected{% endif %}>{{ item.label }}</option>
                               {% endfor %}
@@ -870,16 +870,16 @@
                           </div>
 
                           <div class="col-12 col-md-4 col-xl-2">
-                            <label class="form-label">Iskonto tipi</label>
+                            <label class="form-label">İskonto tipi</label>
                             <select class="form-select form-select-sm" name="discount_types">
                               <option value="none" {% if row.discount_type == 'none' %}selected{% endif %}>Liste / Manuel</option>
                               <option value="amount" {% if row.discount_type == 'amount' %}selected{% endif %}>Tutar iskontosu</option>
-                              <option value="percent" {% if row.discount_type == 'percent' %}selected{% endif %}>Yuzde iskonto</option>
+                              <option value="percent" {% if row.discount_type == 'percent' %}selected{% endif %}>Yüzde iskonto</option>
                             </select>
                           </div>
 
                           <div class="col-12 col-md-4 col-xl-2">
-                            <label class="form-label">Iskonto</label>
+                            <label class="form-label">İskonto</label>
                             <input class="form-control form-control-sm" type="text" name="discount_values" value="{{ row.discount_value }}">
                           </div>
                         </div>
@@ -889,8 +889,8 @@
                 </div>
 
                 <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-3">
-                  <button class="btn btn-primary btn-lg" type="submit">Teklif PDF uret</button>
-                  <p class="helper-text mb-0">Sablon ve fiyat listesi secimi kalici ayarlardan da yonetilebilir.</p>
+                  <button class="btn btn-primary btn-lg" type="submit">Teklif PDF üret</button>
+                  <p class="helper-text mb-0">Şablon ve fiyat listesi seçimi kalıcı ayarlardan da yönetilebilir.</p>
                 </div>
               </form>
             </div>
@@ -903,15 +903,15 @@
             <div class="card-body p-4 p-xxl-5">
               <div class="mb-4">
                 <p class="section-kicker mb-2">5. Ayarlar</p>
-                <h2 class="h3 mb-2">Ayarlar ve Yardimcilar</h2>
-                <p class="section-copy mb-0">Aktif kutuphaneleri, varsayilan modlari ve sabit sablon havuzunu bu alandan yonet.</p>
+                <h2 class="h3 mb-2">Ayarlar ve Yardımcılar</h2>
+                <p class="section-copy mb-0">Aktif kütüphaneleri, varsayılan modları ve sabit şablon havuzunu bu alandan yönet.</p>
               </div>
 
               <div class="accordion app-accordion" id="settingsAccordion">
                 <div class="accordion-item">
                   <h2 class="accordion-header" id="settings-heading-one">
                     <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#settings-collapse-one" aria-expanded="true" aria-controls="settings-collapse-one">
-                      Kalici sistem ayarlari
+                      Kalıcı sistem ayarları
                     </button>
                   </h2>
                   <div id="settings-collapse-one" class="accordion-collapse collapse show" aria-labelledby="settings-heading-one" data-bs-parent="#settingsAccordion">
@@ -929,7 +929,7 @@
                         </div>
 
                         <div class="col-12 col-md-6">
-                          <label class="form-label" for="admin-active-template">Aktif sablon</label>
+                          <label class="form-label" for="admin-active-template">Aktif şablon</label>
                           <select class="form-select" id="admin-active-template" name="active_template_file">
                             {% for file_name in template_files %}
                               <option value="{{ file_name }}" {% if file_name == admin_state.selected_template_file %}selected{% endif %}>{{ file_name }}</option>
@@ -938,7 +938,7 @@
                         </div>
 
                         <div class="col-12 col-md-6">
-                          <label class="form-label" for="admin-default-compare">Varsayilan kontrol modu</label>
+                          <label class="form-label" for="admin-default-compare">Varsayılan kontrol modu</label>
                           <select class="form-select" id="admin-default-compare" name="default_compare_mode">
                             {% for group in price_mode_groups %}
                               <optgroup label="{{ group.title }}">
@@ -951,7 +951,7 @@
                         </div>
 
                         <div class="col-12 col-md-6">
-                          <label class="form-label" for="admin-default-create">Varsayilan teklif modu</label>
+                          <label class="form-label" for="admin-default-create">Varsayılan teklif modu</label>
                           <select class="form-select" id="admin-default-create" name="default_create_mode">
                             {% for group in price_mode_groups if group.title != 'Otomatik' %}
                               <optgroup label="{{ group.title }}">
@@ -964,7 +964,7 @@
                         </div>
 
                         <div class="col-12 col-md-6">
-                          <label class="form-label" for="admin-default-vat">Varsayilan KDV modu</label>
+                          <label class="form-label" for="admin-default-vat">Varsayılan KDV modu</label>
                           <select class="form-select" id="admin-default-vat" name="default_vat_mode">
                             {% for value, label in vat_mode_labels.items() %}
                               <option value="{{ value }}" {% if value == admin_state.default_vat_mode %}selected{% endif %}>{{ label }}</option>
@@ -973,7 +973,7 @@
                         </div>
 
                         <div class="col-12">
-                          <button class="btn btn-primary" type="submit">Ayarlarini kaydet</button>
+                          <button class="btn btn-primary" type="submit">Ayarlarını kaydet</button>
                         </div>
                       </form>
                     </div>
@@ -992,14 +992,14 @@
                         <input type="hidden" name="active_workspace" value="settings">
 
                         <div class="col-12">
-                          <label class="form-label" for="import-price-file">Excel dosyasi</label>
+                          <label class="form-label" for="import-price-file">Excel dosyası</label>
                           <input class="form-control" id="import-price-file" type="file" name="price_file_upload" accept=".xlsx,.xlsm" required>
                         </div>
 
                         <div class="col-12">
                           <div class="form-check">
                             <input class="form-check-input" id="import-price-activate" type="checkbox" name="activate_after_import" {% if admin_state.activate_after_import %}checked{% endif %}>
-                            <label class="form-check-label" for="import-price-activate">Iceri aldiktan sonra aktif fiyat listesi yap</label>
+                            <label class="form-check-label" for="import-price-activate">İçeri aldıktan sonra aktif fiyat listesi yap</label>
                           </div>
                         </div>
 
@@ -1014,7 +1014,7 @@
                 <div class="accordion-item">
                   <h2 class="accordion-header" id="settings-heading-three">
                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-collapse-three" aria-expanded="false" aria-controls="settings-collapse-three">
-                      Yeni sablon ekle
+                      Yeni şablon ekle
                     </button>
                   </h2>
                   <div id="settings-collapse-three" class="accordion-collapse collapse" aria-labelledby="settings-heading-three" data-bs-parent="#settingsAccordion">
@@ -1023,19 +1023,19 @@
                         <input type="hidden" name="active_workspace" value="settings">
 
                         <div class="col-12">
-                          <label class="form-label" for="import-template-file">Sablon PDF</label>
+                          <label class="form-label" for="import-template-file">Şablon PDF</label>
                           <input class="form-control" id="import-template-file" type="file" name="template_file_upload" accept=".pdf" required>
                         </div>
 
                         <div class="col-12">
                           <div class="form-check">
                             <input class="form-check-input" id="import-template-activate" type="checkbox" name="activate_after_import" {% if admin_state.activate_template_after_import %}checked{% endif %}>
-                            <label class="form-check-label" for="import-template-activate">Iceri aldiktan sonra aktif sablon yap</label>
+                            <label class="form-check-label" for="import-template-activate">İçeri aldıktan sonra aktif şablon yap</label>
                           </div>
                         </div>
 
                         <div class="col-12">
-                          <button class="btn btn-primary" type="submit">Sablonu ekle</button>
+                          <button class="btn btn-primary" type="submit">Şablonu ekle</button>
                         </div>
                       </form>
                     </div>

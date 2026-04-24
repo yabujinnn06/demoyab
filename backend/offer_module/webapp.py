@@ -974,6 +974,7 @@ def build_context(
     notice: str | None = None,
     error: str | None = None,
     active_workspace: str | None = None,
+    play_result_sound: bool = False,
 ) -> dict:
     portal_user = get_offer_portal_user(request)
     offer_is_admin = bool(portal_user and portal_user.is_admin)
@@ -1101,6 +1102,8 @@ def build_context(
         "has_results": bool(results),
         "has_corrected_pdf": has_corrected_pdf,
         "active_workspace": active_workspace,
+        "play_result_sound": bool(play_result_sound and results and token),
+        "result_sound_key": token if play_result_sound and results else "",
     }
 
 
@@ -1436,6 +1439,7 @@ async def compare(
         session=session,
         notice=f"Kontrol tamamlandı. Referans fiyat tipi: {used_column}",
         active_workspace="results",
+        play_result_sound=True,
     )
     return templates.TemplateResponse("index.html", context)
 

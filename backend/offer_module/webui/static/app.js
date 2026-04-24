@@ -1,4 +1,50 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const playResultSound = () => {
+    const soundUrl = document.body.dataset.resultSoundUrl;
+    const soundKey = document.body.dataset.resultSoundKey;
+    if (!soundUrl || !soundKey) {
+      return;
+    }
+
+    const storageKey = `rainwater-result-sound:${soundKey}`;
+    try {
+      if (window.sessionStorage.getItem(storageKey) === "played") {
+        return;
+      }
+    } catch (_error) {
+      // Continue without persistence if storage is blocked.
+    }
+
+    const audio = new Audio(soundUrl);
+    audio.preload = "auto";
+    audio.volume = 0.75;
+
+    const markPlayed = () => {
+      try {
+        window.sessionStorage.setItem(storageKey, "played");
+      } catch (_error) {
+        // Ignore storage failures.
+      }
+    };
+
+    const play = () => audio.play().then(markPlayed);
+    play().catch(() => {
+      const playAfterGesture = () => {
+        cleanup();
+        audio.currentTime = 0;
+        play().catch(() => {});
+      };
+      const cleanup = () => {
+        window.removeEventListener("pointerdown", playAfterGesture, true);
+        window.removeEventListener("keydown", playAfterGesture, true);
+      };
+      window.addEventListener("pointerdown", playAfterGesture, { once: true, capture: true });
+      window.addEventListener("keydown", playAfterGesture, { once: true, capture: true });
+    });
+  };
+
+  playResultSound();
+
   const renumberCreateItems = (container) => {
     const rows = Array.from(container.querySelectorAll(".create-item-row"));
     rows.forEach((row, index) => {

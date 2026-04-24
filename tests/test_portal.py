@@ -1148,6 +1148,7 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         admin_offer = client.get("/teklif/")
         assert admin_offer.status_code == 200
         assert "Rainwater Teklif Ofisi" in admin_offer.text
+        assert "Teklif akışlarını tek merkezden yönet" in admin_offer.text
         assert "/teklif/static/vendor/bootstrap/bootstrap.min.css" in admin_offer.text
         assert "/teklif/static/styles.css" in admin_offer.text
 
@@ -1155,6 +1156,9 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         assert offer_bootstrap.status_code == 200
         offer_styles = client.get("/teklif/static/styles.css")
         assert offer_styles.status_code == 200
+        offer_sound = client.get("/teklif/static/audio/choose2.wav")
+        assert offer_sound.status_code == 200
+        assert len(offer_sound.content) > 0
 
         created_user = client.post(
             "/api/users",
@@ -1196,5 +1200,5 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
             assert grant_login.status_code == 200
             granted_offer = grant_client.get("/teklif/")
             assert granted_offer.status_code == 200
-            assert "Teklif akislarini tek merkezden yonet" in granted_offer.text
+            assert "Teklif akışlarını tek merkezden yönet" in granted_offer.text
             assert "/teklif/static/styles.css" in granted_offer.text
