@@ -1150,6 +1150,9 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         assert "Rainwater Teklif Ofisi" in admin_offer.text
         assert "Teklif akışlarını tek merkezden yönet" in admin_offer.text
         assert "Şablon PDF yükle" in admin_offer.text
+        assert "/teklif/create-offer" in admin_offer.text
+        assert "/teklif/admin/import-template" in admin_offer.text
+        assert "/teklif/admin/create-offer" not in admin_offer.text
         assert "/teklif/static/vendor/bootstrap/bootstrap.min.css" in admin_offer.text
         assert "/teklif/static/styles.css" in admin_offer.text
 

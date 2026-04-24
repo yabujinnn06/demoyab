@@ -494,7 +494,7 @@
                 <span class="status-chip">{{ price_mode_labels.get(selected_mode, "-") }}</span>
               </div>
 
-              <form method="post" action="compare" enctype="multipart/form-data" class="row g-3">
+              <form method="post" action="{{ request.url_for('offer-tool:compare') }}" enctype="multipart/form-data" class="row g-3">
                 <input type="hidden" name="active_workspace" value="compare">
                 <div class="col-12 col-md-6">
                   <label class="form-label" for="compare-price-file">Kayıtlı fiyat listesi</label>
@@ -635,11 +635,11 @@
                 </div>
 
                 <div class="d-flex flex-wrap gap-2 mb-4">
-                  <a class="btn btn-outline-secondary" href="download/{{ token }}/report">Excel raporu indir</a>
+                  <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu indir</a>
                   {% if has_corrected_pdf %}
-                    <a class="btn btn-outline-secondary" href="download/{{ token }}/corrected">Düzeltilmis PDF indir</a>
+                    <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">Düzeltilmiş PDF indir</a>
                   {% else %}
-                    <span class="btn btn-outline-secondary disabled">Düzeltilmis PDF henuz üretilmedi</span>
+                    <span class="btn btn-outline-secondary disabled">Düzeltilmiş PDF henüz üretilmedi</span>
                   {% endif %}
                 </div>
 
@@ -691,7 +691,7 @@
                   </p>
                 </div>
 
-                <form method="post" action="apply" class="vstack gap-3">
+                <form method="post" action="{{ request.url_for('offer-tool:apply_corrections') }}" class="vstack gap-3">
                   <input type="hidden" name="token" value="{{ token }}">
                   <input type="hidden" name="active_workspace" value="apply">
                   <div class="decision-toolbar">
@@ -739,7 +739,7 @@
 
               {% if offer_is_admin %}
                 <div class="form-section mb-4">
-                  <form method="post" action="admin/import-template" enctype="multipart/form-data" class="row g-3 align-items-end">
+                  <form method="post" action="{{ request.url_for('offer-tool:admin_import_template') }}" enctype="multipart/form-data" class="row g-3 align-items-end">
                     <input type="hidden" name="active_workspace" value="create">
                     <div class="col-12 col-xl-5">
                       <p class="section-kicker mb-1">Şablon havuzu</p>
@@ -761,7 +761,7 @@
                 </div>
               {% endif %}
 
-              <form method="post" action="create-offer" class="vstack gap-4">
+              <form method="post" action="{{ request.url_for('offer-tool:create_offer') }}" class="vstack gap-4">
                 <input type="hidden" name="active_workspace" value="create">
                 {% if token %}
                   <input type="hidden" name="compare_token" value="{{ token }}">
@@ -940,7 +940,7 @@
                   </h2>
                   <div id="settings-collapse-one" class="accordion-collapse collapse show" aria-labelledby="settings-heading-one" data-bs-parent="#settingsAccordion">
                     <div class="accordion-body">
-                      <form method="post" action="admin/save-settings" class="row g-3">
+                      <form method="post" action="{{ request.url_for('offer-tool:admin_save_settings') }}" class="row g-3">
                         <input type="hidden" name="active_workspace" value="settings">
 
                         <div class="col-12 col-md-6">
@@ -1012,7 +1012,7 @@
                   </h2>
                   <div id="settings-collapse-two" class="accordion-collapse collapse" aria-labelledby="settings-heading-two" data-bs-parent="#settingsAccordion">
                     <div class="accordion-body">
-                      <form method="post" action="admin/import-price-list" enctype="multipart/form-data" class="row g-3">
+                      <form method="post" action="{{ request.url_for('offer-tool:admin_import_price_list') }}" enctype="multipart/form-data" class="row g-3">
                         <input type="hidden" name="active_workspace" value="settings">
 
                         <div class="col-12">
@@ -1043,7 +1043,7 @@
                   </h2>
                   <div id="settings-collapse-three" class="accordion-collapse collapse" aria-labelledby="settings-heading-three" data-bs-parent="#settingsAccordion">
                     <div class="accordion-body">
-                      <form method="post" action="admin/import-template" enctype="multipart/form-data" class="row g-3">
+                      <form method="post" action="{{ request.url_for('offer-tool:admin_import_template') }}" enctype="multipart/form-data" class="row g-3">
                         <input type="hidden" name="active_workspace" value="settings">
 
                         <div class="col-12">
