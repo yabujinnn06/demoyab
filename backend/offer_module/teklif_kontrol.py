@@ -3185,21 +3185,36 @@ def generate_offer_pdf(
         )
         page.draw_line(fitz.Point(10, 360), fitz.Point(530, 360), color=PDF_ACCENT, width=0.8)
 
-        row_top = 382
-        row_height = max(32.0, min(52.0, (620.0 - row_top) / max(len(offer_items), 1)))
+        row_top = 362
+        table_row_left = 10
+        table_row_right = 530
+        table_column_rules = (252, 310, 378, 448)
+        row_height = max(48.0, min(70.0, (525.0 - row_top) / max(len(offer_items), 1)))
         for row_index, item in enumerate(offer_items):
             row_bottom = row_top + row_height
-            row_fill = PDF_TEMPLATE_ROW if row_index % 2 == 1 else (1, 1, 1)
-            if row_index % 2 == 1:
-                page.draw_rect(
-                    fitz.Rect(10, row_top - 4, 530, row_bottom + 2),
-                    color=row_fill,
-                    fill=row_fill,
-                    overlay=True,
+            row_fill = PDF_TEMPLATE_ROW if row_index % 2 == 0 else (1, 1, 1)
+            page.draw_rect(
+                fitz.Rect(table_row_left, row_top, table_row_right, row_bottom),
+                color=row_fill,
+                fill=row_fill,
+                overlay=True,
+            )
+            for rule_x in table_column_rules:
+                page.draw_line(
+                    fitz.Point(rule_x, row_top),
+                    fitz.Point(rule_x, row_bottom),
+                    color=PDF_LIGHT,
+                    width=0.45,
                 )
+            page.draw_line(
+                fitz.Point(table_row_left, row_bottom),
+                fitz.Point(table_row_right, row_bottom),
+                color=PDF_ACCENT if row_index == len(offer_items) - 1 else PDF_LIGHT,
+                width=0.65,
+            )
             _draw_textbox(
                 page,
-                fitz.Rect(23, row_top, 181, row_bottom - 2),
+                fitz.Rect(23, row_top + 7, 181, row_bottom - 5),
                 _offer_product_display_name(item.product_name),
                 fontname=table_bold.name,
                 fontfile=table_bold.file,
@@ -3263,73 +3278,88 @@ def generate_offer_pdf(
             row_top += row_height
 
         line_total_sum = round(sum(item.total_price for item in offer_items), 2)
-        net_total, _vat_total, gross_total = calculate_offer_totals(
+        net_total, vat_total, gross_total = calculate_offer_totals(
             line_total_sum,
             vat_rate=vat_rate,
             vat_included=vat_included,
         )
-        totals_top = min(max(row_top + 18, 500), 620)
+        totals_top = min(max(row_top + 12, 430), 610)
         show_discount_total = total_discount_amount > 0.01
         total_line_top = totals_top
-        if show_discount_total:
+
+        def draw_summary_line(
+            top: float,
+            label: str,
+            value: str,
+            *,
+            color: tuple[float, float, float] = PDF_BLACK,
+            fontsize: float = 10.6,
+            label_x0: float = 284,
+        ) -> None:
             _draw_textbox(
                 page,
-                fitz.Rect(286, total_line_top, 414, total_line_top + 16),
-                "İSKONTO TUTARI",
+                fitz.Rect(label_x0, top, 444, top + 17),
+                label,
                 fontname=table_bold.name,
                 fontfile=table_bold.file,
-                fontsize=10.2,
-                color=PDF_BLACK,
+                fontsize=fontsize,
+                color=color,
                 align=2,
-                min_fontsize=8.5,
+                min_fontsize=8.4,
             )
             _draw_textbox(
                 page,
-                fitz.Rect(414, total_line_top, 518, total_line_top + 16),
-                f": {format_pdf_money(total_discount_amount)}",
-                fontname=table_regular.name,
-                fontfile=table_regular.file,
-                fontsize=10.2,
-                color=PDF_BLACK,
-                align=2,
-                min_fontsize=8.5,
+                fitz.Rect(451, top, 459, top + 17),
+                ":",
+                fontname=table_bold.name,
+                fontfile=table_bold.file,
+                fontsize=fontsize,
+                color=color,
+                align=1,
+                min_fontsize=8.4,
             )
-            total_line_top += 22
+            _draw_textbox(
+                page,
+                fitz.Rect(466, top, 520, top + 17),
+                value,
+                fontname=table_bold.name,
+                fontfile=table_bold.file,
+                fontsize=fontsize,
+                color=color,
+                align=2,
+                min_fontsize=8.4,
+            )
 
-        total_value = gross_total if vat_included else net_total
-        _draw_textbox(
-            page,
-            fitz.Rect(276, total_line_top, 406, total_line_top + 19),
+        if show_discount_total:
+            draw_summary_line(
+                total_line_top,
+                "İSKONTO TUTARI",
+                format_pdf_money(total_discount_amount),
+                fontsize=9.8,
+            )
+            total_line_top += 18
+
+        draw_summary_line(
+            total_line_top,
             "YATIRIM MALİYETİ",
-            fontname=table_bold.name,
-            fontfile=table_bold.file,
-            fontsize=13.2,
-            color=PDF_TEMPLATE_RED,
-            align=2,
-            min_fontsize=10,
+            format_pdf_money(net_total),
         )
-        _draw_textbox(
-            page,
-            fitz.Rect(412, total_line_top, 418, total_line_top + 19),
-            ":",
-            fontname=table_bold.name,
-            fontfile=table_bold.file,
-            fontsize=13.2,
-            color=PDF_TEMPLATE_RED,
-            align=1,
+        total_line_top += 18
+        draw_summary_line(
+            total_line_top,
+            f"KDV (%{vat_rate:g})",
+            format_pdf_money(vat_total),
         )
-        _draw_textbox(
-            page,
-            fitz.Rect(432, total_line_top, 520, total_line_top + 19),
-            format_pdf_money(total_value),
-            fontname=table_bold.name,
-            fontfile=table_bold.file,
-            fontsize=13.2,
+        total_line_top += 18
+        draw_summary_line(
+            total_line_top,
+            "TOPLAM YATIRIM MALİYETİ",
+            format_pdf_money(gross_total),
             color=PDF_TEMPLATE_RED,
-            align=2,
-            min_fontsize=10,
+            fontsize=10.9,
+            label_x0=250,
         )
-        totals_bottom = total_line_top + 19
+        totals_bottom = total_line_top + 18
 
         if note_text and note_text.strip():
             note_top = min(totals_bottom + 18, 628)

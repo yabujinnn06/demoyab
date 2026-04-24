@@ -1268,7 +1268,9 @@ def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) ->
     assert "T\u00fcrk\u00e7e karakter kontrol\u00fc: \u015f, \u011f, \u00fc, \u00f6, \u00e7, \u0130" in text
     assert "\u0130SKONTO TUTARI" in text
     assert "YATIRIM MAL\u0130YET\u0130" in text
+    assert "KDV (%20)" in text
     assert "19.833 TL" in text
+    assert "23.800 TL" in text
 
     bottom_signature_lines = []
     for block in page.get_text("dict").get("blocks", []):
