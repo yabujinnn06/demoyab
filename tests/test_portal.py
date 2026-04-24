@@ -1202,8 +1202,80 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
                 json={"email": "agent@test.local", "password": "Operator123!"},
             )
             assert grant_login.status_code == 200
-            granted_offer = grant_client.get("/teklif/")
-            assert granted_offer.status_code == 200
-            assert "Teklif akışlarını tek merkezden yönet" in granted_offer.text
-            assert "Şablon PDF yükle" not in granted_offer.text
-            assert "/teklif/static/styles.css" in granted_offer.text
+        granted_offer = grant_client.get("/teklif/")
+        assert granted_offer.status_code == 200
+        assert "Teklif akışlarını tek merkezden yönet" in granted_offer.text
+        assert "Şablon PDF yükle" not in granted_offer.text
+        assert "/teklif/static/styles.css" in granted_offer.text
+
+
+def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) -> None:
+    from datetime import date
+
+    import fitz
+    from openpyxl import Workbook
+
+    from backend.offer_module.teklif_kontrol import OfferSelection, create_offer_from_catalog
+
+    template_path = tmp_path / "sablon.pdf"
+    template_doc = fitz.open()
+    template_page = template_doc.new_page(width=540, height=780)
+    template_page.draw_rect(
+        fitz.Rect(0, 0, 540, 84),
+        color=(0.2, 0.6, 0.9),
+        fill=(0.2, 0.6, 0.9),
+    )
+    template_page.insert_textbox(
+        fitz.Rect(340, 732, 520, 748),
+        "444 0 420 | www.rainwater.com.tr",
+        fontsize=8,
+        color=(0, 0, 0),
+    )
+    template_doc.save(template_path)
+    template_doc.close()
+
+    price_path = tmp_path / "fiyat.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["URUN", "2026 KURUMSAL NAKIT"])
+    sheet.append(["Rainwater \u00c7ift Filtre \u00d6zel \u0130\u00e7me Suyu Ar\u0131tma Sistemi", 12500])
+    workbook.save(price_path)
+
+    output_path = tmp_path / "teklif.pdf"
+    create_offer_from_catalog(
+        template_path=template_path,
+        price_list_path=price_path,
+        selected_column="2026 KURUMSAL NAKIT",
+        selected_entries=[OfferSelection(2, 2, discount_type="amount", discount_value=500)],
+        vat_included=False,
+        offer_number="RW-TEST-001",
+        offer_date=date(2026, 4, 24),
+        valid_until=date(2026, 5, 1),
+        company_name="\u00c7a\u011fr\u0131 \u0130leti\u015fim \u015eirketi",
+        contact_name="\u0130lknur Han\u0131m",
+        email="test@example.com",
+        gsm="0555 111 22 33",
+        note_text="T\u00fcrk\u00e7e karakter kontrol\u00fc: \u015f, \u011f, \u00fc, \u00f6, \u00e7, \u0130",
+        output_path=output_path,
+    )
+
+    generated = fitz.open(output_path)
+    page = generated[0]
+    text = page.get_text().replace("\xa0", " ")
+    assert "\u00c7a\u011fr\u0131 \u0130leti\u015fim \u015eirketi" in text
+    assert "Rainwater \u00c7ift Filtre \u00d6zel \u0130\u00e7me Suyu Ar\u0131tma Sistemi" in text
+    assert "T\u00fcrk\u00e7e karakter kontrol\u00fc: \u015f, \u011f, \u00fc, \u00f6, \u00e7, \u0130" in text
+    assert "\u0130SKONTO TUTARI" in text
+    assert "YATIRIM MAL\u0130YET\u0130" in text
+    assert "19.833 TL" in text
+
+    bottom_signature_lines = []
+    for block in page.get_text("dict").get("blocks", []):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            line_text = "".join(span.get("text", "") for span in line.get("spans", []))
+            if "Yetkili" in line_text and fitz.Rect(line["bbox"]).y0 > 630:
+                bottom_signature_lines.append(fitz.Rect(line["bbox"]))
+    assert bottom_signature_lines
+    assert bottom_signature_lines[0].x0 < 40

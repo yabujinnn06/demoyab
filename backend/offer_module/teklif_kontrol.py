@@ -210,11 +210,21 @@ TURKISH_TRANSLATION = str.maketrans(
 )
 ARIAL_FONT_PATH = _get_env_path("TEKLIF_KONTROL_FONT_REGULAR", Path(r"C:\Windows\Fonts\arial.ttf"))
 ARIAL_BOLD_FONT_PATH = _get_env_path("TEKLIF_KONTROL_FONT_BOLD", Path(r"C:\Windows\Fonts\arialbd.ttf"))
+TREBUCHET_FONT_PATH = _get_env_path("TEKLIF_KONTROL_HEADER_FONT_REGULAR", Path(r"C:\Windows\Fonts\trebuc.ttf"))
+TREBUCHET_BOLD_FONT_PATH = _get_env_path("TEKLIF_KONTROL_HEADER_FONT_BOLD", Path(r"C:\Windows\Fonts\trebucbd.ttf"))
+CALIBRI_FONT_PATH = _get_env_path("TEKLIF_KONTROL_TABLE_FONT_REGULAR", Path(r"C:\Windows\Fonts\calibri.ttf"))
+CALIBRI_BOLD_FONT_PATH = _get_env_path("TEKLIF_KONTROL_TABLE_FONT_BOLD", Path(r"C:\Windows\Fonts\calibrib.ttf"))
 PDF_ACCENT = (11 / 255, 134 / 255, 200 / 255)
 PDF_TEXT = (24 / 255, 53 / 255, 76 / 255)
 PDF_MUTED = (93 / 255, 119 / 255, 140 / 255)
 PDF_LIGHT = (198 / 255, 224 / 255, 238 / 255)
 PDF_ROW_SOFT = (235 / 255, 248 / 255, 252 / 255)
+PDF_TEMPLATE_ROW = (219 / 255, 242 / 255, 247 / 255)
+PDF_BLACK = (0, 0, 0)
+PDF_TEMPLATE_DARK = (26 / 255, 26 / 255, 26 / 255)
+PDF_TEMPLATE_RED = (1, 0, 0)
+PDF_HEADER_BLUE = (52 / 255, 151 / 255, 226 / 255)
+PDF_HEADER_TEXT = (1, 1, 1)
 MAX_GENERATED_OFFER_ITEMS = 6
 DEFAULT_VAT_RATE = _get_env_float("TEKLIF_KONTROL_DEFAULT_VAT_RATE", 20.0)
 DISCOUNT_TYPE_NONE = "none"
@@ -244,6 +254,21 @@ BUNDLED_PRODUCT_ALIAS_PATH = RESOURCE_BASE_DIR / "veri" / "urun_aliaslari.json"
 OFFER_HEADER_ASSET_NAME = "offer_header_banner.png"
 OFFER_BADGE_ASSET_NAMES = ("offer_badge_belgium.png", "offer_badge_eu.png")
 OFFER_SIGNATURE_CLEAR_RECT = fitz.Rect(320, 640, 525, 704)
+OFFER_SIGNATURE_LEFT_CLEAR_RECT = fitz.Rect(20, 635, 260, 704)
+LINUX_FONT_FALLBACKS_REGULAR = (
+    Path("/usr/share/fonts/truetype/crosextra/Carlito-Regular.ttf"),
+    Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
+    Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    Path("/usr/share/fonts/truetype/freefont/FreeSans.ttf"),
+)
+LINUX_FONT_FALLBACKS_BOLD = (
+    Path("/usr/share/fonts/truetype/crosextra/Carlito-Bold.ttf"),
+    Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
+    Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+    Path("/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"),
+)
 
 
 @lru_cache(maxsize=None)
@@ -1923,12 +1948,100 @@ def _format_quantity(quantity: float) -> str:
     return f"{quantity:.2f}".replace(".", ",") + " ADET"
 
 
+@dataclass(frozen=True, slots=True)
+class PdfFontSpec:
+    name: str
+    file: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OfferPdfFonts:
+    header_regular: PdfFontSpec
+    header_bold: PdfFontSpec
+    table_regular: PdfFontSpec
+    table_bold: PdfFontSpec
+
+
+def _first_existing_path(candidates: Iterable[Path | None]) -> Path | None:
+    for candidate in candidates:
+        if candidate is not None and candidate.exists():
+            return candidate
+    return None
+
+
+def _font_spec(fontname: str, candidates: Iterable[Path | None]) -> PdfFontSpec:
+    resolved_path = _first_existing_path(candidates)
+    if resolved_path is not None:
+        return PdfFontSpec(fontname, str(resolved_path))
+    return PdfFontSpec("helv", None)
+
+
 def _register_offer_fonts(page: fitz.Page) -> tuple[tuple[str, str | None], tuple[str, str | None]]:
-    if ARIAL_FONT_PATH.exists():
-        regular = ("rw_regular", str(ARIAL_FONT_PATH))
-        bold = ("rw_bold", str(ARIAL_BOLD_FONT_PATH if ARIAL_BOLD_FONT_PATH.exists() else ARIAL_FONT_PATH))
-        return regular, bold
-    return ("helv", None), ("helv", None)
+    regular = _font_spec(
+        "rw_regular",
+        (
+            ARIAL_FONT_PATH,
+            CALIBRI_FONT_PATH,
+            TREBUCHET_FONT_PATH,
+            *LINUX_FONT_FALLBACKS_REGULAR,
+        ),
+    )
+    bold = _font_spec(
+        "rw_bold",
+        (
+            ARIAL_BOLD_FONT_PATH,
+            CALIBRI_BOLD_FONT_PATH,
+            TREBUCHET_BOLD_FONT_PATH,
+            ARIAL_FONT_PATH,
+            *LINUX_FONT_FALLBACKS_BOLD,
+            *LINUX_FONT_FALLBACKS_REGULAR,
+        ),
+    )
+    return (regular.name, regular.file), (bold.name, bold.file)
+
+
+def _register_offer_pdf_fonts(page: fitz.Page) -> OfferPdfFonts:
+    header_regular = _font_spec(
+        "rw_header_regular",
+        (
+            TREBUCHET_FONT_PATH,
+            ARIAL_FONT_PATH,
+            CALIBRI_FONT_PATH,
+            *LINUX_FONT_FALLBACKS_REGULAR,
+        ),
+    )
+    header_bold = _font_spec(
+        "rw_header_bold",
+        (
+            TREBUCHET_BOLD_FONT_PATH,
+            ARIAL_BOLD_FONT_PATH,
+            CALIBRI_BOLD_FONT_PATH,
+            TREBUCHET_FONT_PATH,
+            *LINUX_FONT_FALLBACKS_BOLD,
+            *LINUX_FONT_FALLBACKS_REGULAR,
+        ),
+    )
+    table_regular = _font_spec(
+        "rw_table_regular",
+        (
+            CALIBRI_FONT_PATH,
+            ARIAL_FONT_PATH,
+            TREBUCHET_FONT_PATH,
+            *LINUX_FONT_FALLBACKS_REGULAR,
+        ),
+    )
+    table_bold = _font_spec(
+        "rw_table_bold",
+        (
+            CALIBRI_BOLD_FONT_PATH,
+            ARIAL_BOLD_FONT_PATH,
+            TREBUCHET_BOLD_FONT_PATH,
+            CALIBRI_FONT_PATH,
+            *LINUX_FONT_FALLBACKS_BOLD,
+            *LINUX_FONT_FALLBACKS_REGULAR,
+        ),
+    )
+    return OfferPdfFonts(header_regular, header_bold, table_regular, table_bold)
 
 
 def _fill_rect(page: fitz.Page, rect: fitz.Rect, fill: tuple[float, float, float] = (1, 1, 1)) -> None:
@@ -1945,16 +2058,68 @@ def _draw_textbox(
     fontsize: float,
     color: tuple[float, float, float] = PDF_TEXT,
     align: int = 0,
+    min_fontsize: float | None = None,
 ) -> None:
+    resolved_text = str(text or "")
+    minimum = min_fontsize if min_fontsize is not None else max(5.8, fontsize - 1.8)
+    current_size = fontsize
+    while current_size >= minimum:
+        remaining_height = page.insert_textbox(
+            rect,
+            resolved_text,
+            fontname=fontname,
+            fontfile=fontfile,
+            fontsize=current_size,
+            color=color,
+            align=align,
+        )
+        if remaining_height >= 0:
+            return
+        current_size -= 0.35
+
     page.insert_textbox(
         rect,
-        text,
+        resolved_text,
         fontname=fontname,
         fontfile=fontfile,
-        fontsize=fontsize,
+        fontsize=minimum,
         color=color,
         align=align,
     )
+
+
+def _draw_offer_bullet(
+    page: fitz.Page,
+    y_position: float,
+    text: str,
+    *,
+    font: PdfFontSpec,
+    bullet_font: PdfFontSpec,
+) -> None:
+    _draw_textbox(
+        page,
+        fitz.Rect(23, y_position + 0.5, 35, y_position + 15),
+        "▪",
+        fontname=bullet_font.name,
+        fontfile=bullet_font.file,
+        fontsize=10.6,
+        color=PDF_TEMPLATE_DARK,
+        min_fontsize=8.5,
+    )
+    _draw_textbox(
+        page,
+        fitz.Rect(45, y_position, 520, y_position + 15.2),
+        text,
+        fontname=font.name,
+        fontfile=font.file,
+        fontsize=12.2,
+        color=PDF_TEMPLATE_DARK,
+        min_fontsize=9.0,
+    )
+
+
+def _turkish_upper(value: str) -> str:
+    return value.translate(str.maketrans({"i": "İ", "ı": "I"})).upper()
 
 
 def _coerce_offer_selection(raw_selection: OfferSelection | tuple) -> OfferSelection:
@@ -2832,50 +2997,47 @@ def generate_offer_pdf(
         badge_source, badge_clips, close_badge_source = _resolve_badge_source(template_path, source)
         doc.insert_pdf(source, from_page=0, to_page=0)
         page = doc[0]
-        (regular_font, regular_fontfile), (bold_font, bold_fontfile) = _register_offer_fonts(page)
+        fonts = _register_offer_pdf_fonts(page)
 
         clear_rects = [
             fitz.Rect(0, 90, 540, 182),
             fitz.Rect(0, 202, 540, 700),
             fitz.Rect(330, 15, 540, 72),
             OFFER_SIGNATURE_CLEAR_RECT,
+            OFFER_SIGNATURE_LEFT_CLEAR_RECT,
         ]
         for rect in clear_rects:
             _fill_rect(page, rect)
         page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
         _draw_offer_header(page, header_source, header_clip)
-        _fill_rect(page, fitz.Rect(330, 15, 540, 72))
-        page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
-
-        page.draw_line(fitz.Point(23, 188), fitz.Point(518, 188), color=PDF_ACCENT, width=1)
-        page.draw_line(fitz.Point(23, 341), fitz.Point(518, 341), color=PDF_ACCENT, width=1)
+        page.draw_rect(
+            fitz.Rect(330, 15, 540, 72),
+            color=PDF_HEADER_BLUE,
+            fill=PDF_HEADER_BLUE,
+            overlay=True,
+        )
 
         _draw_textbox(
             page,
-            fitz.Rect(340, 18, 520, 38),
+            fitz.Rect(368, 19, 522, 42),
             "FİYAT TEKLİFİ",
-            fontname=bold_font,
-            fontfile=bold_fontfile,
-            fontsize=15,
+            fontname=fonts.header_bold.name,
+            fontfile=fonts.header_bold.file,
+            fontsize=18,
+            color=PDF_HEADER_TEXT,
             align=2,
+            min_fontsize=14,
         )
         _draw_textbox(
             page,
-            fitz.Rect(340, 39, 520, 54),
-            f"Teklif No: {offer_number}",
-            fontname=bold_font,
-            fontfile=bold_fontfile,
-            fontsize=10.5,
+            fitz.Rect(342, 45, 522, 63),
+            f"Teklif Tarihi : {offer_date:%d.%m.%Y}",
+            fontname=fonts.header_bold.name,
+            fontfile=fonts.header_bold.file,
+            fontsize=13.6,
+            color=PDF_HEADER_TEXT,
             align=2,
-        )
-        _draw_textbox(
-            page,
-            fitz.Rect(340, 54, 520, 69),
-            f"Tarih: {offer_date:%d.%m.%Y}",
-            fontname=regular_font,
-            fontfile=regular_fontfile,
-            fontsize=9.5,
-            align=2,
+            min_fontsize=10,
         )
 
         customer_labels = [
@@ -2886,31 +3048,55 @@ def generate_offer_pdf(
         ]
         label_y = 98
         for label, value in customer_labels:
-            _draw_textbox(page, fitz.Rect(24, label_y, 122, label_y + 16), label, fontname=bold_font, fontfile=bold_fontfile, fontsize=9.5)
-            _draw_textbox(page, fitz.Rect(129, label_y, 132, label_y + 16), ":", fontname=bold_font, fontfile=bold_fontfile, fontsize=10)
-            _draw_textbox(page, fitz.Rect(138, label_y, 320, label_y + 16), value, fontname=regular_font, fontfile=regular_fontfile, fontsize=10)
+            _draw_textbox(
+                page,
+                fitz.Rect(25, label_y, 122, label_y + 17),
+                label,
+                fontname=fonts.header_bold.name,
+                fontfile=fonts.header_bold.file,
+                fontsize=13.4,
+                color=PDF_BLACK,
+                min_fontsize=10,
+            )
+            _draw_textbox(
+                page,
+                fitz.Rect(132, label_y, 330, label_y + 17),
+                f":{value}",
+                fontname=fonts.header_bold.name,
+                fontfile=fonts.header_bold.file,
+                fontsize=13.4,
+                color=PDF_BLACK,
+                min_fontsize=9,
+            )
             label_y += 20
 
-        vat_mode_label = "KDV Dahil" if vat_included else "KDV Hariç"
-        price_display_label = resolve_price_display_label(selected_column, price_label)
+        page.draw_line(fitz.Point(20, 178), fitz.Point(520, 178), color=PDF_ACCENT, width=0.8)
+
         payment_info_text = resolve_payment_info(selected_column, payment_info)
         bullet_lines = [
-            "Garanti : Sistemlerimiz 10 YIL RAINWATER GARANTİSİ altındadır.",
+            "Garanti :Sistemlerimiz 10 YIL RAINWATER GARANTİSİ altındadır.",
             "Kullanıcı hataları dışında, elektrik motorları 2 yıldır.",
-            "Teslim süresi : Katı siparişi 7 iş günü",
-            f"Ödeme Bilgisi : {payment_info_text}",
+            "Teslim süresi :Katı siparişi 7 iş günü",
+            f"Ödeme Bilgisi :{payment_info_text}",
             "Montaj Bilgisi : Montaj alanına elektrik hat çekimi tarafınıza aittir.",
             "Ürün nakliye ve montajı tarafımıza aittir.",
-            f"Fiyatlarımıza KDV (%{vat_rate:g}) {'dahildir' if vat_included else 'dahil değildir'}.",
+            f"Fiyatlarımıza KDV (%{vat_rate:g}) {'dahildir' if vat_included else 'dahil DEĞİLDİR'}.",
             f"Teklif süresi : {valid_until:%d.%m.%Y} tarihine kadar geçerlidir.",
         ]
 
-        bullet_y = 208
+        bullet_y = 185
         for line in bullet_lines:
-            _draw_textbox(page, fitz.Rect(35, bullet_y, 515, bullet_y + 13), f"•  {line}", fontname=regular_font, fontfile=regular_fontfile, fontsize=9.2)
-            bullet_y += 16
+            _draw_offer_bullet(
+                page,
+                bullet_y,
+                line,
+                font=fonts.header_regular,
+                bullet_font=fonts.table_bold,
+            )
+            bullet_y += 15.6
 
-        has_discount_layout = any(item.discount_amount > 0.01 for item in offer_items)
+        page.draw_line(fitz.Point(10, 342), fitz.Point(530, 342), color=PDF_ACCENT, width=0.8)
+
         total_discount_amount = round(
             sum(item.discount_amount * item.quantity for item in offer_items),
             2,
@@ -2918,109 +3104,234 @@ def generate_offer_pdf(
         discounted_header = (
             "KURUMSAL\nİNDİRİMLİ\nFİYAT"
             if "KURUMSAL" in normalize_text(selected_column)
-            else "İNDİRİMLİ\nFİYAT"
+            else "SEÇİLEN\nFİYAT"
         )
-        table_header_top = 350
-        page.draw_line(fitz.Point(20, table_header_top - 4), fitz.Point(520, table_header_top - 4), color=PDF_ACCENT, width=1)
-        if has_discount_layout:
-            _draw_textbox(page, fitz.Rect(23, table_header_top, 226, table_header_top + 18), "MALZEME", fontname=bold_font, fontfile=bold_fontfile, fontsize=10)
-            _draw_textbox(page, fitz.Rect(228, table_header_top, 286, table_header_top + 18), "MİKTAR", fontname=bold_font, fontfile=bold_fontfile, fontsize=9.3, align=1)
-            _draw_textbox(page, fitz.Rect(288, table_header_top, 352, table_header_top + 26), "BİRİM\nFİYAT", fontname=bold_font, fontfile=bold_fontfile, fontsize=8.6, align=1)
-            _draw_textbox(page, fitz.Rect(354, table_header_top, 406, table_header_top + 26), "İSKONTO\nTUTARI", fontname=bold_font, fontfile=bold_fontfile, fontsize=8.2, align=1)
-            _draw_textbox(page, fitz.Rect(408, table_header_top - 1, 470, table_header_top + 30), discounted_header, fontname=bold_font, fontfile=bold_fontfile, fontsize=7.8, align=1)
-            _draw_textbox(page, fitz.Rect(472, table_header_top, 518, table_header_top + 26), "TOPLAM\nTUTAR", fontname=bold_font, fontfile=bold_fontfile, fontsize=8.3, align=2)
-        else:
-            _draw_textbox(page, fitz.Rect(23, table_header_top, 250, table_header_top + 16), "MALZEME", fontname=bold_font, fontfile=bold_fontfile, fontsize=10)
-            _draw_textbox(page, fitz.Rect(252, table_header_top, 320, table_header_top + 16), "MİKTAR", fontname=bold_font, fontfile=bold_fontfile, fontsize=10, align=1)
-            _draw_textbox(page, fitz.Rect(322, table_header_top, 388, table_header_top + 16), "BİRİM FİYAT", fontname=bold_font, fontfile=bold_fontfile, fontsize=9.4, align=1)
-            _draw_textbox(page, fitz.Rect(390, table_header_top, 458, table_header_top + 16), "SEÇİLEN FİYAT", fontname=bold_font, fontfile=bold_fontfile, fontsize=9.2, align=1)
-            _draw_textbox(page, fitz.Rect(460, table_header_top, 518, table_header_top + 16), "TOPLAM", fontname=bold_font, fontfile=bold_fontfile, fontsize=10, align=2)
-        _draw_textbox(page, fitz.Rect(23, table_header_top + 24, 518, table_header_top + 38), f"Seçilen fiyat tipi: {price_display_label} | {vat_mode_label}", fontname=regular_font, fontfile=regular_fontfile, fontsize=8.7, color=PDF_MUTED)
-        page.draw_line(fitz.Point(23, table_header_top + 44), fitz.Point(518, table_header_top + 44), color=PDF_LIGHT, width=0.8)
+        table_regular = fonts.table_regular
+        table_bold = fonts.table_bold
+        table_header_top = 320
+        _draw_textbox(
+            page,
+            fitz.Rect(84, table_header_top + 13, 184, table_header_top + 27),
+            "MALZEME",
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=10.6,
+            color=PDF_BLACK,
+            align=1,
+        )
+        _draw_textbox(
+            page,
+            fitz.Rect(252, table_header_top + 13, 314, table_header_top + 27),
+            "MİKTAR",
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=10.6,
+            color=PDF_BLACK,
+            align=1,
+        )
+        _draw_textbox(
+            page,
+            fitz.Rect(314, table_header_top + 13, 376, table_header_top + 27),
+            "BİRİM FİYAT",
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=10.2,
+            color=PDF_BLACK,
+            align=1,
+            min_fontsize=8.5,
+        )
+        _draw_textbox(
+            page,
+            fitz.Rect(386, table_header_top, 448, table_header_top + 38),
+            discounted_header,
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=10.2,
+            color=PDF_BLACK,
+            align=1,
+            min_fontsize=8,
+        )
+        _draw_textbox(
+            page,
+            fitz.Rect(464, table_header_top + 6, 516, table_header_top + 32),
+            "TOPLAM\nTUTAR",
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=10.2,
+            color=PDF_BLACK,
+            align=1,
+            min_fontsize=8.5,
+        )
+        page.draw_line(fitz.Point(10, 360), fitz.Point(530, 360), color=PDF_ACCENT, width=0.8)
 
-        row_top = table_header_top + 54
-        row_height = 32 if has_discount_layout else 30
+        row_top = 382
+        row_height = max(32.0, min(52.0, (620.0 - row_top) / max(len(offer_items), 1)))
         for row_index, item in enumerate(offer_items):
             row_bottom = row_top + row_height
-            if row_index % 2 == 0:
-                page.draw_rect(fitz.Rect(20, row_top - 2, 520, row_bottom), color=PDF_ROW_SOFT, fill=PDF_ROW_SOFT, overlay=True)
+            if row_index % 2 == 1:
+                page.draw_rect(
+                    fitz.Rect(10, row_top - 4, 530, row_bottom + 2),
+                    color=PDF_TEMPLATE_ROW,
+                    fill=PDF_TEMPLATE_ROW,
+                    overlay=True,
+                )
             _draw_textbox(
                 page,
-                fitz.Rect(23, row_top, 182 if has_discount_layout else 212, row_bottom),
+                fitz.Rect(23, row_top, 238, row_bottom - 2),
                 item.product_name,
-                fontname=bold_font,
-                fontfile=bold_fontfile,
-                fontsize=8.8,
+                fontname=table_bold.name,
+                fontfile=table_bold.file,
+                fontsize=10,
+                color=PDF_BLACK,
+                min_fontsize=7.2,
             )
-            _draw_offer_badges(
+            price_line_top = row_top + max(2, (row_height - 13) / 2)
+            _draw_textbox(
                 page,
-                badge_source,
-                badge_clips,
-                row_top,
-                has_discount_layout=has_discount_layout,
-                background_fill=PDF_ROW_SOFT if row_index % 2 == 0 else (1, 1, 1),
+                fitz.Rect(252, price_line_top, 306, price_line_top + 14),
+                _format_quantity(item.quantity),
+                fontname=table_regular.name,
+                fontfile=table_regular.file,
+                fontsize=10.4,
+                color=PDF_BLACK,
+                align=1,
+                min_fontsize=8.2,
             )
             _draw_textbox(
                 page,
-                fitz.Rect(228 if has_discount_layout else 260, row_top + 2, 286 if has_discount_layout else 320, row_bottom),
-                _format_quantity(item.quantity),
-                fontname=regular_font,
-                fontfile=regular_fontfile,
-                fontsize=8.8,
-                align=1,
+                fitz.Rect(314, price_line_top, 372, price_line_top + 14),
+                format_pdf_money(item.base_unit_price or item.unit_price),
+                fontname=table_regular.name,
+                fontfile=table_regular.file,
+                fontsize=10.2,
+                color=PDF_BLACK,
+                align=2,
+                min_fontsize=8.0,
             )
-            if has_discount_layout:
-                _draw_textbox(page, fitz.Rect(288, row_top + 2, 352, row_bottom), format_pdf_money(item.base_unit_price), fontname=regular_font, fontfile=regular_fontfile, fontsize=8.2, align=1)
-                _draw_textbox(page, fitz.Rect(354, row_top + 2, 406, row_bottom), format_pdf_money(item.discount_amount), fontname=regular_font, fontfile=regular_fontfile, fontsize=8.2, align=1)
-                _draw_textbox(page, fitz.Rect(408, row_top + 2, 470, row_bottom), format_pdf_money(item.unit_price), fontname=regular_font, fontfile=regular_fontfile, fontsize=8.2, align=1)
-                _draw_textbox(page, fitz.Rect(472, row_top + 2, 518, row_bottom), format_pdf_money(item.total_price), fontname=bold_font, fontfile=bold_fontfile, fontsize=8.4, align=2)
-            else:
-                _draw_textbox(page, fitz.Rect(322, row_top + 2, 388, row_bottom), format_pdf_money(item.base_unit_price or item.unit_price), fontname=regular_font, fontfile=regular_fontfile, fontsize=8.6, align=1)
-                _draw_textbox(page, fitz.Rect(390, row_top + 2, 458, row_bottom), format_pdf_money(item.unit_price), fontname=regular_font, fontfile=regular_fontfile, fontsize=8.6, align=1)
-                _draw_textbox(page, fitz.Rect(460, row_top + 2, 518, row_bottom), format_pdf_money(item.total_price), fontname=bold_font, fontfile=bold_fontfile, fontsize=8.8, align=2)
-            page.draw_line(fitz.Point(23, row_bottom), fitz.Point(518, row_bottom), color=PDF_LIGHT, width=0.6)
+            _draw_textbox(
+                page,
+                fitz.Rect(386, price_line_top, 444, price_line_top + 14),
+                format_pdf_money(item.unit_price),
+                fontname=table_regular.name,
+                fontfile=table_regular.file,
+                fontsize=10.2,
+                color=PDF_BLACK,
+                align=2,
+                min_fontsize=8.0,
+            )
+            _draw_textbox(
+                page,
+                fitz.Rect(452, price_line_top, 518, price_line_top + 14),
+                format_pdf_money(item.total_price),
+                fontname=table_regular.name,
+                fontfile=table_regular.file,
+                fontsize=10.2,
+                color=PDF_BLACK,
+                align=2,
+                min_fontsize=8.0,
+            )
             row_top += row_height
 
         line_total_sum = round(sum(item.total_price for item in offer_items), 2)
-        net_total, vat_total, gross_total = calculate_offer_totals(
+        net_total, _vat_total, gross_total = calculate_offer_totals(
             line_total_sum,
             vat_rate=vat_rate,
             vat_included=vat_included,
         )
-        totals_top = max(500, row_top + 18)
+        totals_top = min(max(row_top + 18, 500), 620)
         show_discount_total = total_discount_amount > 0.01
-        if vat_included:
-            _draw_textbox(page, fitz.Rect(320, totals_top, 445, totals_top + 16), "YATIRIM MALİYETİ", fontname=bold_font, fontfile=bold_fontfile, fontsize=10, align=2)
-            _draw_textbox(page, fitz.Rect(448, totals_top, 518, totals_top + 16), f": {format_pdf_money(net_total)}", fontname=regular_font, fontfile=regular_fontfile, fontsize=10, align=2)
-            _draw_textbox(page, fitz.Rect(320, totals_top + 20, 445, totals_top + 36), f"KDV (%{vat_rate:g})", fontname=bold_font, fontfile=bold_fontfile, fontsize=10, align=2)
-            _draw_textbox(page, fitz.Rect(448, totals_top + 20, 518, totals_top + 36), f": {format_pdf_money(vat_total)}", fontname=regular_font, fontfile=regular_fontfile, fontsize=10, align=2)
+        total_line_top = totals_top
+        if show_discount_total:
+            _draw_textbox(
+                page,
+                fitz.Rect(286, total_line_top, 414, total_line_top + 16),
+                "İSKONTO TUTARI",
+                fontname=table_bold.name,
+                fontfile=table_bold.file,
+                fontsize=10.2,
+                color=PDF_BLACK,
+                align=2,
+                min_fontsize=8.5,
+            )
+            _draw_textbox(
+                page,
+                fitz.Rect(414, total_line_top, 518, total_line_top + 16),
+                f": {format_pdf_money(total_discount_amount)}",
+                fontname=table_regular.name,
+                fontfile=table_regular.file,
+                fontsize=10.2,
+                color=PDF_BLACK,
+                align=2,
+                min_fontsize=8.5,
+            )
+            total_line_top += 22
 
-            total_line_top = totals_top + 42
-            if show_discount_total:
-                _draw_textbox(page, fitz.Rect(300, total_line_top, 445, total_line_top + 16), "İSKONTO TUTARI", fontname=bold_font, fontfile=bold_fontfile, fontsize=10, align=2)
-                _draw_textbox(page, fitz.Rect(448, total_line_top, 518, total_line_top + 16), f": {format_pdf_money(total_discount_amount)}", fontname=regular_font, fontfile=regular_fontfile, fontsize=10, align=2)
-                total_line_top += 22
-
-            _draw_textbox(page, fitz.Rect(280, total_line_top, 445, total_line_top + 18), "TOPLAM YATIRIM MALİYETİ", fontname=bold_font, fontfile=bold_fontfile, fontsize=11, color=(1, 0, 0), align=2)
-            _draw_textbox(page, fitz.Rect(448, total_line_top, 518, total_line_top + 18), f": {format_pdf_money(gross_total)}", fontname=bold_font, fontfile=bold_fontfile, fontsize=11, color=(1, 0, 0), align=2)
-            totals_bottom = total_line_top + 18
-        else:
-            total_line_top = totals_top + 16
-            if show_discount_total:
-                _draw_textbox(page, fitz.Rect(300, totals_top, 445, totals_top + 16), "İSKONTO TUTARI", fontname=bold_font, fontfile=bold_fontfile, fontsize=10, align=2)
-                _draw_textbox(page, fitz.Rect(448, totals_top, 518, totals_top + 16), f": {format_pdf_money(total_discount_amount)}", fontname=regular_font, fontfile=regular_fontfile, fontsize=10, align=2)
-                total_line_top = totals_top + 22
-
-            _draw_textbox(page, fitz.Rect(220, total_line_top, 445, total_line_top + 18), "TOPLAM YATIRIM MALİYETİ (KDV HARİÇ)", fontname=bold_font, fontfile=bold_fontfile, fontsize=10.2, color=(1, 0, 0), align=2)
-            _draw_textbox(page, fitz.Rect(448, total_line_top, 518, total_line_top + 18), f": {format_pdf_money(net_total)}", fontname=bold_font, fontfile=bold_fontfile, fontsize=11, color=(1, 0, 0), align=2)
-            totals_bottom = total_line_top + 18
+        total_value = gross_total if vat_included else net_total
+        _draw_textbox(
+            page,
+            fitz.Rect(276, total_line_top, 406, total_line_top + 19),
+            "YATIRIM MALİYETİ",
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=13.2,
+            color=PDF_TEMPLATE_RED,
+            align=2,
+            min_fontsize=10,
+        )
+        _draw_textbox(
+            page,
+            fitz.Rect(412, total_line_top, 418, total_line_top + 19),
+            ":",
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=13.2,
+            color=PDF_TEMPLATE_RED,
+            align=1,
+        )
+        _draw_textbox(
+            page,
+            fitz.Rect(432, total_line_top, 520, total_line_top + 19),
+            format_pdf_money(total_value),
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=13.2,
+            color=PDF_TEMPLATE_RED,
+            align=2,
+            min_fontsize=10,
+        )
+        totals_bottom = total_line_top + 19
 
         if note_text and note_text.strip():
-            note_top = min(totals_bottom + 26, 612)
-            _draw_textbox(page, fitz.Rect(24, note_top, 518, note_top + 42), f"•  {note_text.strip()}", fontname=regular_font, fontfile=regular_fontfile, fontsize=9.2)
+            note_top = min(totals_bottom + 18, 628)
+            _draw_offer_bullet(
+                page,
+                note_top,
+                note_text.strip(),
+                font=fonts.header_regular,
+                bullet_font=table_bold,
+            )
 
-        _draw_textbox(page, fitz.Rect(342, 654, 510, 668), "Yetkili Adı", fontname=regular_font, fontfile=regular_fontfile, fontsize=10, align=1)
-        _draw_textbox(page, fitz.Rect(342, 674, 510, 688), (contact_name or company_name or "-").upper(), fontname=bold_font, fontfile=bold_fontfile, fontsize=10.5, align=1)
+        signature_name = _turkish_upper(contact_name or company_name or "-")
+        _draw_textbox(
+            page,
+            fitz.Rect(25, 652, 245, 670),
+            "Yetkili Adı",
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=12.2,
+            color=PDF_BLACK,
+            min_fontsize=9,
+        )
+        _draw_textbox(
+            page,
+            fitz.Rect(25, 673, 245, 692),
+            signature_name,
+            fontname=table_bold.name,
+            fontfile=table_bold.file,
+            fontsize=12.2,
+            color=PDF_BLACK,
+            min_fontsize=9,
+        )
 
         doc.save(final_output_path)
         return final_output_path
