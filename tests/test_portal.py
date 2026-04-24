@@ -1141,6 +1141,9 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         )
         assert admin_login.status_code == 200
         assert "call_portal_session" in admin_login.cookies
+        me_from_cookie = client.get("/api/auth/me")
+        assert me_from_cookie.status_code == 200
+        assert me_from_cookie.json()["email"] == "admin@test.local"
 
         admin_offer = client.get("/teklif/")
         assert admin_offer.status_code == 200

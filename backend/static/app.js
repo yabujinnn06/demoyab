@@ -56,7 +56,7 @@ const DEFAULT_CONTACT_POOL_FILTERS = {
 
 const state = {
   token: persistedToken,
-  booting: Boolean(persistedToken),
+  booting: true,
   me: null,
   lists: [],
   records: [],
@@ -173,9 +173,7 @@ function resetSessionState(message = "") {
   state.contactPoolPagination.total = 0;
   sessionStorage.removeItem("callPortalToken");
   localStorage.removeItem("callPortalToken");
-  if (message) {
-    state.flash = { type: "error", text: message };
-  }
+  state.flash = message ? { type: "error", text: message } : null;
 }
 
 function escapeHtml(value) {
@@ -299,7 +297,7 @@ async function api(path, options = {}) {
     } catch {
       // noop
     }
-    if ((response.status === 401 || response.status === 403) && state.token) {
+    if ((response.status === 401 || response.status === 403) && (state.token || state.me)) {
       resetSessionState("Oturum kapandı. Lütfen tekrar giriş yap.");
       render();
     }
@@ -537,13 +535,7 @@ function contactPoolDraft(entry) {
 }
 
 async function loadSession() {
-  if (!state.token) {
-    state.booting = false;
-    resetSessionState();
-    render();
-    return;
-  }
-
+  const hadStoredToken = Boolean(state.token);
   try {
     state.me = await api("/api/auth/me");
     await Promise.all([loadLists(), loadUsersIfAdmin()]);
@@ -557,8 +549,10 @@ async function loadSession() {
   } catch (error) {
     console.error(error);
     state.booting = false;
-    resetSessionState(error.message);
-    setFlash("error", error.message);
+    resetSessionState(hadStoredToken ? error.message : "");
+    if (hadStoredToken) {
+      setFlash("error", error.message);
+    }
   }
 }
 
@@ -705,7 +699,6 @@ function startPolling() {
     window.clearInterval(state.pollingHandle);
   }
   state.pollingHandle = window.setInterval(async () => {
-    if (!state.token) return;
     if (hasLocalInteraction()) return;
     try {
       await refreshOperationalData("poll");
@@ -2127,7 +2120,7 @@ function render() {
     "modal-open",
     Boolean(state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen),
   );
-  appNode.innerHTML = state.booting ? bootMarkup() : state.token && state.me ? appMarkup() : loginMarkup();
+  appNode.innerHTML = state.booting ? bootMarkup() : state.me ? appMarkup() : loginMarkup();
   bindEvents();
 }
 
