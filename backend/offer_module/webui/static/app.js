@@ -163,11 +163,38 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-open-workspace]").forEach((button) => {
     button.addEventListener("click", () => {
       showWorkspace(button.dataset.openWorkspace);
+      const focusIndex = button.dataset.focusDecision;
+      if (focusIndex === undefined) {
+        return;
+      }
+      window.setTimeout(() => {
+        const targetCard = document.getElementById(`decision-row-${focusIndex}`);
+        if (!targetCard) {
+          return;
+        }
+        targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
+        targetCard.classList.add("decision-card-focus");
+        window.setTimeout(() => targetCard.classList.remove("decision-card-focus"), 1800);
+      }, 220);
+    });
+  });
+
+  document.querySelectorAll("[data-manual-match]").forEach((select) => {
+    select.addEventListener("change", () => {
+      if (!select.value) {
+        return;
+      }
+      const decisionCard = select.closest(".decision-card");
+      const checkbox = decisionCard?.querySelector("[data-apply-checkbox]");
+      if (checkbox) {
+        checkbox.checked = true;
+      }
     });
   });
 
   const activePane = document.querySelector(".workspace-pane-stack > .tab-pane.active");
-  const serverWorkspace = activePane?.id?.replace("workspace-pane-", "");
+  const serverWorkspace = document.body.dataset.activeWorkspace || activePane?.id?.replace("workspace-pane-", "");
+  const preferServerWorkspace = document.body.dataset.preferServerWorkspace === "true";
 
   let storedWorkspace = null;
   try {
@@ -176,7 +203,7 @@ document.addEventListener("DOMContentLoaded", () => {
     storedWorkspace = null;
   }
 
-  if (storedWorkspace && storedWorkspace !== serverWorkspace) {
+  if (!preferServerWorkspace && storedWorkspace && storedWorkspace !== serverWorkspace) {
     showWorkspace(storedWorkspace);
   } else if (serverWorkspace) {
     syncWorkspaceChrome(serverWorkspace);

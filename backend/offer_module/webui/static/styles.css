@@ -1170,6 +1170,31 @@ section.app-card::before {
   color: var(--app-text);
 }
 
+.result-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.result-action-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(11, 134, 200, 0.16);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, rgba(227, 243, 255, 0.82), rgba(249, 252, 255, 0.92));
+}
+
+.result-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
 .decision-badge {
   display: inline-flex;
   align-items: center;
@@ -1228,8 +1253,19 @@ section.app-card::before {
   font-weight: 700;
 }
 
+.decision-toggle.is-ready {
+  border-color: rgba(38, 103, 70, 0.24);
+  background: rgba(223, 244, 232, 0.82);
+  color: #226646;
+}
+
 .decision-toggle input {
   margin-top: 0;
+}
+
+.decision-card-focus {
+  border-color: rgba(11, 134, 200, 0.52);
+  box-shadow: 0 0 0 0.22rem rgba(11, 134, 200, 0.12), var(--app-shadow-soft);
 }
 
 .decision-muted {
@@ -1423,6 +1459,21 @@ section.app-card::before {
 
   .decision-toolbar-metrics {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .result-action-strip {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .result-action-buttons,
+  .result-card-actions {
+    justify-content: stretch;
+  }
+
+  .result-action-buttons .btn,
+  .result-card-actions .btn {
+    width: 100%;
   }
 
   .workspace-detail-list {

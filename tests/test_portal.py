@@ -1163,6 +1163,10 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         offer_sound = client.get("/teklif/static/audio/choose2.wav")
         assert offer_sound.status_code == 200
         assert len(offer_sound.content) > 0
+        offer_app_js = client.get("/teklif/static/app.js")
+        assert offer_app_js.status_code == 200
+        assert "preferServerWorkspace" in offer_app_js.text
+        assert "data-manual-match" in offer_app_js.text
 
         created_user = client.post(
             "/api/users",
@@ -1207,6 +1211,70 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         assert "Teklif akışlarını tek merkezden yönet" in granted_offer.text
         assert "Şablon PDF yükle" not in granted_offer.text
         assert "/teklif/static/styles.css" in granted_offer.text
+
+
+def test_offer_manual_match_preview_makes_row_actionable(tmp_path) -> None:
+    from openpyxl import Workbook
+
+    from backend.offer_module import webapp as offer_webapp
+    from backend.offer_module.teklif_kontrol import FinancialReview, MatchResult, OfferItem
+
+    price_path = tmp_path / "fiyat.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["URUN", "2026 KURUMSAL NAKIT"])
+    sheet.append(["Rainwater Superior Paslanmaz Tank", 100])
+    workbook.save(price_path)
+
+    session = offer_webapp.ComparisonSession(
+        token="manual-test",
+        price_list_path=price_path,
+        offer_path=tmp_path / "teklif.pdf",
+        output_path=tmp_path / "rapor.xlsx",
+        selected_column="2026 KURUMSAL NAKIT",
+        price_mode="kurumsal_nakit",
+        results=[
+            MatchResult(
+                offer_item=OfferItem(
+                    product_name="Bilinmeyen tank",
+                    quantity=1,
+                    unit_price=80,
+                    discounted_price=80,
+                    total_price=80,
+                ),
+                matched_row=None,
+                score=0,
+                status="ESLESMEDI",
+                selected_column="2026 KURUMSAL NAKIT",
+                reference_unit_price=None,
+                reference_total_price=None,
+                suggested_unit_price=None,
+                suggested_total_price=None,
+                difference=None,
+                note="Güvenilir eşleşme bulunamadı.",
+            )
+        ],
+        financial_review=FinancialReview(
+            vat_rate=20,
+            vat_rate_source="default",
+            vat_included=True,
+            item_gross_total=80,
+            expected_net_total=66.67,
+            expected_vat_total=13.33,
+            expected_gross_total=80,
+            expected_summary_total=80,
+            checks=[],
+        ),
+    )
+
+    changed_count = offer_webapp.apply_manual_match_overrides(session, ["2"])
+    row = offer_webapp.result_view_model(session.results[0], 0)
+
+    assert changed_count == 1
+    assert row["manual_selected"] is True
+    assert row["manual_match_row_id"] == "2"
+    assert row["status"] == "DUZELT"
+    assert row["can_apply"] is True
 
 
 def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) -> None:

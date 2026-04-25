@@ -1502,7 +1502,7 @@ async def apply_corrections(
             selected_mode=session.price_mode,
             session=session,
             notice=f"{manual_override_count} satirda elle urun secimiyle sonuc yeniden hesaplandi.",
-            active_workspace="apply",
+            active_workspace="results",
         )
         return templates.TemplateResponse("index.html", context)
 
