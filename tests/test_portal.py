@@ -1425,6 +1425,54 @@ def test_offer_parser_uses_layout_rows_for_interleaved_price_table(tmp_path) -> 
     assert net_check.calculated_value == 332169.0
 
 
+def test_offer_parser_does_not_limit_layout_row_count(tmp_path) -> None:
+    import fitz
+
+    from backend.offer_module.teklif_kontrol import parse_offer_items
+
+    offer_path = tmp_path / "many_rows_offer.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=540, height=760)
+    page.insert_text((35, 78), "MALZEME", fontsize=10)
+    page.insert_text((270, 78), "MIKTAR", fontsize=10)
+    page.insert_text((330, 78), "BIRIM FIYAT", fontsize=10)
+    page.insert_text((402, 78), "KURUMSAL INDIRIMLI FIYAT", fontsize=10)
+    page.insert_text((475, 78), "TOPLAM TUTAR", fontsize=10)
+
+    expected_total = 0
+    for index in range(8):
+        y = 112 + (index * 62)
+        unit_price = 10000 + (index * 1000)
+        discounted_price = 9000 + (index * 1000)
+        expected_total += discounted_price
+        page.insert_text((25, y), f"RAINWATER TEST URUN {index + 1}", fontsize=9)
+        page.insert_text((25, y + 12), f"MODEL RNW-{2200 + index}", fontsize=9)
+        if index == 6:
+            page.insert_text((268, y + 12), f"1 ADET {unit_price:,.0f}".replace(",", ".") + " TL", fontsize=9)
+            page.insert_text(
+                (395, y + 24),
+                f"{discounted_price:,.0f} TL {discounted_price:,.0f} TL".replace(",", "."),
+                fontsize=9,
+            )
+        else:
+            page.insert_text(
+                (268, y + 12),
+                f"1 ADET {unit_price:,.0f} TL {discounted_price:,.0f} TL {discounted_price:,.0f} TL".replace(",", "."),
+                fontsize=9,
+            )
+
+    page.insert_text((351, 635), "YATIRIM MALIYETI :", fontsize=10)
+    page.insert_text((478, 635), f"{expected_total:,.0f} TL".replace(",", "."), fontsize=10)
+    doc.save(offer_path)
+    doc.close()
+
+    items, _offer_text = parse_offer_items(offer_path)
+
+    assert len(items) == 8
+    assert round(sum(item.total_price for item in items), 2) == float(expected_total)
+    assert items[6].discounted_price == 15000.0
+
+
 def test_offer_pdf_correction_handles_bundle_row_index_mismatch(tmp_path) -> None:
     import fitz
 

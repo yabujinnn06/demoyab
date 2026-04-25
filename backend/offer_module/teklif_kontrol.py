@@ -428,6 +428,13 @@ def _words_to_line_text(words: list[tuple]) -> str:
     return " ".join(str(word[4]).strip() for word in sorted(words, key=lambda word: float(word[0])) if str(word[4]).strip())
 
 
+def _words_to_reading_order_text(words: list[tuple], *, y_tolerance: float = 3.0) -> str:
+    if not words:
+        return ""
+    lines = _group_layout_words(words, y_tolerance=y_tolerance)
+    return " ".join(_words_to_line_text(line_words) for line_words in lines if line_words).strip()
+
+
 def _ensure_safe_output_path(
     output_path: Path,
     *,
@@ -734,7 +741,7 @@ def extract_offer_text(pdf_path: Path) -> str:
     return "\n".join(merged_lines)
 
 
-def _group_layout_words_as_lines(words: list[tuple], *, y_tolerance: float = 3.0) -> list[str]:
+def _group_layout_words(words: list[tuple], *, y_tolerance: float = 3.0) -> list[list[tuple]]:
     grouped_lines: list[list[tuple]] = []
     grouped_centers: list[float] = []
     for word in sorted(words, key=lambda candidate: (_word_center_y(candidate), float(candidate[0]))):
@@ -749,16 +756,21 @@ def _group_layout_words_as_lines(words: list[tuple], *, y_tolerance: float = 3.0
         else:
             grouped_lines.append([word])
             grouped_centers.append(center_y)
-    return [_words_to_line_text(line_words) for line_words in grouped_lines]
+    return grouped_lines
 
 
-def _layout_row_price_words(words: list[tuple], adet_word: tuple) -> list[tuple]:
+def _group_layout_words_as_lines(words: list[tuple], *, y_tolerance: float = 3.0) -> list[str]:
+    return [_words_to_line_text(line_words) for line_words in _group_layout_words(words, y_tolerance=y_tolerance)]
+
+
+def _layout_row_price_words(words: list[tuple], adet_word: tuple, *, top: float, bottom: float) -> list[tuple]:
     center_y = _word_center_y(adet_word)
+    price_top = max(top, center_y - 6)
     price_column_start = min(float(adet_word[0]) - 12, 265)
     return [
         word
         for word in words
-        if float(word[0]) >= price_column_start and abs(_word_center_y(word) - center_y) <= 4.0
+        if float(word[0]) >= price_column_start and price_top <= _word_center_y(word) < bottom
     ]
 
 
@@ -786,14 +798,12 @@ def _parse_offer_items_from_layout(pdf_path: Path) -> list[OfferItem]:
             if not words:
                 continue
 
-            anchors: list[tuple[tuple, float, str]] = []
+            anchors: list[tuple[tuple, float]] = []
             for word in words:
                 if normalize_text(str(word[4])) != "ADET":
                     continue
-                row_words = _layout_row_price_words(words, word)
-                price_text = _words_to_line_text(row_words)
-                if len(MONEY_TL_PATTERN.findall(price_text)) >= 3:
-                    anchors.append((word, _word_center_y(word), price_text))
+                center_y = _word_center_y(word)
+                anchors.append((word, center_y))
 
             anchors.sort(key=lambda anchor: anchor[1])
             if not anchors:
@@ -808,12 +818,14 @@ def _parse_offer_items_from_layout(pdf_path: Path) -> list[OfferItem]:
                 continue
             first_top = max(header_candidates) + 12
 
-            for index, (adet_word, center_y, price_text) in enumerate(anchors):
+            for index, (adet_word, center_y) in enumerate(anchors):
                 top = first_top if index == 0 else (anchors[index - 1][1] + center_y) / 2
                 if index + 1 < len(anchors):
                     bottom = (center_y + anchors[index + 1][1]) / 2
                 else:
                     bottom = _layout_summary_stop_y(words, center_y, page.rect.y1)
+                price_words = _layout_row_price_words(words, adet_word, top=top, bottom=bottom)
+                price_text = _words_to_reading_order_text(price_words)
 
                 product_column_end = min(float(adet_word[0]) - 8, 265)
                 product_words = [
@@ -829,7 +841,7 @@ def _parse_offer_items_from_layout(pdf_path: Path) -> list[OfferItem]:
                     if _is_possible_product_prefix(normalize_text(line))
                 ]
                 product_name = _select_preferred_product_prefix(product_lines)
-                if not product_name:
+                if not product_name or len(MONEY_TL_PATTERN.findall(price_text)) < 3:
                     continue
 
                 match = ITEM_PATTERN.match(f"{product_name} {price_text}".strip())
