@@ -3688,6 +3688,16 @@ def build_match_result(
     )
 
 
+def _is_offer_row_context_block(normalized_text: str) -> bool:
+    if not normalized_text:
+        return False
+    if normalized_text in HEADER_SKIP_LINES or "MALZEME" in normalized_text:
+        return False
+    if "KURUMSAL SATIS SORUMLUSU" in normalized_text or "YATIRIM MALIYETI" in normalized_text:
+        return False
+    return _is_possible_product_prefix(normalized_text)
+
+
 def _collect_offer_row_rects(doc: fitz.Document) -> list[tuple[int, fitz.Rect, str]]:
     row_rects: list[tuple[int, fitz.Rect, str]] = []
     for page_index, page in enumerate(doc):
@@ -3699,33 +3709,31 @@ def _collect_offer_row_rects(doc: fitz.Document) -> list[tuple[int, fitz.Rect, s
                 continue
             if normalized.count("TL") < 2:
                 continue
-            row_text_parts = [str(text or "")]
-            scan_index = block_index - 1
-            while scan_index >= 0:
-                prev_x0, prev_y0, prev_x1, prev_y1, prev_text, *_ = blocks[scan_index]
-                prev_text = str(prev_text or "")
-                prev_normalized = normalize_text(prev_text)
-                if not prev_normalized:
-                    scan_index -= 1
-                    continue
-                if prev_normalized in HEADER_SKIP_LINES or "MALZEME" in prev_normalized:
-                    break
-                if "KURUMSAL SATIS SORUMLUSU" in prev_normalized or "YATIRIM MALIYETI" in prev_normalized:
-                    break
-                if "ADET" in prev_normalized:
-                    break
 
-                vertically_related = prev_y1 >= y0 - 42 and prev_y0 <= y1 + 20
-                horizontally_related = prev_x0 <= x0 + 24
+            related_blocks: list[tuple[float, float, fitz.Rect, str]] = [(y0, x0, fitz.Rect(x0, y0, x1, y1), str(text or ""))]
+            for related_index, related_block in enumerate(blocks):
+                if related_index == block_index:
+                    continue
+
+                rel_x0, rel_y0, rel_x1, rel_y1, rel_text, *_ = related_block
+                rel_text = str(rel_text or "")
+                rel_normalized = normalize_text(rel_text)
+                if not _is_offer_row_context_block(rel_normalized):
+                    continue
+
+                vertically_related = rel_y1 >= y0 - 58 and rel_y0 <= y1 + 24
+                horizontally_related = rel_x0 <= x0 + 40 and rel_x1 <= x1 + 12
                 if not (vertically_related and horizontally_related):
-                    if prev_y1 < y0 - 42:
-                        break
-                    scan_index -= 1
                     continue
 
-                row_text_parts.insert(0, prev_text)
-                scan_index -= 1
-            row_rects.append((page_index, fitz.Rect(x0, y0, x1, y1), " ".join(row_text_parts)))
+                related_blocks.append((rel_y0, rel_x0, fitz.Rect(rel_x0, rel_y0, rel_x1, rel_y1), rel_text))
+
+            related_blocks.sort(key=lambda item: (round(item[0], 1), item[1]))
+            row_rect = fitz.Rect(related_blocks[0][2])
+            for _rel_y0, _rel_x0, rel_rect, _rel_text in related_blocks[1:]:
+                row_rect.include_rect(rel_rect)
+            row_text = " ".join(rel_text for _rel_y0, _rel_x0, _rel_rect, rel_text in related_blocks)
+            row_rects.append((page_index, row_rect, row_text))
     row_rects.sort(key=lambda item: (item[0], item[1].y0, item[1].x0))
     return row_rects
 
@@ -3784,6 +3792,40 @@ def _row_text_matches_result(row_text: str, result: MatchResult) -> bool:
         return True
 
     return False
+
+
+def _find_offer_row_for_result(
+    row_rects: list[tuple[int, fitz.Rect, str]],
+    result: MatchResult,
+    preferred_index: int,
+) -> tuple[int, fitz.Rect, str] | None:
+    if 0 <= preferred_index < len(row_rects):
+        preferred_row = row_rects[preferred_index]
+        if _row_text_matches_result(preferred_row[2], result):
+            return preferred_row
+
+    matching_rows = [row for row in row_rects if _row_text_matches_result(row[2], result)]
+    if not matching_rows:
+        return None
+
+    price_text = normalize_text(format_pdf_money(result.offer_item.discounted_price))
+    if price_text:
+        price_rows = [row for row in matching_rows if price_text in normalize_text(row[2])]
+        if price_rows:
+            matching_rows = price_rows
+
+    if 0 <= preferred_index < len(row_rects):
+        preferred_page, preferred_rect, _preferred_text = row_rects[preferred_index]
+        return min(
+            matching_rows,
+            key=lambda row: (
+                abs(row[0] - preferred_page),
+                abs(row[1].y0 - preferred_rect.y0),
+                row[0],
+                row[1].y0,
+            ),
+        )
+    return min(matching_rows, key=lambda row: (row[0], row[1].y0, row[1].x0))
 
 
 def _replace_text_in_rect(
@@ -3972,7 +4014,7 @@ def apply_approved_corrections_to_pdf(
     doc = fitz.open(offer_path)
     try:
         row_rects = _collect_offer_row_rects(doc)
-        if len(row_rects) < len(results):
+        if not row_rects:
             raise ValueError("PDF içindeki teklif satırları bulunamadı; düzeltme uygulanamadı.")
 
         operations: list[tuple[int, fitz.Rect, str, tuple[float, float, float], int, dict[str, float | str | None] | None]] = []
@@ -3986,11 +4028,12 @@ def apply_approved_corrections_to_pdf(
             if result.suggested_unit_price is None or result.suggested_total_price is None:
                 raise ValueError(f"Seçilen satır için uygulanabilir fiyat önerisi yok: {result.offer_item.product_name}")
 
-            page_index, row_rect, row_text = row_rects[result_index]
-            if not _row_text_matches_result(row_text, result):
+            matched_row = _find_offer_row_for_result(row_rects, result, result_index)
+            if matched_row is None:
                 raise ValueError(
                     f"PDF satırı beklenen ürünle doğrulanamadı, işlem durduruldu: {result.offer_item.product_name}"
                 )
+            page_index, row_rect, row_text = matched_row
 
             page = doc[page_index]
             discounted_text = format_pdf_money(result.offer_item.discounted_price)

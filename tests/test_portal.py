@@ -1350,3 +1350,90 @@ def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) ->
                 bottom_signature_lines.append(fitz.Rect(line["bbox"]))
     assert bottom_signature_lines
     assert bottom_signature_lines[0].x0 > 330
+
+
+def test_offer_pdf_correction_handles_bundle_row_index_mismatch(tmp_path) -> None:
+    import fitz
+
+    from backend.offer_module.teklif_kontrol import (
+        MatchResult,
+        OfferItem,
+        PriceRow,
+        apply_approved_corrections_to_pdf,
+    )
+
+    offer_path = tmp_path / "bundle_offer.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=540, height=760)
+    page.insert_text((20, 180), "MALZEME        MİKTAR        BİRİM FİYAT        TOPLAM TUTAR", fontsize=10)
+    page.insert_textbox(
+        fitz.Rect(25, 205, 225, 250),
+        "RAINWATER RO-300 20” + 40 LT TANK\nYÜKSEK KAPASİTELİ İÇME SUYU ARITIM SİSTEMİ",
+        fontsize=9,
+    )
+    page.insert_text(
+        fitz.Point(250, 230),
+        "1 ADET      44.950 TL      44.950 TL      44.950 TL",
+        fontsize=9,
+    )
+    doc.save(offer_path)
+    doc.close()
+
+    results = [
+        MatchResult(
+            offer_item=OfferItem(
+                product_name="Başka satır",
+                quantity=1,
+                unit_price=100,
+                discounted_price=100,
+                total_price=100,
+            ),
+            matched_row=None,
+            score=0,
+            status="ONAY",
+            selected_column="2026 KURUMSAL NAKIT",
+            reference_unit_price=100,
+            reference_total_price=100,
+            suggested_unit_price=None,
+            suggested_total_price=None,
+            difference=0,
+            note="Test satırı.",
+        ),
+        MatchResult(
+            offer_item=OfferItem(
+                product_name="RAINWATER RO-300 20” + 40 LT TANK YÜKSEK KAPASİTELİ İÇME SUYU ARITIM SİSTEMİ",
+                quantity=1,
+                unit_price=44950,
+                discounted_price=44950,
+                total_price=44950,
+            ),
+            matched_row=PriceRow(
+                row_number=2,
+                product_name="RAINWATER RO-300 20” + 40 LT TANK YÜKSEK KAPASİTELİ İÇME SUYU ARITIM SİSTEMİ",
+                prices={"2026 KURUMSAL NAKIT": 64900},
+            ),
+            score=0.99,
+            status="DUZELT",
+            selected_column="2026 KURUMSAL NAKIT",
+            reference_unit_price=64900,
+            reference_total_price=64900,
+            suggested_unit_price=64900,
+            suggested_total_price=64900,
+            difference=-19950,
+            note="Satırda birden fazla ürün olabilir; fiyat farkı bulundu.",
+        ),
+    ]
+
+    output_path = tmp_path / "bundle_offer_corrected.pdf"
+    corrected_path = apply_approved_corrections_to_pdf(
+        offer_path=offer_path,
+        results=results,
+        approved_indexes=[1],
+        output_path=output_path,
+    )
+
+    corrected = fitz.open(corrected_path)
+    corrected_text = corrected[0].get_text()
+    corrected.close()
+
+    assert "64.900 TL" in corrected_text
