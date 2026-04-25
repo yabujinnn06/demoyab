@@ -420,6 +420,14 @@ def parse_money(value: str | int | float | None) -> float | None:
         return None
 
 
+def _word_center_y(word: tuple) -> float:
+    return (float(word[1]) + float(word[3])) / 2
+
+
+def _words_to_line_text(words: list[tuple]) -> str:
+    return " ".join(str(word[4]).strip() for word in sorted(words, key=lambda word: float(word[0])) if str(word[4]).strip())
+
+
 def _ensure_safe_output_path(
     output_path: Path,
     *,
@@ -641,6 +649,39 @@ def load_price_rows(workbook_path: Path, sheet_name: str | None = None) -> tuple
     return rows, ordered_headers
 
 
+def _extract_layout_financial_lines(pdf_path: Path) -> list[str]:
+    summary_lines: list[str] = []
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as exc:
+        logger.warning("PyMuPDF ozet satirlari okunamadi: %s hata=%s", pdf_path, exc)
+        return summary_lines
+
+    try:
+        for page in doc:
+            words = [word for word in page.get_text("words") if str(word[4]).strip()]
+            seen_centers: set[int] = set()
+            for word in sorted(words, key=lambda candidate: (_word_center_y(candidate), float(candidate[0]))):
+                center_y = _word_center_y(word)
+                rounded_center = round(center_y)
+                if rounded_center in seen_centers:
+                    continue
+                line_words = [candidate for candidate in words if abs(_word_center_y(candidate) - center_y) <= 4.0]
+                line_text = _words_to_line_text(line_words)
+                normalized = normalize_text(line_text)
+                if (
+                    normalized.startswith("YATIRIM MALIYETI")
+                    or normalized.startswith("KDV")
+                    or normalized.startswith("TOPLAM YATIRIM MALIYETI")
+                ) and MONEY_TL_PATTERN.search(line_text):
+                    summary_lines.append(line_text)
+                    seen_centers.add(rounded_center)
+    finally:
+        doc.close()
+
+    return summary_lines
+
+
 def extract_offer_text(pdf_path: Path) -> str:
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF dosyasi bulunamadi: {pdf_path}")
@@ -676,7 +717,8 @@ def extract_offer_text(pdf_path: Path) -> str:
 
     merged_lines: list[str] = []
     seen_lines: set[str] = set()
-    for source_text in [*text_parts, *fitz_parts]:
+    layout_financial_lines = _extract_layout_financial_lines(pdf_path)
+    for source_text in [*text_parts, *fitz_parts, "\n".join(layout_financial_lines)]:
         for raw_line in source_text.splitlines():
             line = raw_line.strip()
             if not line:
@@ -692,8 +734,123 @@ def extract_offer_text(pdf_path: Path) -> str:
     return "\n".join(merged_lines)
 
 
-def parse_offer_items(pdf_path: Path) -> tuple[list[OfferItem], str]:
-    text = extract_offer_text(pdf_path)
+def _group_layout_words_as_lines(words: list[tuple], *, y_tolerance: float = 3.0) -> list[str]:
+    grouped_lines: list[list[tuple]] = []
+    grouped_centers: list[float] = []
+    for word in sorted(words, key=lambda candidate: (_word_center_y(candidate), float(candidate[0]))):
+        center_y = _word_center_y(word)
+        for index, line_center in enumerate(grouped_centers):
+            if abs(center_y - line_center) <= y_tolerance:
+                grouped_lines[index].append(word)
+                grouped_centers[index] = sum(_word_center_y(line_word) for line_word in grouped_lines[index]) / len(
+                    grouped_lines[index]
+                )
+                break
+        else:
+            grouped_lines.append([word])
+            grouped_centers.append(center_y)
+    return [_words_to_line_text(line_words) for line_words in grouped_lines]
+
+
+def _layout_row_price_words(words: list[tuple], adet_word: tuple) -> list[tuple]:
+    center_y = _word_center_y(adet_word)
+    price_column_start = min(float(adet_word[0]) - 12, 265)
+    return [
+        word
+        for word in words
+        if float(word[0]) >= price_column_start and abs(_word_center_y(word) - center_y) <= 4.0
+    ]
+
+
+def _layout_summary_stop_y(words: list[tuple], start_y: float, page_bottom: float) -> float:
+    stop_candidates = [
+        _word_center_y(word)
+        for word in words
+        if _word_center_y(word) > start_y
+        and normalize_text(str(word[4])) in {"YATIRIM", "ODEME", "KURUMSAL"}
+    ]
+    return min(stop_candidates) if stop_candidates else page_bottom
+
+
+def _parse_offer_items_from_layout(pdf_path: Path) -> list[OfferItem]:
+    items: list[OfferItem] = []
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as exc:
+        logger.warning("PyMuPDF tablo okuma baslatilamadi: %s hata=%s", pdf_path, exc)
+        return items
+
+    try:
+        for page in doc:
+            words = [word for word in page.get_text("words") if str(word[4]).strip()]
+            if not words:
+                continue
+
+            anchors: list[tuple[tuple, float, str]] = []
+            for word in words:
+                if normalize_text(str(word[4])) != "ADET":
+                    continue
+                row_words = _layout_row_price_words(words, word)
+                price_text = _words_to_line_text(row_words)
+                if len(MONEY_TL_PATTERN.findall(price_text)) >= 3:
+                    anchors.append((word, _word_center_y(word), price_text))
+
+            anchors.sort(key=lambda anchor: anchor[1])
+            if not anchors:
+                continue
+
+            header_candidates = [
+                _word_center_y(word)
+                for word in words
+                if normalize_text(str(word[4])) == "MALZEME" and _word_center_y(word) < anchors[0][1]
+            ]
+            if not header_candidates:
+                continue
+            first_top = max(header_candidates) + 12
+
+            for index, (adet_word, center_y, price_text) in enumerate(anchors):
+                top = first_top if index == 0 else (anchors[index - 1][1] + center_y) / 2
+                if index + 1 < len(anchors):
+                    bottom = (center_y + anchors[index + 1][1]) / 2
+                else:
+                    bottom = _layout_summary_stop_y(words, center_y, page.rect.y1)
+
+                product_column_end = min(float(adet_word[0]) - 8, 265)
+                product_words = [
+                    word
+                    for word in words
+                    if float(word[2]) <= product_column_end
+                    and top <= _word_center_y(word) < bottom
+                    and "ADET" not in normalize_text(str(word[4]))
+                ]
+                product_lines = [
+                    line
+                    for line in _group_layout_words_as_lines(product_words)
+                    if _is_possible_product_prefix(normalize_text(line))
+                ]
+                product_name = _select_preferred_product_prefix(product_lines)
+                if not product_name:
+                    continue
+
+                match = ITEM_PATTERN.match(f"{product_name} {price_text}".strip())
+                if not match:
+                    continue
+                items.append(
+                    OfferItem(
+                        product_name=match.group("name").strip(),
+                        quantity=parse_money(match.group("quantity")) or 0,
+                        unit_price=parse_money(match.group("unit_price")) or 0,
+                        discounted_price=parse_money(match.group("discounted_price")) or 0,
+                        total_price=parse_money(match.group("total_price")) or 0,
+                    )
+                )
+    finally:
+        doc.close()
+
+    return items
+
+
+def _parse_offer_items_from_text(text: str) -> list[OfferItem]:
     lines = [line.strip() for line in text.splitlines()]
     items: list[OfferItem] = []
     buffer: list[str] = []
@@ -746,6 +903,18 @@ def parse_offer_items(pdf_path: Path) -> tuple[list[OfferItem], str]:
             buffer.append(raw_line)
         elif buffer:
             buffer.append(raw_line)
+
+    return items
+
+
+def parse_offer_items(pdf_path: Path) -> tuple[list[OfferItem], str]:
+    text = extract_offer_text(pdf_path)
+    text_items = _parse_offer_items_from_text(text)
+    layout_items = _parse_offer_items_from_layout(pdf_path)
+    if layout_items and (not text_items or len(layout_items) >= max(1, len(text_items) - 1)):
+        items = layout_items
+    else:
+        items = text_items
 
     if not items:
         logger.warning("PDF teklif satirlari ayristrilamadi: %s", pdf_path)

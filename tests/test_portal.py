@@ -1352,6 +1352,79 @@ def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) ->
     assert bottom_signature_lines[0].x0 > 330
 
 
+def test_offer_parser_uses_layout_rows_for_interleaved_price_table(tmp_path) -> None:
+    import fitz
+
+    from backend.offer_module.teklif_kontrol import (
+        build_financial_review,
+        parse_offer_financial_summary,
+        parse_offer_items,
+    )
+
+    offer_path = tmp_path / "layout_offer.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=540, height=760)
+    page.insert_text((110, 345), "MALZEME MIKTAR BIRIM FIYAT", fontsize=10)
+    page.insert_text((473, 345), "TOPLAM TUTAR", fontsize=10)
+
+    rows = [
+        (
+            380,
+            406,
+            ["RAINWATER RNW-2200", "ARITMALI SICAK & SOGUK SU SEBIL", "TOPLAM SU KAPASITESI 25.8 L"],
+            "3 ADET 65.791 TL 54.125 TL 162.375 TL",
+        ),
+        (
+            450,
+            476,
+            ["RAINWATER RNW-1600", "ARITMALI SICAK & SOGUK SU SEBIL", "TOPLAM SU KAPASITESI 9.6 L"],
+            "1 ADET 62.458 TL 49.959 TL 49.959 TL",
+        ),
+        (
+            520,
+            546,
+            ["RAINWATER RNW-1600'S TEZGAH USTU", "ARITMALI SICAK & SOGUK SU SEBIL", "TOPLAM SU KAPASITESI 8.8 L"],
+            "1 ADET 62.458 TL 49.959 TL 49.959 TL",
+        ),
+        (
+            590,
+            606,
+            ["RAINWATER RAINBOW", "ARITMA SISTEMI"],
+            "1 ADET 29.125 TL 19.959 TL 19.959 TL",
+        ),
+    ]
+    for product_y, price_y, product_lines, price_line in rows:
+        for offset, line in enumerate(product_lines):
+            page.insert_text((25, product_y + (offset * 13)), line, fontsize=9)
+        page.insert_text((268, price_y), price_line, fontsize=9)
+
+    page.insert_text((23, 633), "RAINWATER RO-300 20'' + 40 LT TANK", fontsize=9)
+    page.insert_text((23, 646), "YUKSEK KAPASITELI ICME SUYU ARITIM SISTEMI", fontsize=9)
+    page.insert_text((23, 659), "900LT/GUN-37.5LT/SAAT", fontsize=9)
+    page.insert_text((268, 646), "1 ADET 65.750 TL", fontsize=9)
+    page.insert_text((398, 646), "49.917 TL", fontsize=9)
+    page.insert_text((474, 646), "49.917 TL", fontsize=9)
+    page.insert_text((45, 690), "Fiyatlarimiza KDV (%20) dahil degildir.", fontsize=9)
+    page.insert_text((351, 680), "YATIRIM MALIYETI :", fontsize=10)
+    page.insert_text((478, 680), "282.210 TL", fontsize=10)
+    doc.save(offer_path)
+    doc.close()
+
+    items, offer_text = parse_offer_items(offer_path)
+    summary = parse_offer_financial_summary(offer_text)
+    review = build_financial_review(items, offer_text)
+    net_check = next(check for check in review.checks if check.label.startswith("Yat"))
+
+    assert len(items) == 5
+    assert any("RAINBOW" in item.product_name for item in items)
+    assert any("RO-300" in item.product_name for item in items)
+    assert round(sum(item.total_price for item in items), 2) == 332169.0
+    assert summary.net_total == 282210.0
+    assert net_check.status == "DUZELT"
+    assert net_check.offer_value == 282210.0
+    assert net_check.calculated_value == 332169.0
+
+
 def test_offer_pdf_correction_handles_bundle_row_index_mismatch(tmp_path) -> None:
     import fitz
 
