@@ -1365,6 +1365,8 @@ def test_offer_pdf_correction_handles_bundle_row_index_mismatch(tmp_path) -> Non
     offer_path = tmp_path / "bundle_offer.pdf"
     doc = fitz.open()
     page = doc.new_page(width=540, height=760)
+    row_fill = (219 / 255, 242 / 255, 247 / 255)
+    page.draw_rect(fitz.Rect(10, 200, 530, 260), color=row_fill, fill=row_fill)
     page.insert_text((20, 180), "MALZEME        MİKTAR        BİRİM FİYAT        TOPLAM TUTAR", fontsize=10)
     page.insert_textbox(
         fitz.Rect(25, 205, 225, 250),
@@ -1434,6 +1436,17 @@ def test_offer_pdf_correction_handles_bundle_row_index_mismatch(tmp_path) -> Non
 
     corrected = fitz.open(corrected_path)
     corrected_text = corrected[0].get_text()
+    replacement_rects = corrected[0].search_for("64.900 TL")
+    assert replacement_rects
+    replacement_rect = max(replacement_rects, key=lambda rect: rect.x0)
+    pix = corrected[0].get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+    sample_x = min(pix.width - 1, max(0, int((replacement_rect.x1 + 3) * 2)))
+    sample_y = min(pix.height - 1, max(0, int((replacement_rect.y0 + (replacement_rect.height / 2)) * 2)))
+    sample_index = sample_y * getattr(pix, "stride", pix.width * pix.n) + sample_x * pix.n
+    red, green, blue = pix.samples[sample_index : sample_index + 3]
     corrected.close()
 
     assert "64.900 TL" in corrected_text
+    assert red < 245
+    assert green > 220
+    assert blue > 225

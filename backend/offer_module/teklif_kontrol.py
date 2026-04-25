@@ -3828,6 +3828,50 @@ def _find_offer_row_for_result(
     return min(matching_rows, key=lambda row: (row[0], row[1].y0, row[1].x0))
 
 
+def _sample_rect_background_color(page: fitz.Page, rect: fitz.Rect) -> tuple[float, float, float]:
+    clip = fitz.Rect(
+        max(page.rect.x0, rect.x0),
+        max(page.rect.y0, rect.y0),
+        min(page.rect.x1, rect.x1),
+        min(page.rect.y1, rect.y1),
+    )
+    if clip.x1 <= clip.x0 or clip.y1 <= clip.y0:
+        return (1, 1, 1)
+
+    try:
+        pix = page.get_pixmap(matrix=fitz.Matrix(1, 1), clip=clip, alpha=False)
+    except Exception:
+        return (1, 1, 1)
+
+    if pix.width <= 0 or pix.height <= 0:
+        return (1, 1, 1)
+
+    channel_count = max(3, pix.n)
+    stride = getattr(pix, "stride", pix.width * pix.n)
+    samples = pix.samples
+    step_x = max(1, pix.width // 12)
+    step_y = max(1, pix.height // 8)
+    color_buckets: dict[tuple[int, int, int], int] = {}
+
+    for y in range(0, pix.height, step_y):
+        row_start = y * stride
+        for x in range(0, pix.width, step_x):
+            index = row_start + (x * channel_count)
+            if index + 2 >= len(samples):
+                continue
+            r, g, b = samples[index], samples[index + 1], samples[index + 2]
+            if min(r, g, b) < 145 or (r + g + b) < 520:
+                continue
+            bucket = tuple(round(channel / 8) * 8 for channel in (r, g, b))
+            color_buckets[bucket] = color_buckets.get(bucket, 0) + 1
+
+    if not color_buckets:
+        return (1, 1, 1)
+
+    r, g, b = max(color_buckets.items(), key=lambda item: (item[1], -sum(item[0])))[0]
+    return (min(255, r) / 255, min(255, g) / 255, min(255, b) / 255)
+
+
 def _replace_text_in_rect(
     page: fitz.Page,
     rect: fitz.Rect,
@@ -3840,9 +3884,10 @@ def _replace_text_in_rect(
     fontsize: float | None = None,
     baseline_y: float | None = None,
     x_hint: float | None = None,
+    background_fill: tuple[float, float, float] | None = None,
 ) -> None:
     padded = fitz.Rect(rect.x0 - 2, rect.y0 - 1, rect.x1 + 10, rect.y1 + 1)
-    page.add_redact_annot(padded, fill=(1, 1, 1))
+    page.add_redact_annot(padded, fill=background_fill or _sample_rect_background_color(page, padded))
     page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
     resolved_fontsize = fontsize if fontsize is not None else max(7.5, min(10, padded.height * 0.78))
     if fontfile:
