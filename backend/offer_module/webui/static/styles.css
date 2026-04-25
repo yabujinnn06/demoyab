@@ -1195,6 +1195,55 @@ section.app-card::before {
   gap: 0.6rem;
 }
 
+.download-ready-panel,
+.correction-command-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(38, 103, 70, 0.22);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, rgba(230, 246, 238, 0.95), rgba(248, 255, 252, 0.94));
+  box-shadow: var(--app-shadow-soft);
+}
+
+.download-ready-panel h3,
+.correction-command-panel h3 {
+  margin: 0 0 0.35rem;
+  color: var(--app-ink);
+  font-size: 1.08rem;
+  line-height: 1.35;
+}
+
+.download-ready-panel p,
+.correction-command-panel p {
+  margin: 0;
+  color: var(--app-muted);
+  line-height: 1.55;
+}
+
+.correction-command-panel {
+  border-color: rgba(11, 134, 200, 0.2);
+  background: linear-gradient(180deg, rgba(227, 243, 255, 0.95), rgba(249, 252, 255, 0.96));
+}
+
+.correction-command-panel.is-complete {
+  border-color: rgba(38, 103, 70, 0.26);
+  background: linear-gradient(180deg, rgba(230, 246, 238, 0.96), rgba(248, 255, 252, 0.96));
+}
+
+.correction-command-copy {
+  min-width: 0;
+}
+
+.correction-command-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
 .decision-badge {
   display: inline-flex;
   align-items: center;
@@ -1466,13 +1515,22 @@ section.app-card::before {
     flex-direction: column;
   }
 
+  .download-ready-panel,
+  .correction-command-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .result-action-buttons,
-  .result-card-actions {
+  .result-card-actions,
+  .correction-command-actions {
     justify-content: stretch;
   }
 
   .result-action-buttons .btn,
-  .result-card-actions .btn {
+  .result-card-actions .btn,
+  .correction-command-actions .btn,
+  .download-ready-panel .btn {
     width: 100%;
   }
 
@@ -1538,6 +1596,10 @@ section.app-card::before {
 
   .workspace-topbar {
     padding: 1rem;
+  }
+
+  .hero-metrics {
+    display: none;
   }
 }
 

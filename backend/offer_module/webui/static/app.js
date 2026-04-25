@@ -179,18 +179,52 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  const applyCheckboxes = Array.from(document.querySelectorAll("[data-apply-checkbox]"));
+  const selectedCountLabels = Array.from(document.querySelectorAll("[data-selected-count]"));
+  const applySubmitButtons = Array.from(document.querySelectorAll("[data-apply-submit]"));
+
+  const updateCorrectionSelectionState = () => {
+    const selectedCount = applyCheckboxes.filter((checkbox) => checkbox.checked && !checkbox.disabled).length;
+    selectedCountLabels.forEach((label) => {
+      label.textContent = String(selectedCount);
+    });
+    applySubmitButtons.forEach((button) => {
+      button.disabled = selectedCount === 0;
+      button.textContent = selectedCount === 0
+        ? "Önce düzeltilecek satır seç"
+        : `Düzenlenmiş PDF oluştur (${selectedCount})`;
+    });
+  };
+
+  applyCheckboxes.forEach((checkbox) => {
+    checkbox.addEventListener("change", updateCorrectionSelectionState);
+  });
+
   document.querySelectorAll("[data-manual-match]").forEach((select) => {
     select.addEventListener("change", () => {
-      if (!select.value) {
-        return;
-      }
       const decisionCard = select.closest(".decision-card");
       const checkbox = decisionCard?.querySelector("[data-apply-checkbox]");
+      const label = decisionCard?.querySelector("[data-apply-label]");
       if (checkbox) {
-        checkbox.checked = true;
+        const canApplyWithoutManual = checkbox.dataset.canApply === "true";
+        if (select.value) {
+          checkbox.disabled = false;
+          checkbox.checked = true;
+          if (label) {
+            label.textContent = "Manuel seçimle düzenlenecek";
+          }
+        } else if (!canApplyWithoutManual) {
+          checkbox.checked = false;
+          checkbox.disabled = true;
+          if (label) {
+            label.textContent = "Ürün seçince aktif olur";
+          }
+        }
       }
+      updateCorrectionSelectionState();
     });
   });
+  updateCorrectionSelectionState();
 
   const activePane = document.querySelector(".workspace-pane-stack > .tab-pane.active");
   const serverWorkspace = document.body.dataset.activeWorkspace || activePane?.id?.replace("workspace-pane-", "");

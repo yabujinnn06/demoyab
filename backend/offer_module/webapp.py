@@ -866,7 +866,7 @@ def build_feedback_state(
         return {
             "show": True,
             "tone": "success",
-            "title": "Duzeltmeler uygulandi",
+            "title": "Düzeltmeler uygulandı",
             "message": f"{notice} Yeni PDF duzeltilmis_teklifler klasorune kaydedildi.",
         }
 
