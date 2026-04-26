@@ -874,6 +874,15 @@
 
                       <div class="batch-result-table-wrap batch-issue-wrap" tabindex="0">
                         <table class="batch-result-table batch-issue-table">
+                          <colgroup>
+                            <col class="batch-col-index">
+                            <col class="batch-col-offer">
+                            <col class="batch-col-status">
+                            <col class="batch-col-problem">
+                            <col class="batch-col-next">
+                            <col class="batch-col-summary">
+                            <col class="batch-col-actions">
+                          </colgroup>
                           <thead>
                             <tr>
                               <th>#</th>
@@ -889,20 +898,22 @@
                             {% for item in batch_result.rows %}
                               <tr class="batch-row-{{ item.status_class }}" data-batch-row data-batch-category="{{ item.category }}">
                                 <td>{{ item.index }}</td>
-                                <td>
-                                  <strong>{{ item.offer_name }}</strong>
-                                  <span>{{ item.selected_column }}</span>
+                                <td class="batch-cell-offer">
+                                  <strong class="batch-cell-main">{{ item.offer_name }}</strong>
+                                  <span class="batch-cell-muted">{{ item.selected_column }}</span>
                                 </td>
                                 <td><span class="status-pill status-{{ item.status_class }}">{{ item.status }}</span></td>
-                                <td>
-                                  <strong>{{ item.problem_summary }}</strong>
-                                  {% if item.error %}<small>{{ item.error }}</small>{% endif %}
+                                <td class="batch-cell-problem">
+                                  <strong class="batch-cell-main">{{ item.problem_summary }}</strong>
+                                  {% if item.error %}<small class="batch-cell-note">{{ item.error }}</small>{% endif %}
                                 </td>
-                                <td><span>{{ item.next_step }}</span></td>
-                                <td>
-                                  <small>Onay {{ item.metrics.get('ONAY', 0) }} · Düzelt {{ item.metrics.get('DUZELT', 0) }}</small>
-                                  <small>İncele {{ item.metrics.get('INCELE', 0) }} · Eşleşmedi {{ item.metrics.get('ESLESMEDI', 0) }}</small>
-                                  <small>Finansal {{ item.financial_status }}</small>
+                                <td class="batch-cell-next"><span class="batch-cell-note">{{ item.next_step }}</span></td>
+                                <td class="batch-cell-summary">
+                                  <span>Onay {{ item.metrics.get('ONAY', 0) }}</span>
+                                  <span>Düzelt {{ item.metrics.get('DUZELT', 0) }}</span>
+                                  <span>İncele {{ item.metrics.get('INCELE', 0) }}</span>
+                                  <span>Eşleşmedi {{ item.metrics.get('ESLESMEDI', 0) }}</span>
+                                  <span>Finansal {{ item.financial_status }}</span>
                                 </td>
                                 <td>
                                   <div class="batch-row-actions">

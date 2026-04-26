@@ -2780,11 +2780,13 @@ section.app-card::before {
 
 .batch-result-table-wrap {
   max-width: 100%;
+  width: 100%;
   overflow: auto;
   border: 1px solid #aebfd1;
   border-radius: 6px;
   background: #fff;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 .batch-result-table {
@@ -2803,6 +2805,9 @@ section.app-card::before {
   border-right: 1px solid #dbe5ee;
   border-bottom: 1px solid #dbe5ee;
   vertical-align: top;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .batch-result-table th {
@@ -3020,28 +3025,152 @@ section.app-card::before {
 
 .batch-issue-wrap {
   max-height: 34rem;
+  position: relative;
+  box-shadow: inset 0 -1px #dbe5ee;
 }
 
 .batch-issue-table {
-  min-width: 1060px;
+  width: max(100%, 1120px);
+  min-width: 1120px;
+  table-layout: fixed;
+  font-size: 0.8rem;
+  line-height: 1.32;
+}
+
+.batch-issue-table .batch-col-index {
+  width: 3rem;
+}
+
+.batch-issue-table .batch-col-offer {
+  width: 17rem;
+}
+
+.batch-issue-table .batch-col-status {
+  width: 8.5rem;
+}
+
+.batch-issue-table .batch-col-problem {
+  width: 18rem;
+}
+
+.batch-issue-table .batch-col-next {
+  width: 18rem;
+}
+
+.batch-issue-table .batch-col-summary {
+  width: 15rem;
+}
+
+.batch-issue-table .batch-col-actions {
+  width: 8rem;
+}
+
+.batch-issue-table th,
+.batch-issue-table td {
+  padding: 0.46rem 0.55rem;
 }
 
 .batch-issue-table th:nth-child(2),
 .batch-issue-table td:nth-child(2) {
-  width: 18rem;
+  width: auto;
 }
 
 .batch-issue-table th:nth-child(4),
 .batch-issue-table td:nth-child(4),
 .batch-issue-table th:nth-child(5),
 .batch-issue-table td:nth-child(5) {
-  width: 17rem;
+  width: auto;
   text-align: left;
   font-weight: 700;
 }
 
 .batch-issue-table td:nth-child(n+4):nth-child(-n+6) {
   text-align: left;
+}
+
+.batch-issue-table th {
+  white-space: nowrap;
+}
+
+.batch-issue-table td {
+  height: 4.25rem;
+}
+
+.batch-issue-table .status-pill {
+  display: inline-flex;
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.batch-cell-main,
+.batch-cell-muted,
+.batch-cell-note {
+  display: -webkit-box !important;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+}
+
+.batch-cell-main {
+  color: #18344f;
+  font-weight: 800;
+  -webkit-line-clamp: 2;
+}
+
+.batch-cell-muted {
+  margin-top: 0.12rem;
+  color: var(--app-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  -webkit-line-clamp: 1;
+}
+
+.batch-cell-note {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  -webkit-line-clamp: 3;
+}
+
+.batch-cell-problem .batch-cell-note {
+  margin-top: 0.16rem;
+  -webkit-line-clamp: 2;
+}
+
+.batch-cell-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.25rem;
+}
+
+.batch-cell-summary span {
+  display: inline-flex !important;
+  max-width: 100%;
+  padding: 0.12rem 0.32rem;
+  border: 1px solid #d8e4ef;
+  border-radius: 4px;
+  color: #234c72 !important;
+  background: #f7fbff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.batch-issue-table .batch-row-actions {
+  justify-content: flex-start;
+}
+
+.batch-issue-table .batch-row-actions .btn {
+  min-width: 4.8rem;
+  padding-inline: 0.42rem;
 }
 
 @media (max-width: 767.98px) {
@@ -3247,6 +3376,42 @@ section.app-card::before {
   .batch-result-table {
     min-width: 760px;
     font-size: 0.74rem;
+  }
+
+  .batch-issue-table {
+    width: 980px;
+    min-width: 980px;
+    font-size: 0.72rem;
+  }
+
+  .batch-issue-table th,
+  .batch-issue-table td {
+    padding: 0.38rem 0.42rem;
+  }
+
+  .batch-issue-table .batch-col-index {
+    width: 2.5rem;
+  }
+
+  .batch-issue-table .batch-col-offer {
+    width: 14rem;
+  }
+
+  .batch-issue-table .batch-col-status {
+    width: 7.5rem;
+  }
+
+  .batch-issue-table .batch-col-problem,
+  .batch-issue-table .batch-col-next {
+    width: 16rem;
+  }
+
+  .batch-issue-table .batch-col-summary {
+    width: 14rem;
+  }
+
+  .batch-issue-table .batch-col-actions {
+    width: 7rem;
   }
 
   .batch-result-table th,
