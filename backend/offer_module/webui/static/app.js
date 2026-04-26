@@ -148,6 +148,84 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initActivityLogTable();
 
+  const initBatchFileInput = () => {
+    const input = document.querySelector("[data-batch-file-input]");
+    if (!input || typeof DataTransfer === "undefined") {
+      return;
+    }
+
+    const panel = document.querySelector("[data-batch-file-panel]");
+    const list = document.querySelector("[data-batch-file-list]");
+    const countLabel = document.querySelector("[data-batch-file-count]");
+    const clearButton = document.querySelector("[data-batch-file-clear]");
+    let selectedFiles = [];
+
+    const fileKey = (file) => `${file.name}:${file.size}:${file.lastModified}`;
+
+    const syncInputFiles = () => {
+      const transfer = new DataTransfer();
+      selectedFiles.forEach((file) => transfer.items.add(file));
+      input.files = transfer.files;
+    };
+
+    const render = () => {
+      if (panel) {
+        panel.hidden = selectedFiles.length === 0;
+      }
+      if (countLabel) {
+        countLabel.textContent = `${selectedFiles.length} PDF seçildi`;
+      }
+      if (!list) {
+        return;
+      }
+      list.innerHTML = "";
+      selectedFiles.forEach((file, index) => {
+        const row = document.createElement("div");
+        row.className = "batch-file-row";
+
+        const name = document.createElement("span");
+        name.textContent = file.name;
+
+        const button = document.createElement("button");
+        button.className = "btn btn-sm btn-outline-danger";
+        button.type = "button";
+        button.textContent = "Sil";
+        button.addEventListener("click", () => {
+          selectedFiles.splice(index, 1);
+          syncInputFiles();
+          render();
+        });
+
+        row.append(name, button);
+        list.append(row);
+      });
+    };
+
+    input.addEventListener("change", () => {
+      const seen = new Set(selectedFiles.map(fileKey));
+      Array.from(input.files || []).forEach((file) => {
+        if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+          return;
+        }
+        const key = fileKey(file);
+        if (!seen.has(key)) {
+          seen.add(key);
+          selectedFiles.push(file);
+        }
+      });
+      syncInputFiles();
+      render();
+    });
+
+    clearButton?.addEventListener("click", () => {
+      selectedFiles = [];
+      syncInputFiles();
+      render();
+    });
+  };
+
+  initBatchFileInput();
+
   const renumberCreateItems = (container) => {
     const rows = Array.from(container.querySelectorAll(".create-item-row"));
     rows.forEach((row, index) => {

@@ -744,16 +744,36 @@
 
                   <div>
                     <label class="form-label" for="batch-offer-files">Kayıtlı teklifler</label>
-                    <select class="form-select batch-multi-select" id="batch-offer-files" name="offer_files" multiple>
+                    <div class="batch-offer-picker" id="batch-offer-files">
                       {% for file_name in offer_files %}
-                        <option value="{{ file_name }}">{{ file_name }}</option>
+                        <label class="batch-offer-option">
+                          <input class="form-check-input" type="checkbox" name="offer_files" value="{{ file_name }}">
+                          <span>{{ file_name }}</span>
+                        </label>
+                      {% else %}
+                        <p class="helper-text mb-0">Kayıtlı teklif PDF yok.</p>
                       {% endfor %}
-                    </select>
+                    </div>
                   </div>
 
                   <div class="batch-upload-field">
                     <label class="form-label" for="batch-offer-uploads">Yeni teklif PDF'leri</label>
-                    <input class="form-control" id="batch-offer-uploads" type="file" name="offer_file_uploads" accept=".pdf" multiple>
+                    <input
+                      class="form-control"
+                      id="batch-offer-uploads"
+                      type="file"
+                      name="offer_file_uploads"
+                      accept=".pdf"
+                      multiple
+                      data-batch-file-input
+                    >
+                    <div class="batch-file-staging" data-batch-file-panel hidden>
+                      <div class="batch-file-staging-head">
+                        <strong data-batch-file-count>0 PDF seçildi</strong>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-batch-file-clear>Temizle</button>
+                      </div>
+                      <div class="batch-file-list" data-batch-file-list></div>
+                    </div>
                   </div>
 
                   <div class="batch-submit-row">
@@ -800,7 +820,7 @@
                         </tr>
                       </thead>
                       <tbody>
-                        {% for item in batch_result.items %}
+                        {% for item in batch_result.rows %}
                           <tr class="batch-row-{{ item.status_class }}">
                             <td>{{ item.index }}</td>
                             <td>

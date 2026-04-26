@@ -2663,12 +2663,74 @@ section.app-card::before {
   align-items: start;
 }
 
-.batch-multi-select {
-  min-height: 9rem;
-}
-
 .batch-upload-field {
   grid-column: span 2;
+}
+
+.batch-offer-picker,
+.batch-file-staging {
+  max-height: 13rem;
+  overflow: auto;
+  border: 1px solid #c7d7e6;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.batch-offer-option,
+.batch-file-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.48rem 0.58rem;
+  border-bottom: 1px solid #e3ebf3;
+  color: #18344f;
+  font-size: 0.84rem;
+}
+
+.batch-offer-option {
+  justify-content: flex-start;
+  cursor: pointer;
+}
+
+.batch-offer-option:hover {
+  background: #f3f8fd;
+}
+
+.batch-offer-option:last-child,
+.batch-file-row:last-child {
+  border-bottom: 0;
+}
+
+.batch-offer-option span,
+.batch-file-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-file-staging {
+  margin-top: 0.55rem;
+}
+
+.batch-file-staging-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.46rem 0.58rem;
+  border-bottom: 1px solid #c7d7e6;
+  background: #eef6fd;
+}
+
+.batch-file-staging-head strong {
+  color: #18344f;
+  font-size: 0.82rem;
 }
 
 .batch-submit-row {
@@ -2960,8 +3022,9 @@ section.app-card::before {
     grid-column: auto;
   }
 
-  .batch-multi-select {
-    min-height: 7.5rem;
+  .batch-offer-picker,
+  .batch-file-staging {
+    max-height: 10rem;
   }
 
   .batch-result-actions,

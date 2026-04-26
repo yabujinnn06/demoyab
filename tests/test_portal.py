@@ -1344,6 +1344,92 @@ def test_batch_comparison_session_and_summary_are_reusable(tmp_path, monkeypatch
     assert job.summary_path.exists()
 
 
+def test_batch_compare_route_renders_results_without_server_error(tmp_path, monkeypatch) -> None:
+    from openpyxl import Workbook
+
+    offer_base = tmp_path / "offer_data"
+    price_dir = offer_base / "veri" / "fiyat_listeleri"
+    offer_dir = offer_base / "teklifler"
+    price_dir.mkdir(parents=True)
+    offer_dir.mkdir(parents=True)
+
+    price_path = price_dir / "fiyat.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["URUN", "2026 KURUMSAL NAKIT"])
+    sheet.append(["Rainwater Test", 100])
+    workbook.save(price_path)
+
+    (offer_dir / "a.pdf").write_bytes(b"%PDF-1.4\n")
+    (offer_dir / "b.pdf").write_bytes(b"%PDF-1.4\n")
+
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.setenv("CALL_PORTAL_OFFER_DATA_DIR", str(offer_base))
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+
+    from backend.offer_module import webapp as offer_webapp
+    from backend.offer_module.teklif_kontrol import FinancialCheck, FinancialReview, MatchResult, OfferItem
+
+    def fake_run_comparison(**kwargs):
+        output_path = kwargs["output_path"]
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"report")
+        review = FinancialReview(
+            vat_rate=20,
+            vat_rate_source="PDF",
+            vat_included=True,
+            item_gross_total=100,
+            expected_net_total=83.33,
+            expected_vat_total=16.67,
+            expected_gross_total=100,
+            expected_summary_total=100,
+            checks=[FinancialCheck("Toplam", "ONAY", 100, 100, 0, "Uygun")],
+        )
+        result = MatchResult(
+            offer_item=OfferItem("Rainwater Test", 1, 100, 100, 100),
+            matched_row=None,
+            score=100,
+            status="ONAY",
+            selected_column="2026 KURUMSAL NAKIT",
+            reference_unit_price=100,
+            reference_total_price=100,
+            suggested_unit_price=None,
+            suggested_total_price=None,
+            difference=0,
+            note="Uygun",
+        )
+        return [result], "2026 KURUMSAL NAKIT", output_path, ["2026 KURUMSAL NAKIT"], review
+
+    monkeypatch.setattr(offer_webapp, "run_comparison", fake_run_comparison)
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/auth/login",
+            json={"email": "admin@test.local", "password": "Admin12345!"},
+        )
+        assert login.status_code == 200
+
+        response = client.post(
+            "/teklif/batch-compare",
+            data={
+                "price_file": "fiyat.xlsx",
+                "price_mode": "kurumsal_nakit",
+                "offer_files": ["teklifler/a.pdf", "teklifler/b.pdf"],
+            },
+        )
+
+        assert response.status_code == 200
+        assert "Toplu kontrol sonucu" in response.text
+        assert "a.pdf" in response.text
+        assert "b.pdf" in response.text
+        assert "Raporları ZIP indir" in response.text
+
+
 def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) -> None:
     from datetime import date
 

@@ -1130,7 +1130,7 @@ def write_batch_summary(job: BatchComparisonJob) -> None:
 
 def batch_job_view_model(request: Request, job: BatchComparisonJob | None) -> dict:
     if job is None:
-        return {"show": False, "items": [], "metrics": {}, "token": ""}
+        return {"show": False, "rows": [], "metrics": {}, "token": ""}
     completed = sum(1 for item in job.items if item.status == "completed")
     failed = sum(1 for item in job.items if item.status == "error")
     needs_review = sum(
@@ -1155,9 +1155,9 @@ def batch_job_view_model(request: Request, job: BatchComparisonJob | None) -> di
             or item.financial_status != "ONAY"
         )
     )
-    item_views = []
+    row_views = []
     for index, item in enumerate(job.items, start=1):
-        item_views.append(
+        row_views.append(
             {
                 "index": index,
                 "offer_name": item.offer_path.name,
@@ -1189,7 +1189,7 @@ def batch_job_view_model(request: Request, job: BatchComparisonJob | None) -> di
         "created_at": job.created_at.strftime("%d.%m.%Y %H:%M"),
         "summary_url": request.url_for("offer-tool:download_batch_summary", batch_token=job.token),
         "zip_url": request.url_for("offer-tool:download_batch_reports_zip", batch_token=job.token),
-        "items": item_views,
+        "rows": row_views,
         "metrics": {
             "total": len(job.items),
             "completed": completed,
