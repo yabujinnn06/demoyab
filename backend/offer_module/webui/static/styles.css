@@ -2300,7 +2300,7 @@ section.app-card::before {
 .offer-template-banner {
   position: relative;
   width: 100%;
-  height: clamp(82px, 7.6vw, 122px);
+  height: clamp(82px, 5.4vw, 98px);
   background: #358fe0;
   overflow: hidden;
 }
@@ -2309,7 +2309,8 @@ section.app-card::before {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: cover;
+  object-position: left 32%;
 }
 
 .offer-header-log-zone {
@@ -2318,10 +2319,10 @@ section.app-card::before {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  width: min(47%, 620px);
-  padding: 0.8rem 1.4rem;
+  width: min(46%, 560px);
+  padding: 0.6rem 1.15rem;
   background:
-    linear-gradient(90deg, rgba(61, 156, 228, 0.2), rgba(48, 139, 221, 0.98) 28%, rgba(49, 140, 221, 1));
+    linear-gradient(90deg, rgba(61, 156, 228, 0.04), rgba(49, 141, 222, 0.98) 18%, rgba(49, 140, 221, 1));
 }
 
 .offer-header-log-zone:not(.has-log) {
@@ -2329,8 +2330,8 @@ section.app-card::before {
 }
 
 .offer-header-log-card {
-  width: min(100%, 24rem);
-  padding: 0.75rem 0.95rem;
+  width: min(100%, 21rem);
+  padding: 0.55rem 0.78rem;
   border: 1px solid rgba(255, 255, 255, 0.36);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.12);
@@ -2349,14 +2350,14 @@ section.app-card::before {
   display: block;
   color: rgba(255, 255, 255, 0.82);
   font-size: 0.78rem;
-  line-height: 1.35;
+  line-height: 1.25;
 }
 
 .offer-header-log-card strong {
   display: block;
   margin: 0.15rem 0;
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.92rem;
   line-height: 1.25;
 }
 
@@ -2455,22 +2456,46 @@ section.app-card::before {
 
 @media (max-width: 767.98px) {
   .offer-template-banner {
-    height: auto;
+    height: 64px;
   }
 
   .offer-template-banner-image {
-    height: 78px;
+    height: 100%;
+    object-fit: cover;
+    object-position: left center;
   }
 
+  .offer-header-log-zone,
   .offer-header-log-zone.has-log {
-    position: static;
-    width: 100%;
-    padding: 0.65rem 0.9rem;
-    background: #318bdd;
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 44%;
+    padding: 0.42rem 0.58rem;
+    background:
+      linear-gradient(90deg, rgba(61, 156, 228, 0.03), rgba(49, 141, 222, 0.99) 14%, rgba(49, 140, 221, 1));
   }
 
   .offer-header-log-card {
     width: 100%;
+    padding: 0.42rem 0.55rem;
+  }
+
+  .offer-header-log-card span,
+  .offer-header-log-card small {
+    font-size: 0.66rem;
+    line-height: 1.18;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .offer-header-log-card strong {
+    margin: 0.08rem 0;
+    font-size: 0.78rem;
+    line-height: 1.18;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .offer-header-action-row .hero-actions {
