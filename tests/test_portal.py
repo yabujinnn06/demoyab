@@ -1277,6 +1277,73 @@ def test_offer_manual_match_preview_makes_row_actionable(tmp_path) -> None:
     assert row["can_apply"] is True
 
 
+def test_batch_comparison_session_and_summary_are_reusable(tmp_path, monkeypatch) -> None:
+    from backend.offer_module import webapp as offer_webapp
+    from backend.offer_module.teklif_kontrol import FinancialCheck, FinancialReview, MatchResult, OfferItem
+
+    price_path = tmp_path / "fiyat.xlsx"
+    offer_path = tmp_path / "teklif.pdf"
+    final_report_path = tmp_path / "teklif_rapor.xlsx"
+    price_path.write_bytes(b"price")
+    offer_path.write_bytes(b"%PDF-1.4\n")
+
+    fake_review = FinancialReview(
+        vat_rate=20,
+        vat_rate_source="PDF",
+        vat_included=True,
+        item_gross_total=100,
+        expected_net_total=83.33,
+        expected_vat_total=16.67,
+        expected_gross_total=100,
+        expected_summary_total=100,
+        checks=[FinancialCheck("Toplam", "ONAY", 100, 100, 0, "Uygun")],
+    )
+    fake_result = MatchResult(
+        offer_item=OfferItem(
+            product_name="Rainwater Test",
+            quantity=1,
+            unit_price=100,
+            discounted_price=100,
+            total_price=100,
+        ),
+        matched_row=None,
+        score=100,
+        status="ONAY",
+        selected_column="2026 KURUMSAL NAKIT",
+        reference_unit_price=100,
+        reference_total_price=100,
+        suggested_unit_price=None,
+        suggested_total_price=None,
+        difference=0,
+        note="Uygun",
+    )
+
+    def fake_run_comparison(**_kwargs):
+        final_report_path.write_bytes(b"report")
+        return [fake_result], "2026 KURUMSAL NAKIT", final_report_path, ["2026 KURUMSAL NAKIT"], fake_review
+
+    monkeypatch.setattr(offer_webapp, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(offer_webapp, "run_comparison", fake_run_comparison)
+    offer_webapp.SESSIONS.clear()
+
+    session = offer_webapp.create_comparison_session(price_path, offer_path, "kurumsal_nakit")
+    item = offer_webapp.batch_item_from_session(session)
+    job = offer_webapp.BatchComparisonJob(
+        token="batch-test-token",
+        price_list_path=price_path,
+        price_mode="kurumsal_nakit",
+        created_at=offer_webapp.datetime.now(),
+        summary_path=tmp_path / "toplu_ozet.xlsx",
+        items=[item],
+    )
+    offer_webapp.write_batch_summary(job)
+
+    assert session.token in offer_webapp.SESSIONS
+    assert item.metrics["ONAY"] == 1
+    assert item.financial_status == "ONAY"
+    assert job.summary_path.exists()
+
+
 def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) -> None:
     from datetime import date
 

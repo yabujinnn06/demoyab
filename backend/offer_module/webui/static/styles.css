@@ -2624,6 +2624,182 @@ section.app-card::before {
   font-size: 0.84rem;
 }
 
+.batch-compare-panel,
+.batch-result-panel {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #d6e2ef;
+}
+
+.batch-compare-head,
+.batch-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.batch-compare-head h3,
+.batch-result-head h3 {
+  margin: 0 0 0.35rem;
+  color: #18344f;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.batch-compare-head p,
+.batch-result-head p {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 0.9rem;
+}
+
+.batch-compare-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.batch-multi-select {
+  min-height: 9rem;
+}
+
+.batch-upload-field {
+  grid-column: span 2;
+}
+
+.batch-submit-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.batch-result-actions,
+.batch-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.batch-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+.batch-metric-grid article {
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #c9d8e6;
+  border-radius: 6px;
+  background: #f8fbff;
+}
+
+.batch-metric-grid span {
+  display: block;
+  color: var(--app-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.batch-metric-grid strong {
+  display: block;
+  margin-top: 0.1rem;
+  color: #173d62;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.batch-result-table-wrap {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid #aebfd1;
+  border-radius: 6px;
+  background: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+
+.batch-result-table {
+  width: 100%;
+  min-width: 940px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #18344f;
+  font-size: 0.82rem;
+}
+
+.batch-result-table th,
+.batch-result-table td {
+  padding: 0.5rem 0.58rem;
+  border-right: 1px solid #dbe5ee;
+  border-bottom: 1px solid #dbe5ee;
+  vertical-align: top;
+}
+
+.batch-result-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  color: #234c72;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #f6fbff, #e8f2fb);
+}
+
+.batch-result-table th:first-child,
+.batch-result-table td:first-child {
+  width: 3rem;
+  text-align: center;
+}
+
+.batch-result-table th:nth-child(2),
+.batch-result-table td:nth-child(2) {
+  width: 20rem;
+}
+
+.batch-result-table td:nth-child(n+4):nth-child(-n+8) {
+  text-align: center;
+  font-weight: 800;
+}
+
+.batch-result-table td strong,
+.batch-result-table td span,
+.batch-result-table td small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.batch-result-table td span,
+.batch-result-table td small {
+  color: var(--app-muted);
+}
+
+.batch-result-table tbody tr:nth-child(even) td {
+  background: #fbfdff;
+}
+
+.batch-row-ok td:first-child {
+  box-shadow: inset 4px 0 #42a96b;
+}
+
+.batch-row-warn td:first-child {
+  box-shadow: inset 4px 0 #e3a11f;
+}
+
+.batch-row-danger td:first-child {
+  box-shadow: inset 4px 0 #d9534f;
+}
+
 @media (max-width: 767.98px) {
   .offer-template-banner {
     height: 64px;
@@ -2767,5 +2943,48 @@ section.app-card::before {
 
   .activity-log-pagination .btn {
     padding: 0.28rem 0.46rem;
+  }
+
+  .batch-compare-head,
+  .batch-result-head,
+  .batch-submit-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .batch-compare-form {
+    grid-template-columns: 1fr;
+  }
+
+  .batch-upload-field {
+    grid-column: auto;
+  }
+
+  .batch-multi-select {
+    min-height: 7.5rem;
+  }
+
+  .batch-result-actions,
+  .batch-row-actions {
+    justify-content: flex-start;
+  }
+
+  .batch-result-actions .btn,
+  .batch-submit-row .btn {
+    width: 100%;
+  }
+
+  .batch-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .batch-result-table {
+    min-width: 760px;
+    font-size: 0.74rem;
+  }
+
+  .batch-result-table th,
+  .batch-result-table td {
+    padding: 0.4rem 0.46rem;
   }
 }

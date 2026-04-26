@@ -10,15 +10,18 @@ import time
 import uuid
 import webbrowser
 from collections import Counter
+from copy import copy
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from openpyxl import Workbook
 
 from .portal_auth import enforce_offer_access, get_offer_portal_user, require_offer_admin
 from .teklif_kontrol import (
@@ -154,10 +157,12 @@ STATUS_CLASS = {
 }
 ACTIVITY_ACTION_LABELS = {
     "compare": "Kontrol raporu",
+    "batch_compare": "Toplu kontrol",
     "correct": "PDF düzeltme",
     "create": "Teklif üretimi",
 }
 ACTIVITY_LOG_LIMIT = 500
+BATCH_COMPARE_LIMIT = 20
 
 
 @dataclass(slots=True)
@@ -172,6 +177,28 @@ class ComparisonSession:
     financial_review: FinancialReview
     corrected_pdf_path: Path | None = None
     applied_indexes: set[int] = field(default_factory=set)
+
+
+@dataclass(slots=True)
+class BatchComparisonItem:
+    offer_path: Path
+    status: str
+    session_token: str = ""
+    output_path: Path | None = None
+    selected_column: str = ""
+    metrics: dict[str, int] = field(default_factory=dict)
+    financial_status: str = "-"
+    error: str = ""
+
+
+@dataclass(slots=True)
+class BatchComparisonJob:
+    token: str
+    price_list_path: Path
+    price_mode: str
+    created_at: datetime
+    summary_path: Path
+    items: list[BatchComparisonItem] = field(default_factory=list)
 
 
 app = FastAPI(title="Rainwater Teklif Kontrol")
@@ -190,6 +217,7 @@ templates.TemplateResponse = render_template  # type: ignore[method-assign]
 
 
 SESSIONS: dict[str, ComparisonSession] = {}
+BATCHES: dict[str, BatchComparisonJob] = {}
 STORAGE_HINT = "Tum ciktilar ciktilar klasorunde duzenli tutulur."
 ADMIN_STORAGE_HINT = "Fiyat listeleri veri/fiyat_listeleri klasorunde tutulur."
 
@@ -635,6 +663,13 @@ def build_app_corrected_pdf_path(offer_path: Path) -> Path:
     raise RuntimeError("Duzeltilmis PDF icin bos dosya adi bulunamadi.")
 
 
+def build_batch_summary_path(batch_token: str) -> Path:
+    target_dir = BASE_DIR / OUTPUT_ROOT_DIRNAME / REPORTS_DIRNAME
+    target_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return target_dir / f"toplu_kontrol_{timestamp}_{batch_token[:8]}.xlsx"
+
+
 def remember_last_files(*, price_file_name: str | None = None, offer_file_name: str | None = None) -> None:
     settings = load_admin_settings()
     changed = False
@@ -984,6 +1019,187 @@ def relative_display_path(path: Path | None) -> str:
         return path.name
 
 
+def result_metrics(results: list[MatchResult]) -> dict[str, int]:
+    counts = Counter(result.status for result in results)
+    return {status: int(counts.get(status, 0)) for status in STATUS_CLASS}
+
+
+def create_comparison_session(price_list_path: Path, offer_path: Path, price_mode: str) -> ComparisonSession:
+    price_mode = normalize_compare_mode(price_mode)
+    selected_column = None
+    if price_mode != PRICE_MODE_AUTO:
+        selected_column = PRICE_MODE_TO_HEADER.get(price_mode)
+        if selected_column is None:
+            raise ValueError("Geçersiz fiyat tipi seçimi.")
+
+    results, used_column, final_output_path, _, financial_review = run_comparison(
+        price_list_path=price_list_path,
+        offer_path=offer_path,
+        price_column=selected_column,
+        output_path=build_report_output_path(BASE_DIR, offer_path),
+    )
+    session = ComparisonSession(
+        token=uuid.uuid4().hex,
+        price_list_path=price_list_path,
+        offer_path=offer_path,
+        output_path=final_output_path,
+        selected_column=used_column,
+        price_mode=price_mode,
+        results=results,
+        financial_review=financial_review,
+    )
+    SESSIONS[session.token] = session
+    return session
+
+
+def batch_item_from_session(session: ComparisonSession) -> BatchComparisonItem:
+    return BatchComparisonItem(
+        offer_path=session.offer_path,
+        status="completed",
+        session_token=session.token,
+        output_path=session.output_path,
+        selected_column=session.selected_column,
+        metrics=result_metrics(session.results),
+        financial_status=session.financial_review.overall_status,
+    )
+
+
+def batch_item_status_label(item: BatchComparisonItem) -> str:
+    if item.status == "error":
+        return "Hata"
+    issue_count = item.metrics.get("DUZELT", 0) + item.metrics.get("INCELE", 0) + item.metrics.get("ESLESMEDI", 0)
+    if issue_count:
+        return "İnceleme gerekli"
+    if item.financial_status != "ONAY":
+        return "Finansal uyarı"
+    return "Temiz"
+
+
+def batch_item_status_class(item: BatchComparisonItem) -> str:
+    if item.status == "error":
+        return "danger"
+    if item.metrics.get("DUZELT", 0):
+        return "danger"
+    if item.metrics.get("INCELE", 0) or item.metrics.get("ESLESMEDI", 0) or item.financial_status != "ONAY":
+        return "warn"
+    return "ok"
+
+
+def write_batch_summary(job: BatchComparisonJob) -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "TopluKontrol"
+    headers = [
+        "Teklif",
+        "Durum",
+        "Referans",
+        "Onay",
+        "Duzelt",
+        "Incele",
+        "Eslesmedi",
+        "Finansal",
+        "Rapor",
+        "Hata",
+    ]
+    sheet.append(headers)
+    for item in job.items:
+        sheet.append(
+            [
+                item.offer_path.name,
+                batch_item_status_label(item),
+                item.selected_column,
+                item.metrics.get("ONAY", 0),
+                item.metrics.get("DUZELT", 0),
+                item.metrics.get("INCELE", 0),
+                item.metrics.get("ESLESMEDI", 0),
+                item.financial_status,
+                relative_display_path(item.output_path) if item.output_path else "",
+                item.error,
+            ]
+    )
+    for cell in sheet[1]:
+        font = copy(cell.font)
+        font.bold = True
+        cell.font = font
+    for column_cells in sheet.columns:
+        max_length = max(len(str(cell.value or "")) for cell in column_cells)
+        sheet.column_dimensions[column_cells[0].column_letter].width = min(max(max_length + 2, 10), 42)
+    job.summary_path.parent.mkdir(parents=True, exist_ok=True)
+    workbook.save(job.summary_path)
+
+
+def batch_job_view_model(request: Request, job: BatchComparisonJob | None) -> dict:
+    if job is None:
+        return {"show": False, "items": [], "metrics": {}, "token": ""}
+    completed = sum(1 for item in job.items if item.status == "completed")
+    failed = sum(1 for item in job.items if item.status == "error")
+    needs_review = sum(
+        1
+        for item in job.items
+        if item.status == "completed"
+        and (
+            item.metrics.get("DUZELT", 0)
+            or item.metrics.get("INCELE", 0)
+            or item.metrics.get("ESLESMEDI", 0)
+            or item.financial_status != "ONAY"
+        )
+    )
+    clean = sum(
+        1
+        for item in job.items
+        if item.status == "completed"
+        and not (
+            item.metrics.get("DUZELT", 0)
+            or item.metrics.get("INCELE", 0)
+            or item.metrics.get("ESLESMEDI", 0)
+            or item.financial_status != "ONAY"
+        )
+    )
+    item_views = []
+    for index, item in enumerate(job.items, start=1):
+        item_views.append(
+            {
+                "index": index,
+                "offer_name": item.offer_path.name,
+                "status": batch_item_status_label(item),
+                "status_class": batch_item_status_class(item),
+                "session_token": item.session_token,
+                "selected_column": item.selected_column or "-",
+                "metrics": item.metrics,
+                "financial_status": item.financial_status,
+                "error": item.error,
+                "report_name": item.output_path.name if item.output_path else "-",
+                "view_url": (
+                    request.url_for("offer-tool:view_session", token=item.session_token)
+                    if item.session_token
+                    else ""
+                ),
+                "report_url": (
+                    request.url_for("offer-tool:download_file", token=item.session_token, kind="report")
+                    if item.session_token
+                    else ""
+                ),
+            }
+        )
+    return {
+        "show": True,
+        "token": job.token,
+        "price_file": job.price_list_path.name,
+        "price_mode": PRICE_MODE_LABELS.get(job.price_mode, job.price_mode),
+        "created_at": job.created_at.strftime("%d.%m.%Y %H:%M"),
+        "summary_url": request.url_for("offer-tool:download_batch_summary", batch_token=job.token),
+        "zip_url": request.url_for("offer-tool:download_batch_reports_zip", batch_token=job.token),
+        "items": item_views,
+        "metrics": {
+            "total": len(job.items),
+            "completed": completed,
+            "failed": failed,
+            "needs_review": needs_review,
+            "clean": clean,
+        },
+    }
+
+
 def build_feedback_state(
     *,
     notice: str | None,
@@ -1113,6 +1329,7 @@ def build_context(
     session: ComparisonSession | None = None,
     create_state: dict | None = None,
     admin_state: dict | None = None,
+    batch_job: BatchComparisonJob | None = None,
     notice: str | None = None,
     error: str | None = None,
     active_workspace: str | None = None,
@@ -1134,6 +1351,7 @@ def build_context(
     catalog_options = load_catalog_options(create_state.get("price_file", selected_price_file))
     result_catalog_options = load_catalog_options(session.price_list_path.name if session else selected_price_file)
     workspace_snapshot = build_workspace_snapshot()
+    batch_view = batch_job_view_model(request, batch_job)
 
     metrics = {"ONAY": 0, "DUZELT": 0, "INCELE": 0, "ESLESMEDI": 0}
     results: list[dict] = []
@@ -1245,6 +1463,8 @@ def build_context(
         "offer_activity_entries": activity_entries,
         "offer_activity_latest": activity_entries[0] if activity_entries else None,
         "offer_activity_action_labels": ACTIVITY_ACTION_LABELS,
+        "batch_result": batch_view,
+        "has_batch_results": bool(batch_view.get("show")),
         "workspace_cards": workspace_snapshot["workspace_cards"],
         "workspace_folders": workspace_snapshot["workspace_folders"],
         "recent_files": workspace_snapshot["recent_files"],
@@ -1544,28 +1764,8 @@ async def compare(
         return templates.TemplateResponse("index.html", context, status_code=400)
 
     remember_last_files(price_file_name=price_file, offer_file_name=relative_runtime_path(offer_path))
-    output_path = build_report_output_path(BASE_DIR, offer_path)
-    selected_column = None
-    if price_mode != PRICE_MODE_AUTO:
-        selected_column = PRICE_MODE_TO_HEADER.get(price_mode)
-        if selected_column is None:
-            context = build_context(
-                request,
-                selected_price_file=price_file,
-                selected_offer_file=offer_file,
-                selected_mode=price_mode,
-                active_workspace=active_workspace,
-            )
-            context["error"] = "Geçersiz fiyat tipi seçimi."
-            return templates.TemplateResponse("index.html", context, status_code=400)
-
     try:
-        results, used_column, final_output_path, _, financial_review = run_comparison(
-            price_list_path=price_list_path,
-            offer_path=offer_path,
-            price_column=selected_column,
-            output_path=output_path,
-        )
+        session = create_comparison_session(price_list_path, offer_path, price_mode)
     except Exception as exc:
         context = build_context(
             request,
@@ -1577,30 +1777,19 @@ async def compare(
         context["error"] = str(exc)
         return templates.TemplateResponse("index.html", context, status_code=400)
 
-    session = ComparisonSession(
-        token=uuid.uuid4().hex,
-        price_list_path=price_list_path,
-        offer_path=offer_path,
-        output_path=final_output_path,
-        selected_column=used_column,
-        price_mode=price_mode,
-        results=results,
-        financial_review=financial_review,
-    )
-    SESSIONS[session.token] = session
     append_activity_log(
         request,
         action="compare",
-        summary=f"{offer_path.name} kontrol edildi; referans fiyat tipi {used_column}.",
+        summary=f"{offer_path.name} kontrol edildi; referans fiyat tipi {session.selected_column}.",
         files=[
-            activity_file_payload(final_output_path, "Excel raporu", "report"),
+            activity_file_payload(session.output_path, "Excel raporu", "report"),
             activity_file_payload(offer_path, "Kontrol edilen teklif", "source"),
         ],
         details={
             "price_file": price_list_path.name,
             "offer_file": offer_path.name,
-            "reference_column": used_column,
-            "row_count": len(results),
+            "reference_column": session.selected_column,
+            "row_count": len(session.results),
         },
     )
 
@@ -1610,9 +1799,170 @@ async def compare(
         selected_offer_file=offer_file,
         selected_mode=price_mode,
         session=session,
-        notice=f"Kontrol tamamlandı. Referans fiyat tipi: {used_column}",
+        notice=f"Kontrol tamamlandı. Referans fiyat tipi: {session.selected_column}",
         active_workspace="results",
         play_result_sound=True,
+    )
+    return templates.TemplateResponse("index.html", context)
+
+
+@app.get("/session/{token}", response_class=HTMLResponse)
+async def view_session(request: Request, token: str) -> HTMLResponse:
+    session = SESSIONS.get(token)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Oturum bulunamadı.")
+    context = build_context(
+        request,
+        selected_price_file=session.price_list_path.name,
+        selected_offer_file=relative_runtime_path(session.offer_path),
+        selected_mode=session.price_mode,
+        session=session,
+        active_workspace="results",
+    )
+    return templates.TemplateResponse("index.html", context)
+
+
+@app.post("/batch-compare", response_class=HTMLResponse)
+async def batch_compare(
+    request: Request,
+    price_file: str = Form(""),
+    price_mode: str = Form(PRICE_MODE_AUTO),
+    active_workspace: str = Form(default="compare"),
+    offer_files: list[str] | None = Form(default=None),
+    price_file_upload: UploadFile | None = File(default=None),
+    offer_file_uploads: list[UploadFile] | None = File(default=None),
+) -> HTMLResponse:
+    price_mode = normalize_compare_mode(price_mode)
+    try:
+        if price_file_upload is not None and price_file_upload.filename:
+            imported_path, _, _ = import_price_file(price_file_upload, activate_after_import=True)
+            price_file = imported_path.name
+    except Exception as exc:
+        context = build_context(request, selected_price_file=price_file, selected_mode=price_mode, active_workspace=active_workspace)
+        context["error"] = str(exc)
+        return templates.TemplateResponse("index.html", context, status_code=400)
+
+    price_list_path = resolve_price_file_path(price_file)
+    if not price_list_path.exists():
+        context = build_context(request, selected_price_file=price_file, selected_mode=price_mode, active_workspace=active_workspace)
+        context["error"] = "Fiyat listesi bulunamadı."
+        return templates.TemplateResponse("index.html", context, status_code=400)
+
+    offer_paths: list[Path] = []
+    for file_name in offer_files or []:
+        if str(file_name or "").strip():
+            offer_paths.append(resolve_runtime_pdf_path(file_name))
+
+    try:
+        for upload in offer_file_uploads or []:
+            if upload is not None and upload.filename:
+                offer_paths.append(import_offer_file(upload))
+    except Exception as exc:
+        context = build_context(
+            request,
+            selected_price_file=price_file,
+            selected_mode=price_mode,
+            active_workspace=active_workspace,
+        )
+        context["error"] = str(exc)
+        return templates.TemplateResponse("index.html", context, status_code=400)
+
+    if not offer_paths:
+        context = build_context(request, selected_price_file=price_file, selected_mode=price_mode, active_workspace=active_workspace)
+        context["error"] = "Toplu kontrol için en az bir teklif PDF seç veya yükle."
+        return templates.TemplateResponse("index.html", context, status_code=400)
+
+    if len(offer_paths) > BATCH_COMPARE_LIMIT:
+        context = build_context(request, selected_price_file=price_file, selected_mode=price_mode, active_workspace=active_workspace)
+        context["error"] = f"Toplu kontrolde tek seferde en fazla {BATCH_COMPARE_LIMIT} PDF işlenebilir."
+        return templates.TemplateResponse("index.html", context, status_code=400)
+
+    batch_token = uuid.uuid4().hex
+    job = BatchComparisonJob(
+        token=batch_token,
+        price_list_path=price_list_path,
+        price_mode=price_mode,
+        created_at=datetime.now(),
+        summary_path=build_batch_summary_path(batch_token),
+    )
+
+    for offer_path in offer_paths:
+        if not offer_path.exists():
+            job.items.append(
+                BatchComparisonItem(
+                    offer_path=offer_path,
+                    status="error",
+                    error="Teklif PDF bulunamadı.",
+                )
+            )
+            continue
+        if is_template_pdf_path(offer_path):
+            job.items.append(
+                BatchComparisonItem(
+                    offer_path=offer_path,
+                    status="error",
+                    error="Şablon PDF kontrol listesine alınamaz.",
+                )
+            )
+            continue
+        try:
+            session = create_comparison_session(price_list_path, offer_path, price_mode)
+            job.items.append(batch_item_from_session(session))
+        except Exception as exc:
+            job.items.append(
+                BatchComparisonItem(
+                    offer_path=offer_path,
+                    status="error",
+                    error=str(exc),
+                )
+            )
+
+    write_batch_summary(job)
+    BATCHES[job.token] = job
+
+    first_completed = next((item for item in job.items if item.status == "completed"), None)
+    remember_last_files(
+        price_file_name=price_file,
+        offer_file_name=relative_runtime_path(first_completed.offer_path) if first_completed else None,
+    )
+    completed_count = sum(1 for item in job.items if item.status == "completed")
+    failed_count = sum(1 for item in job.items if item.status == "error")
+    review_count = sum(
+        1
+        for item in job.items
+        if item.status == "completed"
+        and (
+            item.metrics.get("DUZELT", 0)
+            or item.metrics.get("INCELE", 0)
+            or item.metrics.get("ESLESMEDI", 0)
+            or item.financial_status != "ONAY"
+        )
+    )
+    append_activity_log(
+        request,
+        action="batch_compare",
+        summary=f"{len(job.items)} teklif toplu kontrol edildi; {completed_count} tamam, {failed_count} hata.",
+        files=[
+            activity_file_payload(job.summary_path, "Toplu özet Excel", "batch_summary"),
+            activity_file_payload(price_list_path, "Fiyat listesi", "price"),
+        ],
+        details={
+            "price_file": price_list_path.name,
+            "price_mode": PRICE_MODE_LABELS.get(price_mode, price_mode),
+            "total_count": len(job.items),
+            "completed_count": completed_count,
+            "failed_count": failed_count,
+            "review_count": review_count,
+        },
+    )
+
+    context = build_context(
+        request,
+        selected_price_file=price_file,
+        selected_mode=price_mode,
+        batch_job=job,
+        notice=f"Toplu kontrol tamamlandı. {completed_count} teklif işlendi, {failed_count} hata var.",
+        active_workspace="compare",
     )
     return templates.TemplateResponse("index.html", context)
 
@@ -2151,6 +2501,37 @@ async def download_activity_log_csv(request: Request) -> Response:
         csv_bytes,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="teklif-islem-logu.csv"'},
+    )
+
+
+@app.get("/batch/{batch_token}/summary.xlsx")
+async def download_batch_summary(batch_token: str) -> FileResponse:
+    job = BATCHES.get(batch_token)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Toplu kontrol bulunamadı.")
+    if not job.summary_path.exists():
+        raise HTTPException(status_code=404, detail="Toplu kontrol özeti bulunamadı.")
+    return FileResponse(job.summary_path, filename=job.summary_path.name)
+
+
+@app.get("/batch/{batch_token}/reports.zip")
+async def download_batch_reports_zip(batch_token: str) -> Response:
+    job = BATCHES.get(batch_token)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Toplu kontrol bulunamadı.")
+
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
+        if job.summary_path.exists():
+            archive.write(job.summary_path, arcname=job.summary_path.name)
+        for item in job.items:
+            if item.output_path and item.output_path.exists():
+                archive.write(item.output_path, arcname=f"raporlar/{item.output_path.name}")
+    buffer.seek(0)
+    return Response(
+        buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="toplu-kontrol-{batch_token[:8]}.zip"'},
     )
 
 
