@@ -400,38 +400,30 @@
     </div>
   </div>
 
-  <header class="hero-shell border-bottom">
-    <div class="container-fluid px-3 px-md-4 px-xxl-5 py-3">
-      <div class="row g-3 align-items-center">
-        <div class="col-12 col-xl-8">
-          <p class="section-kicker mb-2">Rainwater Teklif Ofisi</p>
-          <h1 class="hero-title mb-2">Teklif akışlarını tek merkezden yönet</h1>
-          <p class="hero-copy mb-0">
-            Fiyat listesi, teklif PDF, şablon ve çıktı klasörlerini aynı akışta yönet. Kontrol et, fiyatları karşılaştır,
-            düzeltmeleri uygula ve yeni teklifleri tek ekrandan üret.
-          </p>
-        </div>
-        <div class="col-12 col-xl-4">
-          <div class="hero-actions d-flex flex-wrap gap-2 justify-content-xl-end">
-            <button class="btn btn-primary" type="button" data-open-workspace="compare">Kontrole git</button>
-            <button class="btn btn-outline-secondary" type="button" data-open-workspace="create">Teklif oluştur</button>
-            <a class="btn btn-outline-dark" href="/">Ana sayfaya dön</a>
-            <button class="btn btn-outline-dark d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#workspaceDrawer" aria-controls="workspaceDrawer">
-              Çalışma alanları
-            </button>
-          </div>
-        </div>
+  <header class="hero-shell offer-template-header border-bottom">
+    <div class="offer-template-banner">
+      <img
+        class="offer-template-banner-image"
+        src="{{ request.url_for('offer-tool:offer_assets', path='offer_header_banner.png') }}"
+        alt="Rainwater fiyat teklifi başlığı"
+      >
+      <div class="visually-hidden">
+        <p>Rainwater Teklif Ofisi</p>
+        <h1>Teklif akışlarını tek merkezden yönet</h1>
+        <p>
+          Fiyat listesi, teklif PDF, şablon ve çıktı klasörlerini aynı akışta yönet. Kontrol et, fiyatları karşılaştır,
+          düzeltmeleri uygula ve yeni teklifleri tek ekrandan üret.
+        </p>
       </div>
-
-      <div class="row row-cols-2 row-cols-md-3 row-cols-xxl-6 g-3 mt-2 hero-metrics">
-        {% for card in workspace_cards %}
-          <div class="col">
-            <article class="metric-tile">
-              <span class="metric-label">{{ card.label }}</span>
-              <strong class="metric-value">{{ card.count }}</strong>
-            </article>
-          </div>
-        {% endfor %}
+    </div>
+    <div class="container-fluid px-3 px-md-4 px-xxl-5 py-2 offer-header-action-row">
+      <div class="hero-actions d-flex flex-wrap gap-2 justify-content-end">
+        <button class="btn btn-primary" type="button" data-open-workspace="compare">Kontrole git</button>
+        <button class="btn btn-outline-secondary" type="button" data-open-workspace="create">Teklif oluştur</button>
+        <a class="btn btn-outline-dark" href="/">Ana sayfaya dön</a>
+        <button class="btn btn-outline-dark d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#workspaceDrawer" aria-controls="workspaceDrawer">
+          Çalışma alanları
+        </button>
       </div>
     </div>
   </header>

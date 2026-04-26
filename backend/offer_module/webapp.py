@@ -78,11 +78,24 @@ def resolve_webui_dir() -> Path:
     return candidates[0]
 
 
+def resolve_assets_dir() -> Path:
+    candidates = [
+        resource_base_dir() / "assets",
+        runtime_base_dir() / "assets",
+        Path(__file__).resolve().parent / "assets",
+    ]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return candidates[0]
+
+
 BASE_DIR = Path(os.getenv("CALL_PORTAL_OFFER_DATA_DIR", "")).expanduser().resolve() if os.getenv("CALL_PORTAL_OFFER_DATA_DIR") else runtime_base_dir()
 RESOURCE_DIR = resource_base_dir()
 WEBUI_DIR = resolve_webui_dir()
 TEMPLATES_DIR = WEBUI_DIR / "templates"
 STATIC_DIR = WEBUI_DIR / "static"
+ASSETS_DIR = resolve_assets_dir()
 DATA_DIR = BASE_DIR / "veri"
 PRICE_LISTS_DIR = DATA_DIR / "fiyat_listeleri"
 ADMIN_SETTINGS_PATH = DATA_DIR / "admin_ayarlar.json"
@@ -155,6 +168,7 @@ class ComparisonSession:
 app = FastAPI(title="Rainwater Teklif Kontrol")
 app.middleware("http")(enforce_offer_access)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="offer_static")
+app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="offer_assets")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 _template_response = templates.TemplateResponse
 

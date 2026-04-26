@@ -2289,3 +2289,31 @@ section.app-card::before {
     min-height: 3.5rem;
   }
 }
+
+.hero-shell.offer-template-header {
+  overflow: hidden;
+  background: #f8fbff;
+  border-bottom: 1px solid var(--app-border) !important;
+  box-shadow: 0 1px 3px rgba(22, 50, 84, 0.14);
+}
+
+.offer-template-banner {
+  width: 100%;
+  background: #358fe0;
+}
+
+.offer-template-banner-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.offer-header-action-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.85);
+}
+
+@media (max-width: 767.98px) {
+  .offer-header-action-row .hero-actions {
+    justify-content: stretch !important;
+  }
+}
