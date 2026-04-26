@@ -975,6 +975,7 @@ def build_context(
     error: str | None = None,
     active_workspace: str | None = None,
     play_result_sound: bool = False,
+    auto_download_corrected: bool = False,
 ) -> dict:
     portal_user = get_offer_portal_user(request)
     offer_is_admin = bool(portal_user and portal_user.is_admin)
@@ -1101,6 +1102,7 @@ def build_context(
         "feedback": feedback,
         "has_results": bool(results),
         "has_corrected_pdf": has_corrected_pdf,
+        "auto_download_corrected": bool(auto_download_corrected and has_corrected_pdf and token),
         "active_workspace": active_workspace,
         "play_result_sound": bool(play_result_sound and results and token),
         "result_sound_key": token if play_result_sound and results else "",
@@ -1583,6 +1585,7 @@ async def apply_corrections(
         )
         + f"Onaylı düzeltmeler uygulandı. Yeni dosya: {corrected_path.name}",
         active_workspace="apply",
+        auto_download_corrected=True,
     )
     return templates.TemplateResponse("index.html", context)
 

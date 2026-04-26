@@ -384,6 +384,7 @@
   class="app-body"
   data-active-workspace="{{ active_workspace }}"
   data-prefer-server-workspace="{% if feedback.show or active_workspace in ['results', 'apply'] %}true{% else %}false{% endif %}"
+  {% if auto_download_corrected and token %}data-auto-download-url="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}"{% endif %}
   {% if play_result_sound and result_sound_key %}data-result-sound-url="{{ request.url_for('offer-tool:offer_static', path='audio/choose2.wav') }}" data-result-sound-key="{{ result_sound_key }}"{% endif %}
 >
   <div class="offcanvas offcanvas-start app-offcanvas" tabindex="-1" id="workspaceDrawer" aria-labelledby="workspaceDrawerLabel">
@@ -496,11 +497,11 @@
               <div class="smart-command-main">
                 <span class="smart-command-eyebrow">Sıradaki işlem</span>
                 {% if has_corrected_pdf %}
-                  <strong>Düzenlenmiş PDF hazır</strong>
+                  <strong>{% if auto_download_corrected %}Düzenlenmiş PDF indiriliyor{% else %}Düzenlenmiş PDF hazır{% endif %}</strong>
                   <p>{{ corrected_name }}</p>
                 {% elif apply_ready_count > 0 %}
                   <strong>{{ apply_ready_count }} satır için karar bekliyor</strong>
-                  <p>Düzeltmeleri tek ekranda incele veya seçili satırlarla PDF oluştur.</p>
+                  <p>Düzeltmeleri tek ekranda incele veya seçili satırlarla PDF'i indir.</p>
                 {% elif review_needed_count > 0 %}
                   <strong>{{ review_needed_count }} satır ürün eşleşmesi bekliyor</strong>
                   <p>Elle eşleştirme gereken satırları karar panosunda tamamla.</p>
@@ -511,14 +512,14 @@
               </div>
               <div class="smart-command-actions">
                 {% if has_corrected_pdf %}
-                  <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">PDF indir</a>
+                  <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">Tekrar indir</a>
                   <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu</a>
                 {% elif apply_ready_count > 0 %}
                   <button class="btn btn-primary" type="button" data-open-workspace="apply">Düzeltmeleri incele</button>
-                  <button class="btn btn-outline-primary" type="submit" form="correction-form" name="action" value="apply" data-apply-submit>Düzenlenmiş PDF oluştur</button>
+                  <button class="btn btn-outline-primary" type="submit" form="correction-form" name="action" value="apply" data-apply-submit>Düzelt ve PDF indir</button>
                 {% elif review_needed_count > 0 %}
                   <button class="btn btn-primary" type="button" data-open-workspace="apply" data-queue-target="waiting">Eşleşmeleri tamamla</button>
-                  <button class="btn btn-outline-primary" type="submit" form="correction-form" name="action" value="apply" data-apply-submit>Düzenlenmiş PDF oluştur</button>
+                  <button class="btn btn-outline-primary" type="submit" form="correction-form" name="action" value="apply" data-apply-submit>Düzelt ve PDF indir</button>
                 {% else %}
                   <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu indir</a>
                   <button class="btn btn-outline-primary" type="button" data-open-workspace="create">Yeni teklif üret</button>
@@ -678,15 +679,6 @@
                       </dl>
                     </div>
                   </div>
-                </div>
-
-                <div class="d-flex flex-wrap gap-2 mb-4">
-                  <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu indir</a>
-                  {% if has_corrected_pdf %}
-                    <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">Düzeltilmiş PDF indir</a>
-                  {% else %}
-                    <span class="btn btn-outline-secondary disabled">Düzeltilmiş PDF henüz üretilmedi</span>
-                  {% endif %}
                 </div>
 
                 <div class="operation-tabs">

@@ -45,6 +45,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
   playResultSound();
 
+  const triggerAutoDownload = () => {
+    const downloadUrl = document.body.dataset.autoDownloadUrl;
+    if (!downloadUrl) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = "";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }, 450);
+  };
+
+  triggerAutoDownload();
+
   const renumberCreateItems = (container) => {
     const rows = Array.from(container.querySelectorAll(".create-item-row"));
     rows.forEach((row, index) => {
@@ -248,7 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
       button.disabled = selectedCount === 0;
       button.textContent = selectedCount === 0
         ? "Önce düzeltilecek satır seç"
-        : `Düzenlenmiş PDF oluştur (${selectedCount})`;
+        : `Düzelt ve PDF indir (${selectedCount})`;
     });
   };
 
