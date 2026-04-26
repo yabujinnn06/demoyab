@@ -376,9 +376,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Teklif Ofisi</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260426-header-scale">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260426-activity-grid">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260426-header-scale"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260426-activity-grid"></script>
 </head>
 <body
   class="app-body"
@@ -402,7 +402,7 @@
 
   {% if offer_is_admin %}
     <div class="modal fade activity-log-modal" id="offerActivityModal" tabindex="-1" aria-labelledby="offerActivityModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable activity-log-dialog">
         <div class="modal-content">
           <div class="modal-header">
             <div>
@@ -411,7 +411,7 @@
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
           </div>
-          <div class="modal-body" data-activity-log>
+          <div class="modal-body activity-log-body" data-activity-log>
             <div class="activity-log-toolbar">
               <input class="form-control" type="search" placeholder="Kullanıcı, dosya veya işlem ara" aria-label="Log ara" data-activity-search>
               <select class="form-select" aria-label="İşlem filtresi" data-activity-filter>
@@ -420,18 +420,25 @@
                   <option value="{{ action_key }}">{{ action_label }}</option>
                 {% endfor %}
               </select>
-              <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_activity_log_csv') }}">CSV indir</a>
+              <a class="btn btn-outline-secondary activity-log-export" href="{{ request.url_for('offer-tool:download_activity_log_csv') }}">CSV indir</a>
             </div>
 
-            <div class="activity-log-table-wrap">
-              <table class="activity-log-table">
+            <div class="activity-log-table-wrap" tabindex="0">
+              <table class="activity-log-table" aria-label="Teklif işlem logu">
+                <colgroup>
+                  <col class="activity-col-date">
+                  <col class="activity-col-user">
+                  <col class="activity-col-action">
+                  <col class="activity-col-summary">
+                  <col class="activity-col-files">
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Tarih</th>
-                    <th>Kullanıcı</th>
-                    <th>İşlem</th>
-                    <th>Özet</th>
-                    <th>Dosyalar</th>
+                    <th scope="col">Tarih</th>
+                    <th scope="col">Kullanıcı</th>
+                    <th scope="col">İşlem</th>
+                    <th scope="col">Özet</th>
+                    <th scope="col">Dosyalar</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -472,6 +479,9 @@
                       <td colspan="5">Henüz teklif işlemi yok.</td>
                     </tr>
                   {% endfor %}
+                  <tr class="activity-no-results" data-activity-no-results hidden>
+                    <td colspan="5">Filtreyle eşleşen kayıt yok.</td>
+                  </tr>
                 </tbody>
               </table>
             </div>

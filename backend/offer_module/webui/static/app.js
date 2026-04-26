@@ -76,7 +76,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const previousButton = root.querySelector("[data-activity-prev]");
     const nextButton = root.querySelector("[data-activity-next]");
     const pageLabel = root.querySelector("[data-activity-page-label]");
-    const pageSize = 8;
+    const noResultsRow = root.querySelector("[data-activity-no-results]");
+    const tableWrap = root.querySelector(".activity-log-table-wrap");
+    const pageSize = 10;
     let currentPage = 1;
 
     const filteredRows = () => {
@@ -102,6 +104,9 @@ document.addEventListener("DOMContentLoaded", () => {
       visibleRows.slice(start, end).forEach((row) => {
         row.style.display = "";
       });
+      if (noResultsRow) {
+        noResultsRow.hidden = rows.length === 0 || visibleRows.length > 0;
+      }
 
       if (pageLabel) {
         pageLabel.textContent = visibleRows.length === 0
@@ -118,10 +123,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     searchInput?.addEventListener("input", () => {
       currentPage = 1;
+      if (tableWrap) {
+        tableWrap.scrollLeft = 0;
+      }
       render();
     });
     actionFilter?.addEventListener("change", () => {
       currentPage = 1;
+      if (tableWrap) {
+        tableWrap.scrollLeft = 0;
+      }
       render();
     });
     previousButton?.addEventListener("click", () => {
