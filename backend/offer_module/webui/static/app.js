@@ -169,6 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const render = () => {
+      input.dataset.batchFileNames = JSON.stringify(selectedFiles.map((file) => file.name));
       if (panel) {
         panel.hidden = selectedFiles.length === 0;
       }
@@ -199,6 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
         row.append(name, button);
         list.append(row);
       });
+      document.dispatchEvent(new CustomEvent("batch-files-changed"));
     };
 
     input.addEventListener("change", () => {
@@ -225,6 +227,134 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   initBatchFileInput();
+
+  const initBatchSelectionBoard = () => {
+    const board = document.querySelector("[data-batch-selection-board]");
+    if (!board) {
+      return;
+    }
+
+    const searchInput = board.querySelector("[data-batch-offer-search]");
+    const offerOptions = Array.from(board.querySelectorAll("[data-batch-offer-option]"));
+    const offerCheckboxes = Array.from(board.querySelectorAll("[data-batch-offer-checkbox]"));
+    const selectVisibleButton = board.querySelector("[data-batch-select-visible]");
+    const clearOffersButton = board.querySelector("[data-batch-clear-offers]");
+    const registeredCount = board.querySelector("[data-batch-registered-count]");
+    const totalCount = board.querySelector("[data-batch-total-count]");
+    const selectionList = board.querySelector("[data-batch-selection-list]");
+    const fileInput = board.querySelector("[data-batch-file-input]");
+
+    const uploadedFileNames = () => {
+      try {
+        return JSON.parse(fileInput?.dataset.batchFileNames || "[]");
+      } catch (_error) {
+        return [];
+      }
+    };
+
+    const renderBasket = () => {
+      const selectedOffers = offerCheckboxes
+        .filter((checkbox) => checkbox.checked)
+        .map((checkbox) => checkbox.value);
+      const uploaded = uploadedFileNames();
+      const total = selectedOffers.length + uploaded.length;
+
+      if (registeredCount) {
+        registeredCount.textContent = `${selectedOffers.length} seçili`;
+      }
+      if (totalCount) {
+        totalCount.textContent = `${total} PDF`;
+      }
+      if (!selectionList) {
+        return;
+      }
+
+      selectionList.innerHTML = "";
+      if (total === 0) {
+        const empty = document.createElement("p");
+        empty.className = "helper-text mb-0";
+        empty.textContent = "Henüz PDF seçilmedi.";
+        selectionList.append(empty);
+        return;
+      }
+
+      [...selectedOffers, ...uploaded].forEach((name) => {
+        const row = document.createElement("div");
+        row.className = "batch-selection-item";
+        const label = document.createElement("span");
+        label.textContent = name;
+        row.append(label);
+        selectionList.append(row);
+      });
+    };
+
+    const applySearch = () => {
+      const query = (searchInput?.value || "").trim().toLowerCase();
+      offerOptions.forEach((option) => {
+        const matches = !query || (option.dataset.search || "").includes(query);
+        option.hidden = !matches;
+      });
+    };
+
+    searchInput?.addEventListener("input", applySearch);
+    offerCheckboxes.forEach((checkbox) => checkbox.addEventListener("change", renderBasket));
+    selectVisibleButton?.addEventListener("click", () => {
+      offerOptions.forEach((option) => {
+        if (!option.hidden) {
+          const checkbox = option.querySelector("[data-batch-offer-checkbox]");
+          if (checkbox) {
+            checkbox.checked = true;
+          }
+        }
+      });
+      renderBasket();
+    });
+    clearOffersButton?.addEventListener("click", () => {
+      offerCheckboxes.forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+      renderBasket();
+    });
+    document.addEventListener("batch-files-changed", renderBasket);
+
+    applySearch();
+    renderBasket();
+  };
+
+  initBatchSelectionBoard();
+
+  const initBatchResultFilters = () => {
+    const rows = Array.from(document.querySelectorAll("[data-batch-row]"));
+    const buttons = Array.from(document.querySelectorAll("[data-batch-filter]"));
+    const countLabel = document.querySelector("[data-batch-filter-count]");
+    if (!rows.length || !buttons.length) {
+      return;
+    }
+
+    const applyFilter = (filter) => {
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        const visible = filter === "all" || row.dataset.batchCategory === filter;
+        row.hidden = !visible;
+        if (visible) {
+          visibleCount += 1;
+        }
+      });
+      buttons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.batchFilter === filter);
+      });
+      if (countLabel) {
+        countLabel.textContent = `${visibleCount} teklif`;
+      }
+    };
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => applyFilter(button.dataset.batchFilter || "all"));
+    });
+    applyFilter("all");
+  };
+
+  initBatchResultFilters();
 
   const renumberCreateItems = (container) => {
     const rows = Array.from(container.querySelectorAll(".create-item-row"));

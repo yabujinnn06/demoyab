@@ -2862,6 +2862,188 @@ section.app-card::before {
   box-shadow: inset 4px 0 #d9534f;
 }
 
+.batch-workspace-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.batch-control-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.batch-selection-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(18rem, 0.85fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.batch-selection-panel {
+  min-width: 0;
+  border: 1px solid #c7d7e6;
+  border-radius: 6px;
+  background: #f8fbff;
+}
+
+.batch-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.72rem 0.8rem;
+  border-bottom: 1px solid #d8e4ef;
+  background: #eef6fd;
+}
+
+.batch-panel-head strong,
+.batch-panel-head span {
+  display: block;
+}
+
+.batch-panel-head strong {
+  color: #18344f;
+  font-size: 0.9rem;
+}
+
+.batch-panel-head span {
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.batch-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.batch-offer-search {
+  margin: 0.65rem;
+  width: calc(100% - 1.3rem);
+}
+
+.batch-basket {
+  background: #ffffff;
+}
+
+.batch-selection-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 16rem;
+  overflow: auto;
+  padding: 0.65rem;
+}
+
+.batch-selection-item {
+  min-width: 0;
+  padding: 0.46rem 0.55rem;
+  border: 1px solid #d6e2ef;
+  border-radius: 5px;
+  background: #f9fcff;
+  color: #18344f;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.batch-selection-item span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-command-panel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+  padding: 0.85rem;
+  border: 1px solid #b7c9dc;
+  border-radius: 6px;
+  background: #f7fbff;
+}
+
+.batch-command-panel h3 {
+  margin: 0 0 0.28rem;
+  color: #18344f;
+  font-size: 1.06rem;
+  font-weight: 800;
+}
+
+.batch-command-panel p {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 0.88rem;
+}
+
+.batch-result-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
+}
+
+.batch-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.batch-filter-tabs button {
+  padding: 0.42rem 0.72rem;
+  border: 1px solid #b9cada;
+  border-radius: 5px;
+  color: #234c72;
+  background: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.batch-filter-tabs button.active {
+  color: #ffffff;
+  border-color: #1d62a9;
+  background: #1d62a9;
+}
+
+.batch-result-toolbar span {
+  color: var(--app-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.batch-issue-wrap {
+  max-height: 34rem;
+}
+
+.batch-issue-table {
+  min-width: 1060px;
+}
+
+.batch-issue-table th:nth-child(2),
+.batch-issue-table td:nth-child(2) {
+  width: 18rem;
+}
+
+.batch-issue-table th:nth-child(4),
+.batch-issue-table td:nth-child(4),
+.batch-issue-table th:nth-child(5),
+.batch-issue-table td:nth-child(5) {
+  width: 17rem;
+  text-align: left;
+  font-weight: 700;
+}
+
+.batch-issue-table td:nth-child(n+4):nth-child(-n+6) {
+  text-align: left;
+}
+
 @media (max-width: 767.98px) {
   .offer-template-banner {
     height: 64px;
@@ -3018,6 +3200,23 @@ section.app-card::before {
     grid-template-columns: 1fr;
   }
 
+  .batch-control-grid,
+  .batch-selection-board {
+    grid-template-columns: 1fr;
+  }
+
+  .batch-panel-head,
+  .batch-command-panel,
+  .batch-result-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .batch-panel-actions,
+  .batch-result-toolbar span {
+    justify-content: flex-start;
+  }
+
   .batch-upload-field {
     grid-column: auto;
   }
@@ -3034,6 +3233,10 @@ section.app-card::before {
 
   .batch-result-actions .btn,
   .batch-submit-row .btn {
+    width: 100%;
+  }
+
+  .batch-command-panel .batch-result-actions {
     width: 100%;
   }
 

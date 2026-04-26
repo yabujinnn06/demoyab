@@ -105,6 +105,7 @@ DATA_DIR = BASE_DIR / "veri"
 PRICE_LISTS_DIR = DATA_DIR / "fiyat_listeleri"
 ADMIN_SETTINGS_PATH = DATA_DIR / "admin_ayarlar.json"
 ACTIVITY_LOG_PATH = DATA_DIR / "offer_activity_log.json"
+BATCH_JOBS_DIR = DATA_DIR / "batch_jobs"
 OFFERS_DIR = BASE_DIR / "teklifler"
 TEMPLATES_PDF_DIR = BASE_DIR / "sablonlar"
 DEFAULT_ADMIN_PIN = "2834"
@@ -189,6 +190,8 @@ class BatchComparisonItem:
     metrics: dict[str, int] = field(default_factory=dict)
     financial_status: str = "-"
     error: str = ""
+    problem_summary: str = ""
+    next_step: str = ""
 
 
 @dataclass(slots=True)
@@ -238,6 +241,7 @@ def ensure_runtime_folders() -> None:
 def ensure_admin_storage() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     PRICE_LISTS_DIR.mkdir(parents=True, exist_ok=True)
+    BATCH_JOBS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def normalize_compare_mode(value: str | None) -> str:
@@ -1053,7 +1057,7 @@ def create_comparison_session(price_list_path: Path, offer_path: Path, price_mod
 
 
 def batch_item_from_session(session: ComparisonSession) -> BatchComparisonItem:
-    return BatchComparisonItem(
+    item = BatchComparisonItem(
         offer_path=session.offer_path,
         status="completed",
         session_token=session.token,
@@ -1062,13 +1066,65 @@ def batch_item_from_session(session: ComparisonSession) -> BatchComparisonItem:
         metrics=result_metrics(session.results),
         financial_status=session.financial_review.overall_status,
     )
+    enrich_batch_item(item)
+    return item
+
+
+def batch_item_issue_count(item: BatchComparisonItem) -> int:
+    return item.metrics.get("DUZELT", 0) + item.metrics.get("INCELE", 0) + item.metrics.get("ESLESMEDI", 0)
+
+
+def batch_item_needs_action(item: BatchComparisonItem) -> bool:
+    if item.status == "error":
+        return True
+    return bool(batch_item_issue_count(item) or item.financial_status != "ONAY")
+
+
+def batch_item_category(item: BatchComparisonItem) -> str:
+    if item.status == "error":
+        return "error"
+    if batch_item_needs_action(item):
+        return "action"
+    return "clean"
+
+
+def batch_item_problem_summary(item: BatchComparisonItem) -> str:
+    if item.status == "error":
+        return item.error or "Bu teklif işlenemedi."
+    problems: list[str] = []
+    if item.metrics.get("DUZELT", 0):
+        problems.append(f"{item.metrics.get('DUZELT', 0)} fiyat farkı")
+    if item.metrics.get("INCELE", 0):
+        problems.append(f"{item.metrics.get('INCELE', 0)} satır inceleme")
+    if item.metrics.get("ESLESMEDI", 0):
+        problems.append(f"{item.metrics.get('ESLESMEDI', 0)} eşleşmeyen ürün")
+    if item.financial_status != "ONAY":
+        problems.append("finansal özet uyarısı")
+    return ", ".join(problems) if problems else "İşlem gerekmiyor."
+
+
+def batch_item_next_step(item: BatchComparisonItem) -> str:
+    if item.status == "error":
+        return "Dosyayı, PDF tipini veya fiyat listesini kontrol edip yeniden çalıştır."
+    if item.metrics.get("ESLESMEDI", 0) or item.metrics.get("INCELE", 0):
+        return "İncele ekranında ürün eşleştir ve farkı yeniden değerlendir."
+    if item.metrics.get("DUZELT", 0):
+        return "Karar Merkezi'nde PDF'e yazılacak satırları onayla."
+    if item.financial_status != "ONAY":
+        return "Finansal kontrol detayını açıp toplam ve KDV değerlerini kontrol et."
+    return "Temiz; raporu arşivle veya ZIP içinde indir."
+
+
+def enrich_batch_item(item: BatchComparisonItem) -> BatchComparisonItem:
+    item.problem_summary = item.problem_summary or batch_item_problem_summary(item)
+    item.next_step = item.next_step or batch_item_next_step(item)
+    return item
 
 
 def batch_item_status_label(item: BatchComparisonItem) -> str:
     if item.status == "error":
         return "Hata"
-    issue_count = item.metrics.get("DUZELT", 0) + item.metrics.get("INCELE", 0) + item.metrics.get("ESLESMEDI", 0)
-    if issue_count:
+    if batch_item_issue_count(item):
         return "İnceleme gerekli"
     if item.financial_status != "ONAY":
         return "Finansal uyarı"
@@ -1085,6 +1141,104 @@ def batch_item_status_class(item: BatchComparisonItem) -> str:
     return "ok"
 
 
+def batch_job_storage_path(batch_token: str) -> Path:
+    return BATCH_JOBS_DIR / f"{batch_token}.json"
+
+
+def batch_item_to_payload(item: BatchComparisonItem) -> dict:
+    enrich_batch_item(item)
+    return {
+        "offer_path": relative_runtime_path(item.offer_path),
+        "status": item.status,
+        "session_token": item.session_token,
+        "output_path": relative_runtime_path(item.output_path) if item.output_path else "",
+        "selected_column": item.selected_column,
+        "metrics": {key: int(value) for key, value in item.metrics.items()},
+        "financial_status": item.financial_status,
+        "error": item.error,
+        "problem_summary": item.problem_summary,
+        "next_step": item.next_step,
+    }
+
+
+def batch_item_from_payload(payload: dict) -> BatchComparisonItem:
+    output_path_value = str(payload.get("output_path") or "").strip()
+    item = BatchComparisonItem(
+        offer_path=resolve_runtime_pdf_path(str(payload.get("offer_path") or "")),
+        status=str(payload.get("status") or "error"),
+        session_token=str(payload.get("session_token") or ""),
+        output_path=resolve_activity_file_path(output_path_value) if output_path_value else None,
+        selected_column=str(payload.get("selected_column") or ""),
+        metrics={str(key): int(value or 0) for key, value in dict(payload.get("metrics") or {}).items()},
+        financial_status=str(payload.get("financial_status") or "-"),
+        error=str(payload.get("error") or ""),
+        problem_summary=str(payload.get("problem_summary") or ""),
+        next_step=str(payload.get("next_step") or ""),
+    )
+    return enrich_batch_item(item)
+
+
+def batch_job_to_payload(job: BatchComparisonJob) -> dict:
+    return {
+        "token": job.token,
+        "price_list_path": relative_runtime_path(job.price_list_path),
+        "price_mode": job.price_mode,
+        "created_at": job.created_at.isoformat(),
+        "summary_path": relative_runtime_path(job.summary_path),
+        "items": [batch_item_to_payload(item) for item in job.items],
+    }
+
+
+def batch_job_from_payload(payload: dict) -> BatchComparisonJob:
+    created_at_raw = str(payload.get("created_at") or "")
+    try:
+        created_at = datetime.fromisoformat(created_at_raw)
+    except ValueError:
+        created_at = datetime.now()
+    summary_path_value = str(payload.get("summary_path") or "")
+    job = BatchComparisonJob(
+        token=str(payload.get("token") or ""),
+        price_list_path=resolve_activity_file_path(str(payload.get("price_list_path") or "")),
+        price_mode=normalize_compare_mode(str(payload.get("price_mode") or PRICE_MODE_AUTO)),
+        created_at=created_at,
+        summary_path=resolve_activity_file_path(summary_path_value) if summary_path_value else build_batch_summary_path(str(payload.get("token") or uuid.uuid4().hex)),
+        items=[batch_item_from_payload(item) for item in list(payload.get("items") or [])],
+    )
+    return job
+
+
+def save_batch_job(job: BatchComparisonJob) -> None:
+    ensure_admin_storage()
+    batch_job_storage_path(job.token).write_text(
+        json.dumps(batch_job_to_payload(job), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def load_batch_job(batch_token: str) -> BatchComparisonJob | None:
+    token = str(batch_token or "").strip()
+    if not token:
+        return None
+    cached = BATCHES.get(token)
+    if cached is not None:
+        return cached
+    path = batch_job_storage_path(token)
+    if not path.exists():
+        return None
+    try:
+        job = batch_job_from_payload(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if job.token:
+        BATCHES[job.token] = job
+    return job
+
+
+def register_batch_job(job: BatchComparisonJob) -> None:
+    BATCHES[job.token] = job
+    save_batch_job(job)
+
+
 def write_batch_summary(job: BatchComparisonJob) -> None:
     workbook = Workbook()
     sheet = workbook.active
@@ -1098,6 +1252,8 @@ def write_batch_summary(job: BatchComparisonJob) -> None:
         "Incele",
         "Eslesmedi",
         "Finansal",
+        "Problem",
+        "Siradaki Islem",
         "Rapor",
         "Hata",
     ]
@@ -1113,6 +1269,8 @@ def write_batch_summary(job: BatchComparisonJob) -> None:
                 item.metrics.get("INCELE", 0),
                 item.metrics.get("ESLESMEDI", 0),
                 item.financial_status,
+                enrich_batch_item(item).problem_summary,
+                enrich_batch_item(item).next_step,
                 relative_display_path(item.output_path) if item.output_path else "",
                 item.error,
             ]
@@ -1133,54 +1291,50 @@ def batch_job_view_model(request: Request, job: BatchComparisonJob | None) -> di
         return {"show": False, "rows": [], "metrics": {}, "token": ""}
     completed = sum(1 for item in job.items if item.status == "completed")
     failed = sum(1 for item in job.items if item.status == "error")
-    needs_review = sum(
-        1
-        for item in job.items
-        if item.status == "completed"
-        and (
-            item.metrics.get("DUZELT", 0)
-            or item.metrics.get("INCELE", 0)
-            or item.metrics.get("ESLESMEDI", 0)
-            or item.financial_status != "ONAY"
-        )
-    )
-    clean = sum(
-        1
-        for item in job.items
-        if item.status == "completed"
-        and not (
-            item.metrics.get("DUZELT", 0)
-            or item.metrics.get("INCELE", 0)
-            or item.metrics.get("ESLESMEDI", 0)
-            or item.financial_status != "ONAY"
-        )
-    )
+    needs_review = sum(1 for item in job.items if item.status == "completed" and batch_item_needs_action(item))
+    clean = sum(1 for item in job.items if item.status == "completed" and not batch_item_needs_action(item))
+    price_diff_count = sum(item.metrics.get("DUZELT", 0) for item in job.items)
+    unmatched_count = sum(item.metrics.get("ESLESMEDI", 0) + item.metrics.get("INCELE", 0) for item in job.items)
     row_views = []
     for index, item in enumerate(job.items, start=1):
+        enrich_batch_item(item)
         row_views.append(
             {
                 "index": index,
                 "offer_name": item.offer_path.name,
                 "status": batch_item_status_label(item),
                 "status_class": batch_item_status_class(item),
+                "category": batch_item_category(item),
+                "needs_action": batch_item_needs_action(item),
                 "session_token": item.session_token,
                 "selected_column": item.selected_column or "-",
                 "metrics": item.metrics,
                 "financial_status": item.financial_status,
                 "error": item.error,
+                "problem_summary": item.problem_summary,
+                "next_step": item.next_step,
                 "report_name": item.output_path.name if item.output_path else "-",
                 "view_url": (
                     request.url_for("offer-tool:view_session", token=item.session_token)
-                    if item.session_token
+                    if item.session_token and item.session_token in SESSIONS
                     else ""
                 ),
                 "report_url": (
-                    request.url_for("offer-tool:download_file", token=item.session_token, kind="report")
-                    if item.session_token
+                    request.url_for("offer-tool:download_batch_item_report", batch_token=job.token, item_index=index)
+                    if item.output_path
                     else ""
                 ),
             }
         )
+    if failed:
+        command_title = "Önce hata veren PDF'leri ayıkla"
+        command_copy = f"{failed} teklif işlenemedi. Hatalı satırları filtreleyip dosyaları yeniden seç."
+    elif needs_review:
+        command_title = "Aksiyon gereken teklifleri incele"
+        command_copy = f"{needs_review} teklif karar bekliyor. İncele butonuyla tekli karar ekranına geç."
+    else:
+        command_title = "Toplu kontrol temiz"
+        command_copy = "Excel özeti veya ZIP dosyasını indirip arşivleyebilirsin."
     return {
         "show": True,
         "token": job.token,
@@ -1190,12 +1344,15 @@ def batch_job_view_model(request: Request, job: BatchComparisonJob | None) -> di
         "summary_url": request.url_for("offer-tool:download_batch_summary", batch_token=job.token),
         "zip_url": request.url_for("offer-tool:download_batch_reports_zip", batch_token=job.token),
         "rows": row_views,
+        "command": {"title": command_title, "copy": command_copy},
         "metrics": {
             "total": len(job.items),
             "completed": completed,
             "failed": failed,
             "needs_review": needs_review,
             "clean": clean,
+            "price_diff": price_diff_count,
+            "unmatched": unmatched_count,
         },
     }
 
@@ -1405,7 +1562,7 @@ def build_context(
         has_corrected_pdf=has_corrected_pdf,
     )
 
-    valid_workspaces = {"compare", "results", "apply", "create"}
+    valid_workspaces = {"compare", "batch", "results", "apply", "create"}
     if offer_is_admin:
         valid_workspaces.add("settings")
     selected_offer_path = resolve_runtime_pdf_path(selected_offer_file) if selected_offer_file else None
@@ -1827,7 +1984,7 @@ async def batch_compare(
     request: Request,
     price_file: str = Form(""),
     price_mode: str = Form(PRICE_MODE_AUTO),
-    active_workspace: str = Form(default="compare"),
+    active_workspace: str = Form(default="batch"),
     offer_files: list[str] | None = Form(default=None),
     price_file_upload: UploadFile | None = File(default=None),
     offer_file_uploads: list[UploadFile] | None = File(default=None),
@@ -1849,14 +2006,23 @@ async def batch_compare(
         return templates.TemplateResponse("index.html", context, status_code=400)
 
     offer_paths: list[Path] = []
+    seen_offer_paths: set[str] = set()
+
+    def add_offer_path(path: Path) -> None:
+        key = str(path.resolve()) if path.exists() else str(path)
+        if key in seen_offer_paths:
+            return
+        seen_offer_paths.add(key)
+        offer_paths.append(path)
+
     for file_name in offer_files or []:
         if str(file_name or "").strip():
-            offer_paths.append(resolve_runtime_pdf_path(file_name))
+            add_offer_path(resolve_runtime_pdf_path(file_name))
 
     try:
         for upload in offer_file_uploads or []:
             if upload is not None and upload.filename:
-                offer_paths.append(import_offer_file(upload))
+                add_offer_path(import_offer_file(upload))
     except Exception as exc:
         context = build_context(
             request,
@@ -1895,6 +2061,7 @@ async def batch_compare(
                     error="Teklif PDF bulunamadı.",
                 )
             )
+            enrich_batch_item(job.items[-1])
             continue
         if is_template_pdf_path(offer_path):
             job.items.append(
@@ -1904,6 +2071,7 @@ async def batch_compare(
                     error="Şablon PDF kontrol listesine alınamaz.",
                 )
             )
+            enrich_batch_item(job.items[-1])
             continue
         try:
             session = create_comparison_session(price_list_path, offer_path, price_mode)
@@ -1916,9 +2084,10 @@ async def batch_compare(
                     error=str(exc),
                 )
             )
+            enrich_batch_item(job.items[-1])
 
     write_batch_summary(job)
-    BATCHES[job.token] = job
+    register_batch_job(job)
 
     first_completed = next((item for item in job.items if item.status == "completed"), None)
     remember_last_files(
@@ -1962,7 +2131,7 @@ async def batch_compare(
         selected_mode=price_mode,
         batch_job=job,
         notice=f"Toplu kontrol tamamlandı. {completed_count} teklif işlendi, {failed_count} hata var.",
-        active_workspace="compare",
+        active_workspace="batch",
     )
     return templates.TemplateResponse("index.html", context)
 
@@ -2504,9 +2673,26 @@ async def download_activity_log_csv(request: Request) -> Response:
     )
 
 
+@app.get("/batch/{batch_token}", response_class=HTMLResponse)
+async def view_batch(request: Request, batch_token: str) -> HTMLResponse:
+    job = load_batch_job(batch_token)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Toplu kontrol bulunamadı.")
+    return templates.TemplateResponse(
+        "index.html",
+        build_context(
+            request,
+            selected_price_file=job.price_list_path.name,
+            selected_mode=job.price_mode,
+            batch_job=job,
+            active_workspace="batch",
+        ),
+    )
+
+
 @app.get("/batch/{batch_token}/summary.xlsx")
 async def download_batch_summary(batch_token: str) -> FileResponse:
-    job = BATCHES.get(batch_token)
+    job = load_batch_job(batch_token)
     if job is None:
         raise HTTPException(status_code=404, detail="Toplu kontrol bulunamadı.")
     if not job.summary_path.exists():
@@ -2516,7 +2702,7 @@ async def download_batch_summary(batch_token: str) -> FileResponse:
 
 @app.get("/batch/{batch_token}/reports.zip")
 async def download_batch_reports_zip(batch_token: str) -> Response:
-    job = BATCHES.get(batch_token)
+    job = load_batch_job(batch_token)
     if job is None:
         raise HTTPException(status_code=404, detail="Toplu kontrol bulunamadı.")
 
@@ -2533,6 +2719,19 @@ async def download_batch_reports_zip(batch_token: str) -> Response:
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="toplu-kontrol-{batch_token[:8]}.zip"'},
     )
+
+
+@app.get("/batch/{batch_token}/report/{item_index}")
+async def download_batch_item_report(batch_token: str, item_index: int) -> FileResponse:
+    job = load_batch_job(batch_token)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Toplu kontrol bulunamadı.")
+    if item_index < 1 or item_index > len(job.items):
+        raise HTTPException(status_code=404, detail="Toplu kontrol satırı bulunamadı.")
+    item = job.items[item_index - 1]
+    if item.output_path is None or not item.output_path.exists():
+        raise HTTPException(status_code=404, detail="Teklif raporu bulunamadı.")
+    return FileResponse(item.output_path, filename=item.output_path.name)
 
 
 @app.get("/download/{token}/{kind}")

@@ -1323,8 +1323,10 @@ def test_batch_comparison_session_and_summary_are_reusable(tmp_path, monkeypatch
         return [fake_result], "2026 KURUMSAL NAKIT", final_report_path, ["2026 KURUMSAL NAKIT"], fake_review
 
     monkeypatch.setattr(offer_webapp, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(offer_webapp, "BATCH_JOBS_DIR", tmp_path / "batch_jobs")
     monkeypatch.setattr(offer_webapp, "run_comparison", fake_run_comparison)
     offer_webapp.SESSIONS.clear()
+    offer_webapp.BATCHES.clear()
 
     session = offer_webapp.create_comparison_session(price_path, offer_path, "kurumsal_nakit")
     item = offer_webapp.batch_item_from_session(session)
@@ -1337,11 +1339,18 @@ def test_batch_comparison_session_and_summary_are_reusable(tmp_path, monkeypatch
         items=[item],
     )
     offer_webapp.write_batch_summary(job)
+    offer_webapp.register_batch_job(job)
+    offer_webapp.BATCHES.clear()
+    reloaded_job = offer_webapp.load_batch_job(job.token)
 
     assert session.token in offer_webapp.SESSIONS
     assert item.metrics["ONAY"] == 1
     assert item.financial_status == "ONAY"
+    assert item.problem_summary == "İşlem gerekmiyor."
     assert job.summary_path.exists()
+    assert reloaded_job is not None
+    assert reloaded_job.items[0].offer_path.name == "teklif.pdf"
+    assert reloaded_job.items[0].problem_summary == "İşlem gerekmiyor."
 
 
 def test_batch_compare_route_renders_results_without_server_error(tmp_path, monkeypatch) -> None:
@@ -1424,10 +1433,16 @@ def test_batch_compare_route_renders_results_without_server_error(tmp_path, monk
         )
 
         assert response.status_code == 200
-        assert "Toplu kontrol sonucu" in response.text
+        assert "Toplu teklif kontrolü" in response.text
+        assert "Akıllı toplu komut" in response.text
         assert "a.pdf" in response.text
         assert "b.pdf" in response.text
         assert "Raporları ZIP indir" in response.text
+        batch_token = next(iter(offer_webapp.BATCHES))
+        offer_webapp.BATCHES.clear()
+        batch_response = client.get(f"/teklif/batch/{batch_token}")
+        assert batch_response.status_code == 200
+        assert "batch-issue-table" in batch_response.text
 
 
 def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) -> None:

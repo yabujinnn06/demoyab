@@ -10,6 +10,7 @@
         <strong data-workspace-current>
           {% if active_workspace == "results" %}Sonuç Analizi
           {% elif active_workspace == "apply" %}Karar Merkezi
+          {% elif active_workspace == "batch" %}Toplu Kontrol
           {% elif active_workspace == "create" %}Teklif Üretimi
           {% elif active_workspace == "settings" %}Sistem Ayarları
           {% else %}Kontrol Merkezi{% endif %}
@@ -42,6 +43,25 @@
         </button>
 
         <button
+          class="workspace-nav-link {% if active_workspace == 'batch' %}active{% endif %}"
+          type="button"
+          data-bs-toggle="pill"
+          data-bs-target="#workspace-pane-batch"
+          data-workspace-link
+          data-workspace-target="batch"
+          data-workspace-title="Toplu Kontrol"
+          data-workspace-summary="Birden fazla teklifi seç, hataları tek ekranda gör ve doğru satıra geç."
+          data-workspace-badge="Adım 02 / Toplu"
+          aria-selected="{% if active_workspace == 'batch' %}true{% else %}false{% endif %}"
+        >
+          <span class="workspace-nav-index">02</span>
+          <span class="workspace-nav-copy">
+            <strong>Toplu Kontrol</strong>
+            <small>PDF seçimi ve toplu hata ekranı</small>
+          </span>
+        </button>
+
+        <button
           class="workspace-nav-link {% if active_workspace == 'results' %}active{% endif %}"
           type="button"
           data-bs-toggle="pill"
@@ -50,11 +70,11 @@
           data-workspace-target="results"
           data-workspace-title="Sonuç Analizi"
           data-workspace-summary="Eşleşmeleri, metrikleri ve finansal kontrolleri aynı operasyon yüzeyinde incele."
-          data-workspace-badge="Adım 02 / Sonuç"
+          data-workspace-badge="Adım 03 / Sonuç"
           aria-selected="{% if active_workspace == 'results' %}true{% else %}false{% endif %}"
           {% if not has_results %}disabled aria-disabled="true"{% endif %}
         >
-          <span class="workspace-nav-index">02</span>
+          <span class="workspace-nav-index">03</span>
           <span class="workspace-nav-copy">
             <strong>Sonuç</strong>
             <small>Eşleşme ve finansal durum</small>
@@ -70,11 +90,11 @@
           data-workspace-target="apply"
           data-workspace-title="Karar Merkezi"
           data-workspace-summary="Elle ürün seçimi yap, farkı gör ve sadece seçilen düzeltmeleri PDF'e uygula."
-          data-workspace-badge="Adım 03 / Karar"
+          data-workspace-badge="Adım 04 / Karar"
           aria-selected="{% if active_workspace == 'apply' %}true{% else %}false{% endif %}"
           {% if not has_results %}disabled aria-disabled="true"{% endif %}
         >
-          <span class="workspace-nav-index">03</span>
+          <span class="workspace-nav-index">04</span>
           <span class="workspace-nav-copy">
             <strong>Karar Merkezi</strong>
             <small>Manuel eslestir ve uygula</small>
@@ -90,10 +110,10 @@
           data-workspace-target="create"
           data-workspace-title="Teklif Üretimi"
           data-workspace-summary="Sabit şablon, fiyat listesi ve ürün seçimleriyle yeni teklif PDF oluştur."
-          data-workspace-badge="Adım 04 / Üret"
+          data-workspace-badge="Adım 05 / Üret"
           aria-selected="{% if active_workspace == 'create' %}true{% else %}false{% endif %}"
         >
-          <span class="workspace-nav-index">04</span>
+          <span class="workspace-nav-index">05</span>
           <span class="workspace-nav-copy">
             <strong>Teklif Oluştur</strong>
             <small>Şablondan yeni PDF üret</small>
@@ -110,10 +130,10 @@
           data-workspace-target="settings"
           data-workspace-title="Sistem Ayarları"
           data-workspace-summary="Aktif kütüphaneleri, varsayılan modları ve şablon havuzunu yönet."
-          data-workspace-badge="Adım 05 / Ayarlar"
+          data-workspace-badge="Adım 06 / Ayarlar"
           aria-selected="{% if active_workspace == 'settings' %}true{% else %}false{% endif %}"
         >
-          <span class="workspace-nav-index">05</span>
+          <span class="workspace-nav-index">06</span>
           <span class="workspace-nav-copy">
             <strong>Ayarlar</strong>
             <small>Kütüphane ve varsayılanlar</small>
@@ -376,14 +396,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Teklif Ofisi</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260426-batch-compare">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260426-batch-workspace">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260426-batch-compare"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260426-batch-workspace"></script>
 </head>
 <body
   class="app-body"
   data-active-workspace="{{ active_workspace }}"
-  data-prefer-server-workspace="{% if feedback.show or active_workspace in ['results', 'apply'] %}true{% else %}false{% endif %}"
+  data-prefer-server-workspace="{% if feedback.show or active_workspace in ['batch', 'results', 'apply'] %}true{% else %}false{% endif %}"
   {% if auto_download_corrected and token %}data-auto-download-url="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}"{% endif %}
   {% if play_result_sound and result_sound_key %}data-result-sound-url="{{ request.url_for('offer-tool:offer_static', path='audio/choose2.wav') }}" data-result-sound-key="{{ result_sound_key }}"{% endif %}
 >
@@ -552,19 +572,23 @@
         {% if active_workspace == "results" %}
           {% set workspace_title = "Sonuç Analizi" %}
           {% set workspace_summary = "Eşleşmeleri, metrikleri ve finansal kontrolleri tek operasyon yüzeyinde incele." %}
-          {% set workspace_badge = "Adım 02 / Sonuç" %}
+          {% set workspace_badge = "Adım 03 / Sonuç" %}
         {% elif active_workspace == "apply" %}
           {% set workspace_title = "Karar Merkezi" %}
           {% set workspace_summary = "Elle ürün seç, fiyat farkını gör ve sadece seçili düzeltmeleri PDF'e uygula." %}
-          {% set workspace_badge = "Adım 03 / Karar" %}
+          {% set workspace_badge = "Adım 04 / Karar" %}
+        {% elif active_workspace == "batch" %}
+          {% set workspace_title = "Toplu Kontrol" %}
+          {% set workspace_summary = "Birden fazla teklifi seç, hataları tek ekranda gör ve doğru satıra geç." %}
+          {% set workspace_badge = "Adım 02 / Toplu" %}
         {% elif active_workspace == "create" %}
           {% set workspace_title = "Teklif Üretimi" %}
           {% set workspace_summary = "Sabit şablon ve katalog seçimleriyle yeni teklif PDF'ini tek akışta üret." %}
-          {% set workspace_badge = "Adım 04 / Üret" %}
+          {% set workspace_badge = "Adım 05 / Üret" %}
         {% elif active_workspace == "settings" %}
           {% set workspace_title = "Sistem Ayarları" %}
           {% set workspace_summary = "Aktif kütüphaneleri, varsayılan modları ve şablon havuzunu bu alandan yönet." %}
-          {% set workspace_badge = "Adım 05 / Ayarlar" %}
+          {% set workspace_badge = "Adım 06 / Ayarlar" %}
         {% else %}
           {% set workspace_title = "Kontrol Merkezi" %}
           {% set workspace_summary = "Fiyat listesi ve teklif PDF seçerek karşılaştırmayı başlat." %}
@@ -700,158 +724,204 @@
                 </div>
               </form>
 
-              <div class="batch-compare-panel">
-                <div class="batch-compare-head">
-                  <div>
-                    <p class="section-kicker mb-2">Toplu kontrol</p>
-                    <h3>Birden fazla teklifi aynı fiyat listesiyle kontrol et</h3>
-                    <p>Toplu sonuç sadece özetler; satır düzeltmeleri mevcut Sonuç ve Karar Merkezi akışında açılır.</p>
-                  </div>
-                  <span class="status-chip">Maks. 20 PDF</span>
-                </div>
-
-                <form method="post" action="{{ request.url_for('offer-tool:batch_compare') }}" enctype="multipart/form-data" class="batch-compare-form">
-                  <input type="hidden" name="active_workspace" value="compare">
-                  <div>
-                    <label class="form-label" for="batch-price-file">Fiyat listesi</label>
-                    <select class="form-select" id="batch-price-file" name="price_file">
-                      {% if not price_files %}
-                        <option value="">Kayıtlı fiyat listesi yok</option>
-                      {% endif %}
-                      {% for file_name in price_files %}
-                        <option value="{{ file_name }}" {% if file_name == selected_price_file %}selected{% endif %}>{{ file_name }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="form-label" for="batch-price-upload">Yeni fiyat listesi</label>
-                    <input class="form-control" id="batch-price-upload" type="file" name="price_file_upload" accept=".xlsx,.xlsm">
-                  </div>
-
-                  <div>
-                    <label class="form-label" for="batch-price-mode">Fiyat modu</label>
-                    <select class="form-select" id="batch-price-mode" name="price_mode">
-                      {% for group in price_mode_groups %}
-                        <optgroup label="{{ group.title }}">
-                          {% for item in group.options %}
-                            <option value="{{ item.value }}" {% if item.value == selected_mode %}selected{% endif %}>{{ item.label }}</option>
-                          {% endfor %}
-                        </optgroup>
-                      {% endfor %}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="form-label" for="batch-offer-files">Kayıtlı teklifler</label>
-                    <div class="batch-offer-picker" id="batch-offer-files">
-                      {% for file_name in offer_files %}
-                        <label class="batch-offer-option">
-                          <input class="form-check-input" type="checkbox" name="offer_files" value="{{ file_name }}">
-                          <span>{{ file_name }}</span>
-                        </label>
-                      {% else %}
-                        <p class="helper-text mb-0">Kayıtlı teklif PDF yok.</p>
-                      {% endfor %}
-                    </div>
-                  </div>
-
-                  <div class="batch-upload-field">
-                    <label class="form-label" for="batch-offer-uploads">Yeni teklif PDF'leri</label>
-                    <input
-                      class="form-control"
-                      id="batch-offer-uploads"
-                      type="file"
-                      name="offer_file_uploads"
-                      accept=".pdf"
-                      multiple
-                      data-batch-file-input
-                    >
-                    <div class="batch-file-staging" data-batch-file-panel hidden>
-                      <div class="batch-file-staging-head">
-                        <strong data-batch-file-count>0 PDF seçildi</strong>
-                        <button class="btn btn-sm btn-outline-secondary" type="button" data-batch-file-clear>Temizle</button>
-                      </div>
-                      <div class="batch-file-list" data-batch-file-list></div>
-                    </div>
-                  </div>
-
-                  <div class="batch-submit-row">
-                    <button class="btn btn-primary btn-lg" type="submit">Toplu kontrolü başlat</button>
-                    <p class="helper-text mb-0">Seçilen her PDF için ayrı Excel raporu, tek toplu özet ve ZIP çıktısı hazırlanır.</p>
-                  </div>
-                </form>
-              </div>
-
-              {% if batch_result.show %}
-                <section class="batch-result-panel" aria-labelledby="batch-result-heading">
-                  <div class="batch-result-head">
-                    <div>
-                      <p class="section-kicker mb-2">Toplu kontrol sonucu</p>
-                      <h3 id="batch-result-heading">{{ batch_result.metrics.total }} teklif işlendi</h3>
-                      <p>{{ batch_result.price_file }} · {{ batch_result.price_mode }} · {{ batch_result.created_at }}</p>
-                    </div>
-                    <div class="batch-result-actions">
-                      <a class="btn btn-outline-primary" href="{{ batch_result.summary_url }}">Toplu Excel</a>
-                      <a class="btn btn-primary" href="{{ batch_result.zip_url }}">Raporları ZIP indir</a>
-                    </div>
-                  </div>
-
-                  <div class="batch-metric-grid">
-                    <article><span>Temiz</span><strong>{{ batch_result.metrics.clean }}</strong></article>
-                    <article><span>İnceleme</span><strong>{{ batch_result.metrics.needs_review }}</strong></article>
-                    <article><span>Tamam</span><strong>{{ batch_result.metrics.completed }}</strong></article>
-                    <article><span>Hata</span><strong>{{ batch_result.metrics.failed }}</strong></article>
-                  </div>
-
-                  <div class="batch-result-table-wrap" tabindex="0">
-                    <table class="batch-result-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Teklif</th>
-                          <th>Durum</th>
-                          <th>Onay</th>
-                          <th>Düzelt</th>
-                          <th>İncele</th>
-                          <th>Eşleşmedi</th>
-                          <th>Finansal</th>
-                          <th>Aksiyon</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for item in batch_result.rows %}
-                          <tr class="batch-row-{{ item.status_class }}">
-                            <td>{{ item.index }}</td>
-                            <td>
-                              <strong>{{ item.offer_name }}</strong>
-                              <span>{{ item.selected_column }}</span>
-                              {% if item.error %}<small>{{ item.error }}</small>{% endif %}
-                            </td>
-                            <td><span class="status-pill status-{{ item.status_class }}">{{ item.status }}</span></td>
-                            <td>{{ item.metrics.get('ONAY', 0) }}</td>
-                            <td>{{ item.metrics.get('DUZELT', 0) }}</td>
-                            <td>{{ item.metrics.get('INCELE', 0) }}</td>
-                            <td>{{ item.metrics.get('ESLESMEDI', 0) }}</td>
-                            <td>{{ item.financial_status }}</td>
-                            <td>
-                              <div class="batch-row-actions">
-                                {% if item.view_url %}
-                                  <a class="btn btn-sm btn-outline-primary" href="{{ item.view_url }}">İncele</a>
-                                {% endif %}
-                                {% if item.report_url %}
-                                  <a class="btn btn-sm btn-outline-secondary" href="{{ item.report_url }}">Excel</a>
-                                {% endif %}
-                              </div>
-                            </td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              {% endif %}
             </div>
+              </section>
+            </div>
+
+            <div class="tab-pane fade {% if active_workspace == 'batch' %}show active{% endif %}" id="workspace-pane-batch" role="tabpanel" tabindex="0">
+              <section class="card app-card shadow-sm border-0" id="batch">
+                <div class="card-body p-4 p-xxl-5">
+                  <div class="batch-compare-head">
+                    <div>
+                      <p class="section-kicker mb-2">2. Toplu Kontrol</p>
+                      <h2 class="h3 mb-2">Toplu teklif kontrolü</h2>
+                      <p class="section-copy mb-0">Kayıtlı ve yeni PDF'leri aynı sepet içinde topla, sonra sonuçları tek hata ekranında yönet.</p>
+                    </div>
+                    <span class="status-chip">Maks. 20 PDF</span>
+                  </div>
+
+                  <form method="post" action="{{ request.url_for('offer-tool:batch_compare') }}" enctype="multipart/form-data" class="batch-workspace-form">
+                    <input type="hidden" name="active_workspace" value="batch">
+
+                    <div class="batch-control-grid">
+                      <div>
+                        <label class="form-label" for="batch-price-file">Fiyat listesi</label>
+                        <select class="form-select" id="batch-price-file" name="price_file">
+                          {% if not price_files %}
+                            <option value="">Kayıtlı fiyat listesi yok</option>
+                          {% endif %}
+                          {% for file_name in price_files %}
+                            <option value="{{ file_name }}" {% if file_name == selected_price_file %}selected{% endif %}>{{ file_name }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label class="form-label" for="batch-price-upload">Yeni fiyat listesi</label>
+                        <input class="form-control" id="batch-price-upload" type="file" name="price_file_upload" accept=".xlsx,.xlsm">
+                      </div>
+
+                      <div>
+                        <label class="form-label" for="batch-price-mode">Fiyat modu</label>
+                        <select class="form-select" id="batch-price-mode" name="price_mode">
+                          {% for group in price_mode_groups %}
+                            <optgroup label="{{ group.title }}">
+                              {% for item in group.options %}
+                                <option value="{{ item.value }}" {% if item.value == selected_mode %}selected{% endif %}>{{ item.label }}</option>
+                              {% endfor %}
+                            </optgroup>
+                          {% endfor %}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div class="batch-selection-board" data-batch-selection-board>
+                      <section class="batch-selection-panel">
+                        <div class="batch-panel-head">
+                          <div>
+                            <strong>Kayıtlı teklifler</strong>
+                            <span data-batch-registered-count>0 seçili</span>
+                          </div>
+                          <div class="batch-panel-actions">
+                            <button class="btn btn-sm btn-outline-secondary" type="button" data-batch-select-visible>Görünenleri seç</button>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" data-batch-clear-offers>Temizle</button>
+                          </div>
+                        </div>
+                        <input class="form-control batch-offer-search" type="search" placeholder="Teklif adı ara" data-batch-offer-search>
+                        <div class="batch-offer-picker" id="batch-offer-files">
+                          {% for file_name in offer_files %}
+                            <label class="batch-offer-option" data-batch-offer-option data-search="{{ file_name|lower }}">
+                              <input class="form-check-input" type="checkbox" name="offer_files" value="{{ file_name }}" data-batch-offer-checkbox>
+                              <span>{{ file_name }}</span>
+                            </label>
+                          {% else %}
+                            <p class="helper-text mb-0">Kayıtlı teklif PDF yok.</p>
+                          {% endfor %}
+                        </div>
+                      </section>
+
+                      <section class="batch-selection-panel">
+                        <div class="batch-panel-head">
+                          <div>
+                            <strong>Yeni PDF yükle</strong>
+                            <span data-batch-file-count>0 PDF seçildi</span>
+                          </div>
+                          <button class="btn btn-sm btn-outline-secondary" type="button" data-batch-file-clear>Yüklenenleri temizle</button>
+                        </div>
+                        <input
+                          class="form-control"
+                          id="batch-offer-uploads"
+                          type="file"
+                          name="offer_file_uploads"
+                          accept=".pdf"
+                          multiple
+                          data-batch-file-input
+                        >
+                        <div class="batch-file-staging" data-batch-file-panel hidden>
+                          <div class="batch-file-list" data-batch-file-list></div>
+                        </div>
+                      </section>
+
+                      <aside class="batch-selection-panel batch-basket">
+                        <div class="batch-panel-head">
+                          <div>
+                            <strong>Kontrol sepeti</strong>
+                            <span data-batch-total-count>0 PDF</span>
+                          </div>
+                        </div>
+                        <div class="batch-selection-list" data-batch-selection-list>
+                          <p class="helper-text mb-0">Henüz PDF seçilmedi.</p>
+                        </div>
+                      </aside>
+                    </div>
+
+                    <div class="batch-submit-row">
+                      <button class="btn btn-primary btn-lg" type="submit">Toplu kontrolü başlat</button>
+                      <p class="helper-text mb-0">Her teklif ayrı raporlanır; sonuçlar alttaki toplu hata ekranında filtrelenir.</p>
+                    </div>
+                  </form>
+
+                  {% if batch_result.show %}
+                    <section class="batch-result-panel" aria-labelledby="batch-result-heading">
+                      <div class="batch-command-panel">
+                        <div>
+                          <p class="section-kicker mb-2">Akıllı toplu komut</p>
+                          <h3 id="batch-result-heading">{{ batch_result.command.title }}</h3>
+                          <p>{{ batch_result.command.copy }}</p>
+                        </div>
+                        <div class="batch-result-actions">
+                          <a class="btn btn-outline-primary" href="{{ batch_result.summary_url }}">Toplu Excel</a>
+                          <a class="btn btn-primary" href="{{ batch_result.zip_url }}">Raporları ZIP indir</a>
+                        </div>
+                      </div>
+
+                      <div class="batch-metric-grid">
+                        <article><span>Toplam</span><strong>{{ batch_result.metrics.total }}</strong></article>
+                        <article><span>Aksiyon</span><strong>{{ batch_result.metrics.needs_review }}</strong></article>
+                        <article><span>Fiyat farkı</span><strong>{{ batch_result.metrics.price_diff }}</strong></article>
+                        <article><span>Hata</span><strong>{{ batch_result.metrics.failed }}</strong></article>
+                      </div>
+
+                      <div class="batch-result-toolbar">
+                        <div class="batch-filter-tabs" role="tablist" aria-label="Toplu kontrol filtreleri">
+                          <button class="active" type="button" data-batch-filter="all">Tümü</button>
+                          <button type="button" data-batch-filter="action">Aksiyon</button>
+                          <button type="button" data-batch-filter="error">Hata</button>
+                          <button type="button" data-batch-filter="clean">Temiz</button>
+                        </div>
+                        <span data-batch-filter-count>{{ batch_result.metrics.total }} teklif</span>
+                      </div>
+
+                      <div class="batch-result-table-wrap batch-issue-wrap" tabindex="0">
+                        <table class="batch-result-table batch-issue-table">
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>Teklif</th>
+                              <th>Durum</th>
+                              <th>Problem</th>
+                              <th>Sıradaki işlem</th>
+                              <th>Özet</th>
+                              <th>Aksiyon</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {% for item in batch_result.rows %}
+                              <tr class="batch-row-{{ item.status_class }}" data-batch-row data-batch-category="{{ item.category }}">
+                                <td>{{ item.index }}</td>
+                                <td>
+                                  <strong>{{ item.offer_name }}</strong>
+                                  <span>{{ item.selected_column }}</span>
+                                </td>
+                                <td><span class="status-pill status-{{ item.status_class }}">{{ item.status }}</span></td>
+                                <td>
+                                  <strong>{{ item.problem_summary }}</strong>
+                                  {% if item.error %}<small>{{ item.error }}</small>{% endif %}
+                                </td>
+                                <td><span>{{ item.next_step }}</span></td>
+                                <td>
+                                  <small>Onay {{ item.metrics.get('ONAY', 0) }} · Düzelt {{ item.metrics.get('DUZELT', 0) }}</small>
+                                  <small>İncele {{ item.metrics.get('INCELE', 0) }} · Eşleşmedi {{ item.metrics.get('ESLESMEDI', 0) }}</small>
+                                  <small>Finansal {{ item.financial_status }}</small>
+                                </td>
+                                <td>
+                                  <div class="batch-row-actions">
+                                    {% if item.view_url %}
+                                      <a class="btn btn-sm btn-outline-primary" href="{{ item.view_url }}">İncele</a>
+                                    {% endif %}
+                                    {% if item.report_url %}
+                                      <a class="btn btn-sm btn-outline-secondary" href="{{ item.report_url }}">Excel</a>
+                                    {% endif %}
+                                  </div>
+                                </td>
+                              </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  {% endif %}
+                </div>
               </section>
             </div>
 
