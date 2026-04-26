@@ -1020,6 +1020,17 @@ section.app-card::before {
   padding: 1.2rem;
 }
 
+.result-review-card[data-result-card] {
+  cursor: pointer;
+}
+
+.result-review-card[data-result-card]:hover,
+.result-review-card[data-result-card]:focus-visible {
+  border-color: rgba(11, 134, 200, 0.36);
+  box-shadow: 0 0 0 0.18rem rgba(11, 134, 200, 0.08), var(--app-shadow-soft);
+  outline: 0;
+}
+
 .finance-review-card {
   padding: 1.15rem;
 }

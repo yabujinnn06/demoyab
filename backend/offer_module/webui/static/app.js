@@ -211,6 +211,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 220);
   };
 
+  const focusDecisionCardByIndex = (index) => {
+    if (index === undefined || index === null || index === "") {
+      return;
+    }
+    focusDecisionCard(document.getElementById(`decision-row-${index}`));
+  };
+
+  document.querySelectorAll("[data-result-card]").forEach((card) => {
+    const openDecision = () => focusDecisionCardByIndex(card.dataset.reviewIndex);
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("a, button, input, select, textarea, label")) {
+        return;
+      }
+      openDecision();
+    });
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      openDecision();
+    });
+  });
+
   const updateCorrectionSelectionState = () => {
     const { selectedCards, waitingCards } = getDecisionState();
     const selectedCount = selectedCards.length;
