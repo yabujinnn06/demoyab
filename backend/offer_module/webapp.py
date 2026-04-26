@@ -1,4 +1,6 @@
 from __future__ import annotations
+import csv
+import io
 import json
 import os
 import socket
@@ -14,7 +16,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -99,6 +101,7 @@ ASSETS_DIR = resolve_assets_dir()
 DATA_DIR = BASE_DIR / "veri"
 PRICE_LISTS_DIR = DATA_DIR / "fiyat_listeleri"
 ADMIN_SETTINGS_PATH = DATA_DIR / "admin_ayarlar.json"
+ACTIVITY_LOG_PATH = DATA_DIR / "offer_activity_log.json"
 OFFERS_DIR = BASE_DIR / "teklifler"
 TEMPLATES_PDF_DIR = BASE_DIR / "sablonlar"
 DEFAULT_ADMIN_PIN = "2834"
@@ -149,6 +152,12 @@ STATUS_CLASS = {
     "INCELE": "warn",
     "ESLESMEDI": "info",
 }
+ACTIVITY_ACTION_LABELS = {
+    "compare": "Kontrol raporu",
+    "correct": "PDF düzeltme",
+    "create": "Teklif üretimi",
+}
+ACTIVITY_LOG_LIMIT = 500
 
 
 @dataclass(slots=True)
@@ -453,6 +462,125 @@ def relative_runtime_path(path: Path) -> str:
         return path.resolve().relative_to(BASE_DIR.resolve()).as_posix()
     except ValueError:
         return path.name
+
+
+def resolve_activity_file_path(file_name: str) -> Path:
+    raw_name = str(file_name or "").strip()
+    if not raw_name:
+        return BASE_DIR / raw_name
+    raw_path = Path(raw_name)
+    candidate = raw_path if raw_path.is_absolute() else BASE_DIR / raw_path
+    candidate = candidate.resolve()
+    if is_inside_base_dir(candidate):
+        return candidate
+    return BASE_DIR / raw_path.name
+
+
+def activity_file_payload(path: Path, label: str, kind: str) -> dict:
+    return {
+        "label": label,
+        "kind": kind,
+        "path": relative_runtime_path(path),
+        "name": path.name,
+    }
+
+
+def load_activity_log() -> list[dict]:
+    ensure_admin_storage()
+    if not ACTIVITY_LOG_PATH.exists():
+        return []
+    try:
+        raw = json.loads(ACTIVITY_LOG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    if not isinstance(raw, list):
+        return []
+    return [entry for entry in raw if isinstance(entry, dict)]
+
+
+def save_activity_log(entries: list[dict]) -> None:
+    ensure_admin_storage()
+    limited_entries = entries[:ACTIVITY_LOG_LIMIT]
+    temp_path = ACTIVITY_LOG_PATH.with_suffix(".tmp")
+    temp_path.write_text(json.dumps(limited_entries, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path.replace(ACTIVITY_LOG_PATH)
+
+
+def append_activity_log(
+    request: Request,
+    *,
+    action: str,
+    summary: str,
+    files: list[dict] | None = None,
+    details: dict | None = None,
+) -> dict:
+    user = get_offer_portal_user(request)
+    now = datetime.now()
+    entry = {
+        "id": uuid.uuid4().hex,
+        "created_at": now.isoformat(timespec="seconds"),
+        "actor_id": user.id if user else "",
+        "actor_email": user.email if user else "bilinmeyen",
+        "actor_name": user.full_name if user and user.full_name else "",
+        "action": action,
+        "action_label": ACTIVITY_ACTION_LABELS.get(action, action),
+        "summary": summary,
+        "files": files or [],
+        "details": details or {},
+    }
+    save_activity_log([entry, *load_activity_log()])
+    return entry
+
+
+def activity_entry_view_model(request: Request, entry: dict) -> dict:
+    files: list[dict] = []
+    for index, file_info in enumerate(entry.get("files") or []):
+        if not isinstance(file_info, dict):
+            continue
+        path = resolve_activity_file_path(str(file_info.get("path") or ""))
+        exists = path.exists() and path.is_file()
+        files.append(
+            {
+                "label": str(file_info.get("label") or file_info.get("name") or path.name),
+                "name": str(file_info.get("name") or path.name),
+                "kind": str(file_info.get("kind") or ""),
+                "exists": exists,
+                "url": (
+                    request.url_for(
+                        "offer-tool:download_activity_file",
+                        entry_id=str(entry.get("id") or ""),
+                        file_index=index,
+                    )
+                    if exists
+                    else ""
+                ),
+            }
+        )
+    actor = str(entry.get("actor_name") or entry.get("actor_email") or "Bilinmeyen")
+    details = entry.get("details") if isinstance(entry.get("details"), dict) else {}
+    created_at = str(entry.get("created_at") or "")
+    return {
+        "id": str(entry.get("id") or ""),
+        "created_at": created_at,
+        "created_at_display": created_at.replace("T", " ")[:19],
+        "actor": actor,
+        "actor_email": str(entry.get("actor_email") or ""),
+        "action": str(entry.get("action") or ""),
+        "action_label": str(entry.get("action_label") or ACTIVITY_ACTION_LABELS.get(str(entry.get("action") or ""), "")),
+        "summary": str(entry.get("summary") or ""),
+        "details": details,
+        "files": files,
+        "file_count": len(files),
+        "search_text": " ".join(
+            [
+                actor,
+                str(entry.get("actor_email") or ""),
+                str(entry.get("action_label") or ""),
+                str(entry.get("summary") or ""),
+                " ".join(file_item["name"] for file_item in files),
+            ]
+        ).lower(),
+    }
 
 
 def resolve_runtime_pdf_path(file_name: str) -> Path:
@@ -1021,6 +1149,7 @@ def build_context(
     apply_ready_count = 0
     review_needed_count = 0
     result_effective_price_mode = ""
+    activity_entries: list[dict] = []
 
     if session is not None:
         metrics = Counter(result.status for result in session.results)
@@ -1045,6 +1174,9 @@ def build_context(
             if session.price_mode != PRICE_MODE_AUTO
             else infer_price_mode_from_selected_column(session.selected_column)
         )
+
+    if offer_is_admin:
+        activity_entries = [activity_entry_view_model(request, entry) for entry in load_activity_log()]
 
     feedback = build_feedback_state(
         notice=notice,
@@ -1110,6 +1242,9 @@ def build_context(
         "default_compare_mode": admin_settings.get("default_compare_mode") or PRICE_MODE_AUTO,
         "default_create_mode": admin_settings.get("default_create_mode") or "kurumsal_6",
         "default_vat_mode": admin_settings.get("default_vat_mode") or VAT_MODE_INCLUDED,
+        "offer_activity_entries": activity_entries,
+        "offer_activity_latest": activity_entries[0] if activity_entries else None,
+        "offer_activity_action_labels": ACTIVITY_ACTION_LABELS,
         "workspace_cards": workspace_snapshot["workspace_cards"],
         "workspace_folders": workspace_snapshot["workspace_folders"],
         "recent_files": workspace_snapshot["recent_files"],
@@ -1453,6 +1588,21 @@ async def compare(
         financial_review=financial_review,
     )
     SESSIONS[session.token] = session
+    append_activity_log(
+        request,
+        action="compare",
+        summary=f"{offer_path.name} kontrol edildi; referans fiyat tipi {used_column}.",
+        files=[
+            activity_file_payload(final_output_path, "Excel raporu", "report"),
+            activity_file_payload(offer_path, "Kontrol edilen teklif", "source"),
+        ],
+        details={
+            "price_file": price_list_path.name,
+            "offer_file": offer_path.name,
+            "reference_column": used_column,
+            "row_count": len(results),
+        },
+    )
 
     context = build_context(
         request,
@@ -1588,6 +1738,22 @@ async def apply_corrections(
         return templates.TemplateResponse("index.html", context, status_code=400)
 
     session.corrected_pdf_path = corrected_path
+    append_activity_log(
+        request,
+        action="correct",
+        summary=f"{session.offer_path.name} için {len(actionable_indexes)} satır PDF'e işlendi.",
+        files=[
+            activity_file_payload(corrected_path, "Düzenlenmiş PDF", "corrected"),
+            activity_file_payload(session.output_path, "Excel raporu", "report"),
+            activity_file_payload(session.offer_path, "Kaynak teklif", "source"),
+        ],
+        details={
+            "selected_count": len(actionable_indexes),
+            "manual_override_count": manual_override_count,
+            "price_file": session.price_list_path.name,
+            "reference_column": session.selected_column,
+        },
+    )
     context = build_context(
         request,
         selected_price_file=session.price_list_path.name,
@@ -1917,8 +2083,75 @@ async def create_offer(
     settings = load_admin_settings()
     settings["active_template_file"] = relative_runtime_path(template_path)
     save_admin_settings(settings)
+    append_activity_log(
+        request,
+        action="create",
+        summary=f"{generated_offer_path.name} oluşturuldu; müşteri {company_name.strip() or contact_name.strip() or '-'}",
+        files=[
+            activity_file_payload(generated_offer_path, "Oluşturulan teklif", "generated"),
+            activity_file_payload(template_path, "Kullanılan şablon", "template"),
+            activity_file_payload(price_list_path, "Fiyat listesi", "price"),
+        ],
+        details={
+            "offer_number": resolved_offer_number,
+            "company_name": company_name.strip(),
+            "contact_name": contact_name.strip(),
+            "item_count": len(selected_entries),
+            "price_mode": price_label,
+            "vat_mode": VAT_MODE_LABELS.get(vat_mode, vat_mode),
+        },
+    )
 
     return FileResponse(generated_offer_path, filename=generated_offer_path.name)
+
+
+@app.get("/admin/activity-file/{entry_id}/{file_index}")
+async def download_activity_file(request: Request, entry_id: str, file_index: int) -> FileResponse:
+    try:
+        require_offer_admin(request)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    entry = next((item for item in load_activity_log() if str(item.get("id") or "") == entry_id), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Log kaydı bulunamadı.")
+    files = entry.get("files") if isinstance(entry.get("files"), list) else []
+    if file_index < 0 or file_index >= len(files) or not isinstance(files[file_index], dict):
+        raise HTTPException(status_code=404, detail="Log dosyası bulunamadı.")
+    path = resolve_activity_file_path(str(files[file_index].get("path") or ""))
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Dosya artık bulunamıyor.")
+    return FileResponse(path, filename=path.name)
+
+
+@app.get("/admin/activity-log.csv")
+async def download_activity_log_csv(request: Request) -> Response:
+    try:
+        require_offer_admin(request)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Tarih", "Kullanıcı", "E-posta", "İşlem", "Özet", "Dosyalar"])
+    for entry in load_activity_log():
+        files = entry.get("files") if isinstance(entry.get("files"), list) else []
+        writer.writerow(
+            [
+                str(entry.get("created_at") or "").replace("T", " ")[:19],
+                str(entry.get("actor_name") or entry.get("actor_email") or ""),
+                str(entry.get("actor_email") or ""),
+                str(entry.get("action_label") or ACTIVITY_ACTION_LABELS.get(str(entry.get("action") or ""), "")),
+                str(entry.get("summary") or ""),
+                ", ".join(str(file_info.get("name") or file_info.get("path") or "") for file_info in files if isinstance(file_info, dict)),
+            ]
+        )
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    return Response(
+        csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="teklif-islem-logu.csv"'},
+    )
 
 
 @app.get("/download/{token}/{kind}")

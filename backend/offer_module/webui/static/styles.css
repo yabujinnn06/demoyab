@@ -2298,22 +2298,186 @@ section.app-card::before {
 }
 
 .offer-template-banner {
+  position: relative;
   width: 100%;
+  height: clamp(82px, 7.6vw, 122px);
   background: #358fe0;
+  overflow: hidden;
 }
 
 .offer-template-banner-image {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: fill;
+}
+
+.offer-header-log-zone {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: min(47%, 620px);
+  padding: 0.8rem 1.4rem;
+  background:
+    linear-gradient(90deg, rgba(61, 156, 228, 0.2), rgba(48, 139, 221, 0.98) 28%, rgba(49, 140, 221, 1));
+}
+
+.offer-header-log-zone:not(.has-log) {
+  pointer-events: none;
+}
+
+.offer-header-log-card {
+  width: min(100%, 24rem);
+  padding: 0.75rem 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  text-align: left;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.offer-header-log-card:hover,
+.offer-header-log-card:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.offer-header-log-card span,
+.offer-header-log-card small {
+  display: block;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.offer-header-log-card strong {
+  display: block;
+  margin: 0.15rem 0;
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1.25;
 }
 
 .offer-header-action-row {
   border-top: 1px solid rgba(255, 255, 255, 0.85);
 }
 
+.activity-log-modal .modal-content {
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.activity-log-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(170px, 0.35fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.activity-log-table-wrap {
+  overflow: auto;
+  border: 1px solid #9bb2ca;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.activity-log-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+}
+
+.activity-log-table th,
+.activity-log-table td {
+  padding: 0.72rem 0.8rem;
+  border-bottom: 1px solid #d7e2ee;
+  vertical-align: top;
+}
+
+.activity-log-table th {
+  color: #385875;
+  font-size: 0.78rem;
+  background: linear-gradient(180deg, #edf6fd, #dceaf7);
+}
+
+.activity-log-table td span,
+.activity-log-table td small {
+  display: block;
+  color: var(--app-muted);
+}
+
+.activity-action-pill {
+  display: inline-flex !important;
+  padding: 0.24rem 0.55rem;
+  border: 1px solid rgba(29, 102, 178, 0.18);
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #164c85 !important;
+  font-weight: 800;
+}
+
+.activity-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.activity-file-link,
+.activity-file-missing {
+  display: inline-flex;
+  padding: 0.24rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.activity-file-link {
+  border: 1px solid rgba(29, 102, 178, 0.2);
+  background: #f1f7ff;
+  text-decoration: none;
+}
+
+.activity-file-missing {
+  color: #7d8791;
+  background: #eef2f6;
+}
+
+.activity-log-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
 @media (max-width: 767.98px) {
+  .offer-template-banner {
+    height: auto;
+  }
+
+  .offer-template-banner-image {
+    height: 78px;
+  }
+
+  .offer-header-log-zone.has-log {
+    position: static;
+    width: 100%;
+    padding: 0.65rem 0.9rem;
+    background: #318bdd;
+  }
+
+  .offer-header-log-card {
+    width: 100%;
+  }
+
   .offer-header-action-row .hero-actions {
     justify-content: stretch !important;
+  }
+
+  .activity-log-toolbar {
+    grid-template-columns: 1fr;
   }
 }

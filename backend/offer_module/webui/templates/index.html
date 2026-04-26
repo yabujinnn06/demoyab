@@ -400,6 +400,94 @@
     </div>
   </div>
 
+  {% if offer_is_admin %}
+    <div class="modal fade activity-log-modal" id="offerActivityModal" tabindex="-1" aria-labelledby="offerActivityModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <p class="section-kicker mb-1">İşlem Logu</p>
+              <h2 class="modal-title h5" id="offerActivityModalLabel">Teklif hareketleri</h2>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+          </div>
+          <div class="modal-body" data-activity-log>
+            <div class="activity-log-toolbar">
+              <input class="form-control" type="search" placeholder="Kullanıcı, dosya veya işlem ara" aria-label="Log ara" data-activity-search>
+              <select class="form-select" aria-label="İşlem filtresi" data-activity-filter>
+                <option value="">Tüm işlemler</option>
+                {% for action_key, action_label in offer_activity_action_labels.items() %}
+                  <option value="{{ action_key }}">{{ action_label }}</option>
+                {% endfor %}
+              </select>
+              <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_activity_log_csv') }}">CSV indir</a>
+            </div>
+
+            <div class="activity-log-table-wrap">
+              <table class="activity-log-table">
+                <thead>
+                  <tr>
+                    <th>Tarih</th>
+                    <th>Kullanıcı</th>
+                    <th>İşlem</th>
+                    <th>Özet</th>
+                    <th>Dosyalar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for entry in offer_activity_entries %}
+                    <tr data-activity-row data-action="{{ entry.action }}" data-search="{{ entry.search_text }}">
+                      <td>{{ entry.created_at_display }}</td>
+                      <td>
+                        <strong>{{ entry.actor }}</strong>
+                        {% if entry.actor_email and entry.actor_email != entry.actor %}
+                          <span>{{ entry.actor_email }}</span>
+                        {% endif %}
+                      </td>
+                      <td><span class="activity-action-pill">{{ entry.action_label }}</span></td>
+                      <td>
+                        <p class="mb-1">{{ entry.summary }}</p>
+                        {% if entry.details %}
+                          <small>
+                            {% if entry.details.offer_number %}Teklif no: {{ entry.details.offer_number }} · {% endif %}
+                            {% if entry.details.item_count %}Kalem: {{ entry.details.item_count }} · {% endif %}
+                            {% if entry.details.selected_count %}Düzeltilen: {{ entry.details.selected_count }}{% endif %}
+                          </small>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <div class="activity-file-list">
+                          {% for file in entry.files %}
+                            {% if file.exists %}
+                              <a class="activity-file-link" href="{{ file.url }}">{{ file.label }}</a>
+                            {% else %}
+                              <span class="activity-file-missing">{{ file.label }}</span>
+                            {% endif %}
+                          {% endfor %}
+                        </div>
+                      </td>
+                    </tr>
+                  {% else %}
+                    <tr data-activity-empty>
+                      <td colspan="5">Henüz teklif işlemi yok.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="activity-log-pagination">
+              <span data-activity-page-label>Sayfa 1</span>
+              <div>
+                <button class="btn btn-outline-secondary btn-sm" type="button" data-activity-prev>Önceki</button>
+                <button class="btn btn-outline-secondary btn-sm" type="button" data-activity-next>Sonraki</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
   <header class="hero-shell offer-template-header border-bottom">
     <div class="offer-template-banner">
       <img
@@ -414,6 +502,20 @@
           Fiyat listesi, teklif PDF, şablon ve çıktı klasörlerini aynı akışta yönet. Kontrol et, fiyatları karşılaştır,
           düzeltmeleri uygula ve yeni teklifleri tek ekrandan üret.
         </p>
+      </div>
+      <div class="offer-header-log-zone {% if offer_is_admin %}has-log{% endif %}">
+        {% if offer_is_admin %}
+          <button class="offer-header-log-card" type="button" data-bs-toggle="modal" data-bs-target="#offerActivityModal">
+            <span>Son işlem</span>
+            {% if offer_activity_latest %}
+              <strong>{{ offer_activity_latest.action_label }}</strong>
+              <small>{{ offer_activity_latest.actor }} · {{ offer_activity_latest.created_at_display }}</small>
+            {% else %}
+              <strong>Log boş</strong>
+              <small>İlk işlemden sonra burada görünür.</small>
+            {% endif %}
+          </button>
+        {% endif %}
       </div>
     </div>
     <div class="container-fluid px-3 px-md-4 px-xxl-5 py-2 offer-header-action-row">

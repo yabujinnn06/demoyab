@@ -64,6 +64,79 @@ document.addEventListener("DOMContentLoaded", () => {
 
   triggerAutoDownload();
 
+  const initActivityLogTable = () => {
+    const root = document.querySelector("[data-activity-log]");
+    if (!root) {
+      return;
+    }
+
+    const rows = Array.from(root.querySelectorAll("[data-activity-row]"));
+    const searchInput = root.querySelector("[data-activity-search]");
+    const actionFilter = root.querySelector("[data-activity-filter]");
+    const previousButton = root.querySelector("[data-activity-prev]");
+    const nextButton = root.querySelector("[data-activity-next]");
+    const pageLabel = root.querySelector("[data-activity-page-label]");
+    const pageSize = 8;
+    let currentPage = 1;
+
+    const filteredRows = () => {
+      const query = (searchInput?.value || "").trim().toLowerCase();
+      const action = actionFilter?.value || "";
+      return rows.filter((row) => {
+        const matchesAction = !action || row.dataset.action === action;
+        const matchesQuery = !query || (row.dataset.search || "").includes(query);
+        return matchesAction && matchesQuery;
+      });
+    };
+
+    const render = () => {
+      const visibleRows = filteredRows();
+      const pageCount = Math.max(1, Math.ceil(visibleRows.length / pageSize));
+      currentPage = Math.min(currentPage, pageCount);
+      const start = (currentPage - 1) * pageSize;
+      const end = start + pageSize;
+
+      rows.forEach((row) => {
+        row.style.display = "none";
+      });
+      visibleRows.slice(start, end).forEach((row) => {
+        row.style.display = "";
+      });
+
+      if (pageLabel) {
+        pageLabel.textContent = visibleRows.length === 0
+          ? "Kayıt yok"
+          : `Sayfa ${currentPage} / ${pageCount} · ${visibleRows.length} kayıt`;
+      }
+      if (previousButton) {
+        previousButton.disabled = currentPage <= 1;
+      }
+      if (nextButton) {
+        nextButton.disabled = currentPage >= pageCount;
+      }
+    };
+
+    searchInput?.addEventListener("input", () => {
+      currentPage = 1;
+      render();
+    });
+    actionFilter?.addEventListener("change", () => {
+      currentPage = 1;
+      render();
+    });
+    previousButton?.addEventListener("click", () => {
+      currentPage = Math.max(1, currentPage - 1);
+      render();
+    });
+    nextButton?.addEventListener("click", () => {
+      currentPage += 1;
+      render();
+    });
+    render();
+  };
+
+  initActivityLogTable();
+
   const renumberCreateItems = (container) => {
     const rows = Array.from(container.querySelectorAll(".create-item-row"));
     rows.forEach((row, index) => {
