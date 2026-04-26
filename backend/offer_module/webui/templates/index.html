@@ -205,7 +205,7 @@
 </div>
 {%- endmacro %}
 {% macro result_review_card(row) -%}
-<article class="result-review-card status-{{ row.status_class }}">
+<article class="result-review-card status-{{ row.status_class }}" data-result-card data-review-index="{{ row.index }}">
   <div class="result-review-head">
     <div class="result-review-meta">
       <span class="result-order">Kalem {{ row.index + 1 }}</span>
@@ -293,7 +293,7 @@
 </article>
 {%- endmacro %}
 {% macro apply_decision_card(row, result_catalog_options) -%}
-<article class="decision-card status-{{ row.status_class }}" id="decision-row-{{ row.index }}">
+<article class="decision-card status-{{ row.status_class }}" id="decision-row-{{ row.index }}" data-decision-card data-decision-status="{{ row.status }}" data-decision-can-apply="{% if row.can_apply %}true{% else %}false{% endif %}">
   <div class="decision-card-head">
     <div class="result-review-meta">
       <span class="result-order">Satır {{ row.index + 1 }}</span>
@@ -480,17 +480,6 @@
           {% if notice %}
             <div class="alert alert-success app-alert shadow-sm border-0 mb-0">{{ notice }}</div>
           {% endif %}
-          {% if has_corrected_pdf and token %}
-            <section class="download-ready-panel" aria-live="polite">
-              <div>
-                <p class="section-kicker mb-2">Çıktı Hazır</p>
-                <h3>Düzenlenmiş teklif PDF'i oluşturuldu</h3>
-                <p>{{ corrected_name }}</p>
-              </div>
-              <a class="btn btn-primary btn-lg" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">Düzenlenmiş PDF indir</a>
-            </section>
-          {% endif %}
-
           <section class="workspace-topbar">
             <div>
               <p class="section-kicker mb-2">Çalışma Alanı</p>
@@ -508,6 +497,42 @@
               {% endif %}
             </div>
           </section>
+
+          {% if has_results %}
+            <section class="smart-command-bar {% if has_corrected_pdf %}is-complete{% endif %}" aria-label="Akıllı komut çubuğu">
+              <div class="smart-command-main">
+                <span class="smart-command-eyebrow">Sıradaki işlem</span>
+                {% if has_corrected_pdf %}
+                  <strong>Düzenlenmiş PDF hazır</strong>
+                  <p>{{ corrected_name }}</p>
+                {% elif apply_ready_count > 0 %}
+                  <strong>{{ apply_ready_count }} fiyat farkı PDF'e yazılabilir</strong>
+                  <p>Önce kuyruğu kontrol et, sonra tek işlemle düzenlenmiş PDF oluştur.</p>
+                {% elif review_needed_count > 0 %}
+                  <strong>{{ review_needed_count }} satır ürün eşleşmesi bekliyor</strong>
+                  <p>Elle eşleştirme gereken satırları karar panosunda tamamla.</p>
+                {% else %}
+                  <strong>Kontrol tamamlandı</strong>
+                  <p>Raporu indirebilir veya yeni teklif üretimine geçebilirsin.</p>
+                {% endif %}
+              </div>
+              <div class="smart-command-actions">
+                {% if has_corrected_pdf %}
+                  <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">PDF indir</a>
+                  <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu</a>
+                {% elif apply_ready_count > 0 %}
+                  <button class="btn btn-primary" type="submit" form="correction-form" name="action" value="apply" data-apply-submit>Düzenlenmiş PDF oluştur</button>
+                  <button class="btn btn-outline-primary" type="button" data-open-workspace="apply">Kuyruğu incele</button>
+                {% elif review_needed_count > 0 %}
+                  <button class="btn btn-primary" type="button" data-open-workspace="apply" data-queue-target="waiting">Eşleşmeleri tamamla</button>
+                  <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu</a>
+                {% else %}
+                  <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu indir</a>
+                  <button class="btn btn-outline-primary" type="button" data-open-workspace="create">Yeni teklif üret</button>
+                {% endif %}
+              </div>
+            </section>
+          {% endif %}
 
           <div class="tab-content workspace-pane-stack" id="workspacePanes">
             <div class="tab-pane fade {% if active_workspace == 'compare' %}show active{% endif %}" id="workspace-pane-compare" role="tabpanel" tabindex="0">
@@ -604,13 +629,6 @@
                     <p class="helper-text mb-0">
                       Fiyat farkı olan satırları düzenleme merkezinde seç, ardından yeni PDF oluşturup indir.
                     </p>
-                  </div>
-                  <div class="result-action-buttons">
-                    <button class="btn btn-primary" type="button" data-open-workspace="apply">Düzenlemeye geç</button>
-                    {% if has_corrected_pdf %}
-                      <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">Düzenlenmiş PDF indir</a>
-                    {% endif %}
-                    <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu indir</a>
                   </div>
                 </div>
 
@@ -735,7 +753,7 @@
                   </p>
                 </div>
 
-                <form method="post" action="{{ request.url_for('offer-tool:apply_corrections') }}" class="vstack gap-3">
+                <form method="post" action="{{ request.url_for('offer-tool:apply_corrections') }}" class="vstack gap-3" id="correction-form">
                   <input type="hidden" name="token" value="{{ token }}">
                   <input type="hidden" name="active_workspace" value="apply">
                   <div class="correction-command-panel {% if has_corrected_pdf %}is-complete{% endif %}">
@@ -753,16 +771,25 @@
                       {% endif %}
                     </div>
                     <div class="correction-command-actions">
-                      {% if has_corrected_pdf %}
-                        <a class="btn btn-primary btn-lg" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">Düzenlenmiş PDF indir</a>
-                      {% endif %}
-                      <button class="btn btn-primary btn-lg" type="submit" name="action" value="apply" data-apply-submit>
-                        Düzenlenmiş PDF oluştur
-                      </button>
                       <button class="btn btn-outline-primary" type="submit" name="action" value="preview">
                         Seçimleri yeniden kontrol et
                       </button>
                     </div>
+                  </div>
+
+                  <div class="correction-queue" aria-label="Düzeltme kuyruğu">
+                    <button class="queue-chip is-primary" type="button" data-queue-target="selected">
+                      <span>PDF'e yazılacak</span>
+                      <strong><span data-selected-count>0</span> satır</strong>
+                    </button>
+                    <button class="queue-chip" type="button" data-queue-target="waiting">
+                      <span>Ürün bekliyor</span>
+                      <strong data-waiting-count>{{ review_needed_count }} satır</strong>
+                    </button>
+                    <button class="queue-chip" type="button" data-queue-target="approved">
+                      <span>Onaylı</span>
+                      <strong>{{ metrics.get('ONAY', 0) }} satır</strong>
+                    </button>
                   </div>
 
                   <div class="decision-toolbar">
@@ -789,7 +816,6 @@
                   </div>
 
                   <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-3">
-                    <button class="btn btn-primary" type="submit" name="action" value="apply" data-apply-submit>Düzenlenmiş PDF oluştur</button>
                     <button class="btn btn-outline-primary" type="submit" name="action" value="preview">Seçimleri yeniden kontrol et</button>
                     {% if has_corrected_pdf %}
                       <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">Düzenlenmiş PDF indir</a>

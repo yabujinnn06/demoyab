@@ -181,12 +181,44 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const applyCheckboxes = Array.from(document.querySelectorAll("[data-apply-checkbox]"));
   const selectedCountLabels = Array.from(document.querySelectorAll("[data-selected-count]"));
+  const waitingCountLabels = Array.from(document.querySelectorAll("[data-waiting-count]"));
   const applySubmitButtons = Array.from(document.querySelectorAll("[data-apply-submit]"));
+  const decisionCards = Array.from(document.querySelectorAll("[data-decision-card]"));
+
+  const getDecisionState = () => {
+    const selectedCards = decisionCards.filter((card) => {
+      const checkbox = card.querySelector("[data-apply-checkbox]");
+      return checkbox?.checked && !checkbox.disabled;
+    });
+    const waitingCards = decisionCards.filter((card) => {
+      const select = card.querySelector("[data-manual-match]");
+      const checkbox = card.querySelector("[data-apply-checkbox]");
+      return card.dataset.decisionStatus !== "ONAY" && checkbox?.disabled && select && !select.value;
+    });
+    const approvedCards = decisionCards.filter((card) => card.dataset.decisionStatus === "ONAY");
+    return { selectedCards, waitingCards, approvedCards };
+  };
+
+  const focusDecisionCard = (card) => {
+    if (!card) {
+      return;
+    }
+    showWorkspace("apply");
+    window.setTimeout(() => {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.add("decision-card-focus");
+      window.setTimeout(() => card.classList.remove("decision-card-focus"), 1800);
+    }, 220);
+  };
 
   const updateCorrectionSelectionState = () => {
-    const selectedCount = applyCheckboxes.filter((checkbox) => checkbox.checked && !checkbox.disabled).length;
+    const { selectedCards, waitingCards } = getDecisionState();
+    const selectedCount = selectedCards.length;
     selectedCountLabels.forEach((label) => {
       label.textContent = String(selectedCount);
+    });
+    waitingCountLabels.forEach((label) => {
+      label.textContent = `${waitingCards.length} satır`;
     });
     applySubmitButtons.forEach((button) => {
       button.disabled = selectedCount === 0;
@@ -222,6 +254,19 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
       updateCorrectionSelectionState();
+    });
+  });
+
+  document.querySelectorAll("[data-queue-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const { selectedCards, waitingCards, approvedCards } = getDecisionState();
+      const targetType = button.dataset.queueTarget;
+      const targetCard = targetType === "waiting"
+        ? waitingCards[0]
+        : targetType === "approved"
+          ? approvedCards[0]
+          : selectedCards[0];
+      focusDecisionCard(targetCard);
     });
   });
   updateCorrectionSelectionState();
