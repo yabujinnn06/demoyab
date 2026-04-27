@@ -99,7 +99,7 @@ const state = {
   contactPoolDrafts: {},
   contactPoolPagination: {
     offset: 0,
-    limit: 100,
+    limit: 25,
     total: 0,
   },
   lastSyncAt: null,
@@ -1348,8 +1348,8 @@ function contactPoolModalMarkup() {
           <strong id="contact-pool-modal-title">İşlem Havuzu</strong>
           <button class="window-close" type="button" id="close-contact-pool-modal" aria-label="Kapat">X</button>
         </header>
-        <div class="modal-body single-column">
-          <section class="panel stack modal-panel">
+        <div class="modal-body single-column contact-pool-modal-body">
+          <section class="panel stack modal-panel contact-pool-panel">
             <div class="panel-head">
               <div>
                 <p class="section-kicker">Ulaşıldı / Ulaşılamadı</p>
@@ -1357,6 +1357,17 @@ function contactPoolModalMarkup() {
                 <p>İşlem yapılmış şirketleri filtrele, havuz notu gir ve CSV çıktı al.</p>
               </div>
               <div class="mini-meta action-meta">
+                <label class="pager-size-control">
+                  <span>Sayfa</span>
+                  <select class="select" id="contact-pool-page-size">
+                    ${[10, 25, 50, 100]
+                      .map(
+                        (limit) =>
+                          `<option value="${limit}" ${state.contactPoolPagination.limit === limit ? "selected" : ""}>${limit}</option>`,
+                      )
+                      .join("")}
+                  </select>
+                </label>
                 <button class="btn btn-soft" type="button" id="contact-pool-export">CSV İndir</button>
               </div>
             </div>
@@ -2869,6 +2880,12 @@ function bindEvents() {
   document.querySelector("#contact-pool-result")?.addEventListener("change", applyContactPoolFilters);
   document.querySelector("#contact-pool-current-list")?.addEventListener("change", applyContactPoolFilters);
   document.querySelector("#contact-pool-active-only")?.addEventListener("change", applyContactPoolFilters);
+  document.querySelector("#contact-pool-page-size")?.addEventListener("change", async (event) => {
+    state.contactPoolPagination.limit = Number(event.currentTarget.value) || 25;
+    state.contactPoolPagination.offset = 0;
+    await loadContactPool();
+    render();
+  });
   document.querySelector("#filter-call-status")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-result-status")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-assigned-user")?.addEventListener("change", applyFilters);
