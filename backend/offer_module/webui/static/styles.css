@@ -1746,6 +1746,33 @@ section.app-card::before {
   line-height: 1.45;
 }
 
+.bundle-override-panel {
+  display: grid;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(73, 64, 54, 0.1);
+}
+
+.bundle-override-row {
+  display: grid;
+  gap: 0.38rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(20, 92, 157, 0.12);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.bundle-override-row .form-label {
+  margin-bottom: 0;
+}
+
+.bundle-override-row small {
+  color: var(--app-muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
 .decision-guidance small {
   display: block;
   margin-top: 0.7rem;

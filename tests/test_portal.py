@@ -1653,6 +1653,77 @@ def test_bundle_match_view_model_shows_all_components() -> None:
     assert view["suggestion_count"] == 2
 
 
+def test_bundle_component_override_recalculates_combined_price(tmp_path) -> None:
+    from openpyxl import Workbook
+
+    from backend.offer_module import webapp as offer_webapp
+    from backend.offer_module.teklif_kontrol import BundleComponentMatch, FinancialReview, MatchResult, OfferItem, PriceRow
+
+    price_path = tmp_path / "fiyat.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["URUN", "2026 KURUMSAL NAKIT"])
+    sheet.append(["Rainwater RO-500", 48950])
+    sheet.append(["Rainwater 80 LT Fiber Tank", 32950])
+    sheet.append(["Rainwater 80 LT Emaye Tank", 21950])
+    workbook.save(price_path)
+
+    first = PriceRow(row_number=2, product_name="Rainwater RO-500", prices={"2026 KURUMSAL NAKIT": 48950})
+    second = PriceRow(row_number=3, product_name="Rainwater 80 LT Fiber Tank", prices={"2026 KURUMSAL NAKIT": 32950})
+    result = MatchResult(
+        offer_item=OfferItem(
+            product_name="RAINWATER RO-500 + 80 LT TANK",
+            quantity=1,
+            unit_price=68900,
+            discounted_price=68900,
+            total_price=68900,
+        ),
+        matched_row=first,
+        score=0.88,
+        status="DUZELT",
+        selected_column="2026 KURUMSAL NAKIT",
+        reference_unit_price=81900,
+        reference_total_price=81900,
+        suggested_unit_price=81900,
+        suggested_total_price=81900,
+        difference=-13000,
+        note="Bundle.",
+        bundle_components=[
+            BundleComponentMatch("RAINWATER RO-500", first, 0.88, 48950, "2026 KURUMSAL NAKIT", "list"),
+            BundleComponentMatch("80 LT TANK", second, 0.84, 32950, "2026 KURUMSAL NAKIT", "list"),
+        ],
+    )
+    session = offer_webapp.ComparisonSession(
+        token="bundle-override",
+        price_list_path=price_path,
+        offer_path=tmp_path / "teklif.pdf",
+        output_path=tmp_path / "rapor.xlsx",
+        selected_column="2026 KURUMSAL NAKIT",
+        price_mode="kurumsal_nakit",
+        results=[result],
+        financial_review=FinancialReview(
+            vat_rate=20,
+            vat_rate_source="default",
+            vat_included=True,
+            item_gross_total=68900,
+            expected_net_total=57416.67,
+            expected_vat_total=11483.33,
+            expected_gross_total=68900,
+            expected_summary_total=68900,
+            checks=[],
+        ),
+    )
+
+    changed_count = offer_webapp.apply_bundle_match_overrides(session, ["0:1:4"])
+    updated = session.results[0]
+
+    assert changed_count == 1
+    assert updated.bundle_components[1].matched_row.product_name == "Rainwater 80 LT Emaye Tank"
+    assert updated.reference_unit_price == 70900
+    assert updated.suggested_total_price == 70900
+    assert updated.status == "DUZELT"
+
+
 def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) -> None:
     from datetime import date
 

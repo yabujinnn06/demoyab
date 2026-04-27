@@ -29,6 +29,7 @@ from .portal_auth import enforce_offer_access, get_offer_portal_user, require_of
 from .teklif_kontrol import (
     AUTO_OFFER_NUMBER_PATTERN,
     DEFAULT_VAT_RATE,
+    BundleComponentMatch,
     DISCOUNT_TYPE_AMOUNT,
     DISCOUNT_TYPE_NONE,
     DISCOUNT_TYPE_PERCENT,
@@ -1236,6 +1237,7 @@ def result_view_model(
     bundle_components = [
         {
             "requested_name": component.requested_name,
+            "row_value": str(component.matched_row.row_number),
             "matched_name": component.matched_row.product_name,
             "score": int(round(component.score * 100)),
             "price": format_money(component.reference_unit_price),
@@ -1326,6 +1328,120 @@ def apply_manual_match_overrides(
             manual_override=True,
         )
         updated_count += 1
+
+    return updated_count
+
+
+def _build_manual_bundle_result(
+    result: MatchResult,
+    component_matches: list[BundleComponentMatch],
+    *,
+    selected_column: str,
+    vat_included: bool,
+    vat_rate: float,
+    tolerance: float = 1.0,
+) -> MatchResult:
+    reference_unit_price = round(sum(component.reference_unit_price for component in component_matches), 2)
+    reference_total_price = round(reference_unit_price * result.offer_item.quantity, 2)
+    difference = round(result.offer_item.discounted_price - reference_unit_price, 2)
+    total_difference = round(result.offer_item.total_price - reference_total_price, 2)
+    status = "ONAY" if abs(difference) <= tolerance and abs(total_difference) <= tolerance else "DUZELT"
+    component_summary = "; ".join(
+        f"{component.requested_name} -> {component.matched_row.product_name} ({format_money(component.reference_unit_price)})"
+        for component in component_matches
+    )
+    note = (
+        "Bileşenler elle güncellendi; toplam fiyat teklif satırıyla uyumlu."
+        if status == "ONAY"
+        else "Bileşenler elle güncellendi; bileşen toplamı teklif satırıyla uyuşmuyor."
+    )
+    note = f"{note} Bileşenler: {component_summary}"
+    return MatchResult(
+        offer_item=result.offer_item,
+        matched_row=component_matches[0].matched_row if component_matches else result.matched_row,
+        score=min((component.score for component in component_matches), default=result.score),
+        status=status,
+        selected_column=selected_column,
+        reference_unit_price=reference_unit_price,
+        reference_total_price=reference_total_price,
+        suggested_unit_price=reference_unit_price if status == "DUZELT" else None,
+        suggested_total_price=reference_total_price if status == "DUZELT" else None,
+        difference=difference,
+        note=note,
+        bundle_components=component_matches,
+    )
+
+
+def apply_bundle_match_overrides(
+    session: ComparisonSession,
+    bundle_match_overrides: list[str] | None,
+) -> int:
+    override_values = [str(value or "").strip() for value in (bundle_match_overrides or []) if str(value or "").strip()]
+    if not override_values:
+        return 0
+
+    price_rows, _ = load_price_rows(session.price_list_path)
+    rows_by_number = {row.row_number: row for row in price_rows}
+    grouped: dict[int, dict[int, int]] = {}
+    for raw_value in override_values:
+        parts = raw_value.split(":", 2)
+        if len(parts) != 3:
+            raise ValueError("Bileşen ürün seçimlerinden biri geçersiz.")
+        try:
+            result_index = int(parts[0])
+            component_index = int(parts[1])
+            row_number = int(parts[2])
+        except ValueError as exc:
+            raise ValueError("Bileşen ürün seçimlerinden biri geçersiz.") from exc
+        grouped.setdefault(result_index, {})[component_index] = row_number
+
+    updated_count = 0
+    for result_index, component_overrides in grouped.items():
+        if result_index < 0 or result_index >= len(session.results):
+            raise ValueError(f"Bileşen seçimi satırı bulunamadı: {result_index + 1}")
+        result = session.results[result_index]
+        if not result.bundle_components:
+            continue
+
+        next_components: list[BundleComponentMatch] = []
+        changed = False
+        for component_index, component in enumerate(result.bundle_components):
+            row_number = component_overrides.get(component_index)
+            if row_number is None:
+                next_components.append(component)
+                continue
+            selected_row = rows_by_number.get(row_number)
+            if selected_row is None:
+                raise ValueError(f"Bileşen için seçilen ürün satırı bulunamadı: {row_number}")
+            reference_unit_price, reference_column, reference_source = resolve_price_for_vat_mode(
+                selected_row,
+                session.selected_column,
+                vat_included=session.financial_review.vat_included,
+                vat_rate=session.financial_review.vat_rate,
+            )
+            if reference_unit_price is None:
+                raise ValueError(f"Seçilen bileşen için fiyat bulunamadı: {selected_row.product_name}")
+            next_components.append(
+                BundleComponentMatch(
+                    requested_name=component.requested_name,
+                    matched_row=selected_row,
+                    score=similarity_score(component.requested_name, selected_row.product_name),
+                    reference_unit_price=reference_unit_price,
+                    reference_column=reference_column,
+                    reference_source=reference_source,
+                )
+            )
+            changed = True
+
+        if changed:
+            session.results[result_index] = _build_manual_bundle_result(
+                result,
+                next_components,
+                selected_column=session.selected_column,
+                vat_included=session.financial_review.vat_included,
+                vat_rate=session.financial_review.vat_rate,
+            )
+            updated_count += 1
 
     return updated_count
 
@@ -2488,6 +2604,7 @@ async def apply_corrections(
     token: str = Form(...),
     selected_indexes: list[int] | None = Form(default=None),
     manual_match_row_ids: list[str] = Form(default=[]),
+    bundle_match_overrides: list[str] = Form(default=[]),
     action: str = Form(default="apply"),
     active_workspace: str = Form(default="apply"),
 ) -> HTMLResponse:
@@ -2499,6 +2616,7 @@ async def apply_corrections(
 
     try:
         manual_override_count = apply_manual_match_overrides(session, manual_match_row_ids)
+        manual_override_count += apply_bundle_match_overrides(session, bundle_match_overrides)
     except Exception as exc:
         context = build_context(
             request,

@@ -584,6 +584,22 @@ document.addEventListener("DOMContentLoaded", () => {
     updateManualMatchCard(select);
   });
 
+  document.querySelectorAll("[data-bundle-match]").forEach((select) => {
+    select.addEventListener("change", () => {
+      const decisionCard = select.closest(".decision-card");
+      const checkbox = decisionCard?.querySelector("[data-apply-checkbox]");
+      const label = decisionCard?.querySelector("[data-apply-label]");
+      if (checkbox) {
+        checkbox.disabled = false;
+        checkbox.checked = true;
+      }
+      if (label) {
+        label.textContent = "Bileşen seçimiyle düzenlenecek";
+      }
+      updateCorrectionSelectionState();
+    });
+  });
+
   document.querySelectorAll("[data-suggestion-pick]").forEach((button) => {
     button.addEventListener("click", () => {
       const select = document.getElementById(button.dataset.targetSelect);

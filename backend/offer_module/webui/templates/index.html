@@ -422,7 +422,7 @@
           <strong>{{ row.action.title }}</strong>
           <p>{{ row.action.body }}</p>
         </div>
-        {% if row.suggestions %}
+        {% if row.suggestions and not row.is_bundle %}
           <div class="suggestion-action-list" aria-label="Hızlı ürün seçimi">
             {% for suggestion in row.suggestions %}
               <button
@@ -443,6 +443,35 @@
 
     <div class="decision-control-grid">
       <div class="decision-select-panel">
+        {% if row.is_bundle %}
+          <div class="bundle-override-panel">
+            <p class="product-label">Bileşenleri ayrı değiştir</p>
+            {% for component in row.bundle_components %}
+              {% set component_index = loop.index0 %}
+              <div class="bundle-override-row">
+                <label class="form-label" for="bundle-match-{{ row.index }}-{{ loop.index0 }}">
+                  {{ component.requested_name }}
+                </label>
+                <select
+                  class="form-select form-select-sm"
+                  id="bundle-match-{{ row.index }}-{{ loop.index0 }}"
+                  name="bundle_match_overrides"
+                  data-bundle-match
+                >
+                  <option value="">Mevcut eşleşme kalsın: {{ component.matched_name }}</option>
+                  {% for item in result_catalog_options %}
+                    <option
+                      value="{{ row.index }}:{{ component_index }}:{{ item.value }}"
+                      {% if item.value == component.row_value %}selected{% endif %}
+                    >{{ item.label }}</option>
+                  {% endfor %}
+                </select>
+                <small>Şu an: {{ component.matched_name }} · {{ component.price }}</small>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
         <label class="form-label" for="manual-match-{{ row.index }}">
           {% if row.is_bundle %}Tek ürünle override{% else %}Elle ürün seç{% endif %}
         </label>
@@ -479,9 +508,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Teklif Ofisi</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-bundle-match">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-component-override">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-bundle-match"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-component-override"></script>
 </head>
 <body
   class="app-body"
