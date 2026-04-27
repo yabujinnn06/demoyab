@@ -2293,18 +2293,7 @@ function appMarkup() {
             <div>
               <span class="brand-kicker">Rainwater Arama Operasyonu</span>
               <h1>Rainwater Kontrol Merkezi</h1>
-              <p>Atama, takip ve çalışan performansını yöneten operasyon yüzeyi.</p>
             </div>
-          </div>
-          <div class="brand-status-board" aria-hidden="true">
-            <span>OPS ONLINE</span>
-            <span>ASSIGN</span>
-            <span>TRACK</span>
-          </div>
-          <div class="brand-telemetry" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
           </div>
           <div class="selection-summary">
             <div class="selection-summary-head">
