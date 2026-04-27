@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 .tmp_pytest/
 .tmp_testdata/
+.tmp_header_preview/
+.gitnexus/
 pytest-cache-files-*/
 data/*.db
 data/*.db-shm
