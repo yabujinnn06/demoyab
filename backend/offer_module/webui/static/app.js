@@ -485,7 +485,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const waitingCards = decisionCards.filter((card) => {
       const select = card.querySelector("[data-manual-match]");
       const checkbox = card.querySelector("[data-apply-checkbox]");
-      return card.dataset.decisionStatus !== "ONAY" && checkbox?.disabled && select && !select.value;
+      const ignore = card.querySelector("[data-ignore-row]");
+      return card.dataset.decisionStatus !== "ONAY" && !ignore?.checked && checkbox?.disabled && select && !select.value;
     });
     const approvedCards = decisionCards.filter((card) => card.dataset.decisionStatus === "ONAY");
     return { selectedCards, waitingCards, approvedCards };
@@ -595,6 +596,45 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       if (label) {
         label.textContent = "Bileşen seçimiyle düzenlenecek";
+      }
+      updateCorrectionSelectionState();
+    });
+  });
+
+  document.querySelectorAll("[data-ignore-row]").forEach((ignore) => {
+    ignore.addEventListener("change", () => {
+      const decisionCard = ignore.closest(".decision-card");
+      const checkbox = decisionCard?.querySelector("[data-apply-checkbox]");
+      const label = decisionCard?.querySelector("[data-apply-label]");
+      const manualSelect = decisionCard?.querySelector("[data-manual-match]");
+      const bundleSelects = Array.from(decisionCard?.querySelectorAll("[data-bundle-match]") || []);
+      if (ignore.checked) {
+        if (checkbox) {
+          checkbox.checked = false;
+          checkbox.disabled = true;
+        }
+        if (label) {
+          label.textContent = "PDF düzeltmesinde atlanacak";
+        }
+        if (manualSelect) {
+          manualSelect.value = "";
+          manualSelect.disabled = true;
+        }
+        bundleSelects.forEach((select) => {
+          select.disabled = true;
+        });
+        decisionCard?.classList.add("is-ignored");
+      } else {
+        if (label) {
+          label.textContent = "Ürün seçince aktif olur";
+        }
+        if (manualSelect) {
+          manualSelect.disabled = false;
+        }
+        bundleSelects.forEach((select) => {
+          select.disabled = false;
+        });
+        decisionCard?.classList.remove("is-ignored");
       }
       updateCorrectionSelectionState();
     });

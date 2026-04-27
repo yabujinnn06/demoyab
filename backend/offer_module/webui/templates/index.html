@@ -486,6 +486,19 @@
             Otomatik eşleşen bileşenler yukarıda birlikte hesaplanır. Bu alan yalnızca satırı tek ürünle değiştirmek istersen kullanılır.
           </p>
         {% endif %}
+        {% if row.status != 'ONAY' and not row.can_apply %}
+          <label class="ignore-toggle" for="ignore-row-{{ row.index }}">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              name="ignored_indexes"
+              value="{{ row.index }}"
+              id="ignore-row-{{ row.index }}"
+              data-ignore-row
+            >
+            <span>Bu kalem fiyat listesinde yok, PDF düzeltmesine dahil etme</span>
+          </label>
+        {% endif %}
         <div class="manual-match-preview" data-manual-preview {% if not row.manual_selected %}hidden{% endif %}>
           <span>Seçilen ürün</span>
           <strong data-manual-preview-label>{% if row.manual_selected %}{{ row.matched_name }}{% endif %}</strong>
@@ -508,9 +521,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Teklif Ofisi</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-component-override">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-ignore-noncatalog">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-component-override"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-ignore-noncatalog"></script>
 </head>
 <body
   class="app-body"

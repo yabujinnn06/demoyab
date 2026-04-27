@@ -1746,6 +1746,31 @@ section.app-card::before {
   line-height: 1.45;
 }
 
+.ignore-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+  padding: 0.72rem 0.8rem;
+  border: 1px solid rgba(102, 132, 160, 0.16);
+  border-radius: 0.78rem;
+  background: rgba(247, 249, 252, 0.92);
+  color: var(--app-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ignore-toggle input {
+  flex: 0 0 auto;
+  margin-top: 0.12rem;
+}
+
+.decision-card.is-ignored {
+  border-color: rgba(102, 132, 160, 0.2);
+  background: linear-gradient(180deg, rgba(250, 252, 254, 0.96), rgba(246, 249, 252, 0.94));
+}
+
 .bundle-override-panel {
   display: grid;
   gap: 0.8rem;
