@@ -1193,7 +1193,7 @@ section.app-card::before {
   top: 0.75rem;
   z-index: 12;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(16rem, 1fr) minmax(16rem, 0.85fr) auto;
   gap: 1rem;
   align-items: center;
   padding: 1rem;
@@ -1234,6 +1234,64 @@ section.app-card::before {
   margin: 0.2rem 0 0;
   color: var(--app-muted);
   line-height: 1.5;
+}
+
+.decision-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  min-width: 16rem;
+  padding: 0.35rem;
+  border: 1px solid rgba(11, 134, 200, 0.12);
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.decision-flow-step {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+  padding: 0.5rem 0.55rem;
+  border: 1px solid rgba(102, 132, 160, 0.16);
+  border-radius: 0.65rem;
+  color: var(--app-muted);
+  background: rgba(246, 249, 252, 0.86);
+}
+
+.decision-flow-step b,
+.decision-flow-step em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-flow-step b {
+  color: inherit;
+  font-size: 0.66rem;
+  line-height: 1;
+  letter-spacing: 0.05em;
+}
+
+.decision-flow-step em {
+  color: inherit;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.decision-flow-step.is-active {
+  border-color: rgba(11, 134, 200, 0.26);
+  color: #0b5f92;
+  background: linear-gradient(180deg, rgba(231, 246, 255, 0.96), rgba(250, 253, 255, 0.96));
+}
+
+.decision-flow-step.is-complete {
+  border-color: rgba(38, 103, 70, 0.24);
+  color: #266746;
+  background: linear-gradient(180deg, rgba(232, 247, 239, 0.96), rgba(250, 255, 252, 0.96));
 }
 
 .smart-command-actions {
@@ -2271,6 +2329,10 @@ section.app-card::before {
     align-items: stretch;
   }
 
+  .decision-flow {
+    min-width: 0;
+  }
+
   .smart-command-actions {
     justify-content: flex-start;
   }
@@ -2281,6 +2343,10 @@ section.app-card::before {
 }
 
 @media (max-width: 575.98px) {
+  .decision-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .smart-command-actions .btn {
     width: 100%;
   }

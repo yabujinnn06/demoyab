@@ -45,25 +45,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   playResultSound();
 
-  const triggerAutoDownload = () => {
-    const downloadUrl = document.body.dataset.autoDownloadUrl;
-    if (!downloadUrl) {
-      return;
-    }
-
-    window.setTimeout(() => {
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = "";
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    }, 450);
-  };
-
-  triggerAutoDownload();
-
   const initActivityLogTable = () => {
     const root = document.querySelector("[data-activity-log]");
     if (!root) {
@@ -99,10 +80,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const end = start + pageSize;
 
       rows.forEach((row) => {
-        row.style.display = "none";
+        row.hidden = true;
       });
       visibleRows.slice(start, end).forEach((row) => {
-        row.style.display = "";
+        row.hidden = false;
       });
       if (noResultsRow) {
         noResultsRow.hidden = rows.length === 0 || visibleRows.length > 0;
@@ -559,7 +540,7 @@ document.addEventListener("DOMContentLoaded", () => {
       button.disabled = selectedCount === 0;
       button.textContent = selectedCount === 0
         ? "Önce düzeltilecek satır seç"
-        : `Düzelt ve PDF indir (${selectedCount})`;
+        : `Seçili düzeltmeleri hazırla (${selectedCount})`;
     });
   };
 

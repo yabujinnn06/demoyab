@@ -89,7 +89,7 @@
           data-workspace-link
           data-workspace-target="apply"
           data-workspace-title="Karar Merkezi"
-          data-workspace-summary="Elle ürün seçimi yap, farkı gör ve sadece seçilen düzeltmeleri PDF'e uygula."
+          data-workspace-summary="Elle ürün seçimi yap, farkı gör ve sadece onaylanan düzeltmeler için PDF hazırla."
           data-workspace-badge="Adım 04 / Karar"
           aria-selected="{% if active_workspace == 'apply' %}true{% else %}false{% endif %}"
           {% if not has_results %}disabled aria-disabled="true"{% endif %}
@@ -97,7 +97,7 @@
           <span class="workspace-nav-index">04</span>
           <span class="workspace-nav-copy">
             <strong>Karar Merkezi</strong>
-            <small>Manuel eslestir ve uygula</small>
+            <small>Eşleştir ve hazırla</small>
           </span>
         </button>
 
@@ -396,15 +396,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Teklif Ofisi</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260426-batch-workspace">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-review-flow">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260426-batch-workspace"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-review-flow"></script>
 </head>
 <body
   class="app-body"
   data-active-workspace="{{ active_workspace }}"
   data-prefer-server-workspace="{% if feedback.show or active_workspace in ['batch', 'results', 'apply'] %}true{% else %}false{% endif %}"
-  {% if auto_download_corrected and token %}data-auto-download-url="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}"{% endif %}
   {% if play_result_sound and result_sound_key %}data-result-sound-url="{{ request.url_for('offer-tool:offer_static', path='audio/choose2.wav') }}" data-result-sound-key="{{ result_sound_key }}"{% endif %}
 >
   <div class="offcanvas offcanvas-start app-offcanvas" tabindex="-1" id="workspaceDrawer" aria-labelledby="workspaceDrawerLabel">
@@ -575,7 +574,7 @@
           {% set workspace_badge = "Adım 03 / Sonuç" %}
         {% elif active_workspace == "apply" %}
           {% set workspace_title = "Karar Merkezi" %}
-          {% set workspace_summary = "Elle ürün seç, fiyat farkını gör ve sadece seçili düzeltmeleri PDF'e uygula." %}
+          {% set workspace_summary = "Elle ürün seç, fiyat farkını gör ve sadece seçili düzeltmeler için PDF hazırla." %}
           {% set workspace_badge = "Adım 04 / Karar" %}
         {% elif active_workspace == "batch" %}
           {% set workspace_title = "Toplu Kontrol" %}
@@ -625,11 +624,11 @@
               <div class="smart-command-main">
                 <span class="smart-command-eyebrow">Sıradaki işlem</span>
                 {% if has_corrected_pdf %}
-                  <strong>{% if auto_download_corrected %}Düzenlenmiş PDF indiriliyor{% else %}Düzenlenmiş PDF hazır{% endif %}</strong>
-                  <p>{{ corrected_name }}</p>
+                  <strong>Düzenlenmiş PDF hazır</strong>
+                  <p>Otomatik indirme kapalı. {{ corrected_name }} dosyasını kontrol edip manuel indirebilirsin.</p>
                 {% elif apply_ready_count > 0 %}
                   <strong>{{ apply_ready_count }} satır için karar bekliyor</strong>
-                  <p>Düzeltmeleri tek ekranda incele veya seçili satırlarla PDF'i indir.</p>
+                  <p>Düzeltmeleri önce incele; sadece onayladığın satırlar için yeni PDF hazırla.</p>
                 {% elif review_needed_count > 0 %}
                   <strong>{{ review_needed_count }} satır ürün eşleşmesi bekliyor</strong>
                   <p>Elle eşleştirme gereken satırları karar panosunda tamamla.</p>
@@ -638,16 +637,22 @@
                   <p>Raporu indirebilir veya yeni teklif üretimine geçebilirsin.</p>
                 {% endif %}
               </div>
+              <div class="decision-flow" aria-label="Teklif kontrol akışı">
+                <span class="decision-flow-step is-complete"><b>01</b><em>Kontrol</em></span>
+                <span class="decision-flow-step {% if apply_ready_count > 0 or review_needed_count > 0 or has_corrected_pdf %}is-active{% endif %}"><b>02</b><em>Karar</em></span>
+                <span class="decision-flow-step {% if has_corrected_pdf %}is-complete{% endif %}"><b>03</b><em>PDF hazırla</em></span>
+                <span class="decision-flow-step"><b>04</b><em>Manuel indir</em></span>
+              </div>
               <div class="smart-command-actions">
                 {% if has_corrected_pdf %}
-                  <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">Tekrar indir</a>
+                  <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">PDF indir</a>
                   <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu</a>
                 {% elif apply_ready_count > 0 %}
                   <button class="btn btn-primary" type="button" data-open-workspace="apply">Düzeltmeleri incele</button>
-                  <button class="btn btn-outline-primary" type="submit" form="correction-form" name="action" value="apply" data-apply-submit>Düzelt ve PDF indir</button>
+                  <button class="btn btn-outline-primary" type="submit" form="correction-form" name="action" value="apply" data-apply-submit>PDF'i hazırla</button>
                 {% elif review_needed_count > 0 %}
                   <button class="btn btn-primary" type="button" data-open-workspace="apply" data-queue-target="waiting">Eşleşmeleri tamamla</button>
-                  <button class="btn btn-outline-primary" type="submit" form="correction-form" name="action" value="apply" data-apply-submit>Düzelt ve PDF indir</button>
+                  <button class="btn btn-outline-primary" type="submit" form="correction-form" name="action" value="apply" data-apply-submit>Seçili düzeltmeleri hazırla</button>
                 {% else %}
                   <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu indir</a>
                   <button class="btn btn-outline-primary" type="button" data-open-workspace="create">Yeni teklif üret</button>
@@ -1058,11 +1063,11 @@
               <section class="card app-card shadow-sm border-0" id="apply">
               <div class="card-body p-4 p-xxl-5">
                 <div class="mb-4">
-                  <p class="section-kicker mb-2">3. Uygula</p>
+                  <p class="section-kicker mb-2">3. Hazırla</p>
                   <h2 class="h3 mb-2">Düzeltme Kararları</h2>
                   <p class="section-copy mb-0">
-                    Güvenilir eşleşme çıkmayan satırda ürünü elle seç, sonucu yeniden karşılaştır veya doğrudan uygulanabilir
-                    düzeltmeleri PDF'e yaz.
+                    Güvenilir eşleşme çıkmayan satırda ürünü elle seç, sonucu yeniden karşılaştır ve yalnızca onayladığın
+                    düzeltmeler için yeni PDF hazırla.
                   </p>
                 </div>
 
@@ -1074,20 +1079,28 @@
                       <p class="section-kicker mb-2">Düzenleme Akışı</p>
                       {% if has_corrected_pdf %}
                         <h3>Düzenlenmiş PDF hazır</h3>
-                        <p>{{ corrected_name }}</p>
+                        <p>{{ corrected_name }} hazır. İndirme işlemi artık otomatik başlamaz; dosyayı manuel onayla.</p>
                       {% else %}
-                        <h3>Satırları seç, yeni PDF oluştur</h3>
+                        <h3>Satırları seç, PDF'i hazırla</h3>
                         <p>
                           Seçili satır sayısı: <strong data-selected-count>0</strong>.
-                          DÜZELT satırları otomatik seçili gelir; eşleşmeyen satırlarda önce ürün seç.
+                          DÜZELT satırları seçili gelir; eşleşmeyen satırlarda önce ürün seç.
                         </p>
+                      {% endif %}
+                    </div>
+                    <div class="correction-command-actions">
+                      {% if has_corrected_pdf %}
+                        <a class="btn btn-primary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='corrected') }}">PDF indir</a>
+                        <a class="btn btn-outline-secondary" href="{{ request.url_for('offer-tool:download_file', token=token, kind='report') }}">Excel raporu</a>
+                      {% else %}
+                        <button class="btn btn-primary btn-lg" type="submit" name="action" value="apply" data-apply-submit>Seçili düzeltmeleri hazırla</button>
                       {% endif %}
                     </div>
                   </div>
 
                   <div class="correction-queue" aria-label="Düzeltme kuyruğu">
                     <button class="queue-chip is-primary" type="button" data-queue-target="selected">
-                      <span>PDF'e yazılacak</span>
+                      <span>PDF'e hazırlanacak</span>
                       <strong><span data-selected-count>0</span> satır</strong>
                     </button>
                     <button class="queue-chip" type="button" data-queue-target="waiting">
@@ -1107,7 +1120,7 @@
                     </div>
                     <div class="decision-toolbar-metrics">
                       <article class="metric-tile metric-tile-danger">
-                        <span class="metric-label">PDF'e yazılabilir</span>
+                        <span class="metric-label">PDF'e hazırlanabilir</span>
                         <strong class="metric-value">{{ apply_ready_count }}</strong>
                       </article>
                       <article class="metric-tile metric-tile-warn">

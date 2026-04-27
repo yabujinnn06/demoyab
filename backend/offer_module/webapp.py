@@ -909,7 +909,7 @@ def infer_price_mode_from_selected_column(selected_column: str) -> str:
 def describe_result_next_step(result: MatchResult, *, can_apply: bool, manual_selected: bool) -> str:
     if manual_selected:
         if can_apply:
-            return "Secilen urune gore fiyat farkli. Kutuyu isaretleyip PDF'e uygula."
+            return "Secilen urune gore fiyat farkli. Kutuyu isaretleyip PDF hazirlama kuyruguna al."
         if result.status == "ONAY":
             return "Secilen urune gore teklif fiyati dogru. Bu satir tamam."
         if result.status == "INCELE":
@@ -917,7 +917,7 @@ def describe_result_next_step(result: MatchResult, *, can_apply: bool, manual_se
         return "Elle urun secildi ama sonuc netlesmedi. Baska bir urun secmeyi dene."
 
     if can_apply:
-        return "Fiyat farki bulundu. Kutuyu isaretlersen yeni PDF'e otomatik uygulanir."
+        return "Fiyat farki bulundu. Kutuyu isaretlersen yeni PDF hazirlama kuyruguna alinir."
     if result.status == "ONAY":
         return "Bu satir zaten uyumlu. Islem gerekmez."
     if result.status == "INCELE":
@@ -1381,8 +1381,8 @@ def build_feedback_state(
         return {
             "show": True,
             "tone": "success",
-            "title": "Düzeltmeler uygulandı",
-            "message": f"{notice} Yeni PDF duzeltilmis_teklifler klasorune kaydedildi.",
+            "title": "Düzeltmeler hazırlandı",
+            "message": f"{notice} Yeni PDF duzeltilmis_teklifler klasorune kaydedildi; indirme manuel onayla baslar.",
         }
 
     if has_results:
@@ -1491,7 +1491,6 @@ def build_context(
     error: str | None = None,
     active_workspace: str | None = None,
     play_result_sound: bool = False,
-    auto_download_corrected: bool = False,
 ) -> dict:
     portal_user = get_offer_portal_user(request)
     offer_is_admin = bool(portal_user and portal_user.is_admin)
@@ -1628,7 +1627,6 @@ def build_context(
         "feedback": feedback,
         "has_results": bool(results),
         "has_corrected_pdf": has_corrected_pdf,
-        "auto_download_corrected": bool(auto_download_corrected and has_corrected_pdf and token),
         "active_workspace": active_workspace,
         "play_result_sound": bool(play_result_sound and results and token),
         "result_sound_key": token if play_result_sound and results else "",
@@ -2210,7 +2208,7 @@ async def apply_corrections(
             selected_offer_file=relative_runtime_path(session.offer_path),
             selected_mode=session.price_mode,
             session=session,
-            error="Uygulamak için en az bir satır seç.",
+            error="PDF hazırlamak için en az bir satır seç.",
             active_workspace=active_workspace,
         )
         return templates.TemplateResponse("index.html", context, status_code=400)
@@ -2230,8 +2228,8 @@ async def apply_corrections(
             selected_mode=session.price_mode,
             session=session,
             error=(
-                "Seçilen satırlar için uygulanacak fiyat farkı kalmadı. "
-                "Elle ürün seçtiysen sonucu kontrol et; sadece DÜZELT olan satırlar PDF'e uygulanabilir."
+                "Seçilen satırlar için hazırlanacak fiyat farkı kalmadı. "
+                "Elle ürün seçtiysen sonucu kontrol et; sadece DÜZELT olan satırlar yeni PDF'e yazılabilir."
             ),
             active_workspace=active_workspace,
         )
@@ -2260,7 +2258,7 @@ async def apply_corrections(
     append_activity_log(
         request,
         action="correct",
-        summary=f"{session.offer_path.name} için {len(actionable_indexes)} satır PDF'e işlendi.",
+        summary=f"{session.offer_path.name} için {len(actionable_indexes)} satırla düzeltilmiş PDF hazırlandı.",
         files=[
             activity_file_payload(corrected_path, "Düzenlenmiş PDF", "corrected"),
             activity_file_payload(session.output_path, "Excel raporu", "report"),
@@ -2282,9 +2280,8 @@ async def apply_corrections(
         notice=(
             f"{manual_override_count} satırda elle ürün seçimi kullanıldı. " if manual_override_count else ""
         )
-        + f"Onaylı düzeltmeler uygulandı. Yeni dosya: {corrected_path.name}",
+        + f"Onaylı düzeltmeler hazırlandı. Dosyayı kontrol edip manuel indirebilirsin: {corrected_path.name}",
         active_workspace="apply",
-        auto_download_corrected=True,
     )
     return templates.TemplateResponse("index.html", context)
 
