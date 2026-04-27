@@ -1560,6 +1560,56 @@ def test_rainwater_pdf_price_list_converts_to_readable_workbook(tmp_path) -> Non
     ] == 68950
 
 
+def test_product_match_suggestions_surface_nearest_catalog_item() -> None:
+    from backend.offer_module import webapp as offer_webapp
+    from backend.offer_module.teklif_kontrol import MatchResult, OfferItem, PriceRow
+
+    price_rows = [
+        PriceRow(row_number=2, product_name="Rainwater Superior", prices={"2026 KURUMSAL 6 TAKSIT": 44950}),
+        PriceRow(row_number=3, product_name="Rnw 3100 Arıtmasız Su Sebili", prices={"2026 KURUMSAL 6 TAKSIT": 68950}),
+    ]
+    result = MatchResult(
+        offer_item=OfferItem(
+            product_name="RNW 3100 Aritmasiz Su Sebili",
+            quantity=1,
+            unit_price=92950,
+            discounted_price=92950,
+            total_price=92950,
+        ),
+        matched_row=None,
+        score=0,
+        status="ESLESMEDI",
+        selected_column="2026 KURUMSAL 6 TAKSIT",
+        reference_unit_price=None,
+        reference_total_price=None,
+        suggested_unit_price=None,
+        suggested_total_price=None,
+        difference=None,
+        note="Güvenilir eşleşme bulunamadı.",
+    )
+
+    suggestions = offer_webapp.product_match_suggestions(
+        result,
+        price_rows,
+        selected_column="2026 KURUMSAL 6 TAKSIT",
+        vat_included=True,
+        vat_rate=20,
+    )
+    view = offer_webapp.result_view_model(
+        result,
+        0,
+        price_rows=price_rows,
+        selected_column="2026 KURUMSAL 6 TAKSIT",
+        vat_included=True,
+        vat_rate=20,
+    )
+
+    assert suggestions[0]["value"] == "3"
+    assert suggestions[0]["price"] == "68.950 TL"
+    assert view["action"]["title"] == "Ürün eşleşmedi, yakın aday var"
+    assert view["suggestions"][0]["label"] == "Rnw 3100 Arıtmasız Su Sebili"
+
+
 def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) -> None:
     from datetime import date
 

@@ -271,6 +271,28 @@
     </article>
   </div>
 
+  <div class="automation-insight automation-insight-{{ row.action.tone }}">
+    <div>
+      <span class="automation-eyebrow">Akıllı öneri</span>
+      <strong>{{ row.action.title }}</strong>
+      <p>{{ row.action.body }}</p>
+    </div>
+    {% if row.status != 'ONAY' %}
+      <button class="btn btn-sm btn-outline-primary" type="button" data-open-workspace="apply" data-focus-decision="{{ row.index }}">Karar ver</button>
+    {% endif %}
+  </div>
+
+  {% if row.suggestions and row.status != 'ONAY' %}
+    <div class="suggestion-strip" aria-label="Olası ürünler">
+      {% for suggestion in row.suggestions %}
+        <span class="suggestion-pill {% if suggestion.is_current %}is-current{% endif %}">
+          <strong>{{ suggestion.label }}</strong>
+          <small>{{ suggestion.score }}% · {{ suggestion.price }}</small>
+        </span>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <div class="result-note-block">
     <span class="decision-badge">{{ row.note_badge }}</span>
     <p>{{ row.note }}</p>
@@ -369,6 +391,32 @@
       </article>
     </div>
 
+    {% if row.can_apply or row.suggestions %}
+      <div class="decision-automation-panel automation-insight-{{ row.action.tone }}">
+        <div class="decision-automation-copy">
+          <span class="automation-eyebrow">Sistem ne öneriyor?</span>
+          <strong>{{ row.action.title }}</strong>
+          <p>{{ row.action.body }}</p>
+        </div>
+        {% if row.suggestions %}
+          <div class="suggestion-action-list" aria-label="Hızlı ürün seçimi">
+            {% for suggestion in row.suggestions %}
+              <button
+                class="suggestion-action {% if suggestion.is_current %}is-current{% endif %}"
+                type="button"
+                data-suggestion-pick
+                data-target-select="manual-match-{{ row.index }}"
+                data-suggestion-value="{{ suggestion.value }}"
+              >
+                <span>{{ suggestion.label }}</span>
+                <small>{{ suggestion.score }}% · {{ suggestion.price }}</small>
+              </button>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
     <div class="decision-control-grid">
       <div class="decision-select-panel">
         <label class="form-label" for="manual-match-{{ row.index }}">Elle ürün seç</label>
@@ -378,6 +426,10 @@
             <option value="{{ item.value }}" {% if item.value == row.manual_match_row_id %}selected{% endif %}>{{ item.label }}</option>
           {% endfor %}
         </select>
+        <div class="manual-match-preview" data-manual-preview {% if not row.manual_selected %}hidden{% endif %}>
+          <span>Seçilen ürün</span>
+          <strong data-manual-preview-label>{% if row.manual_selected %}{{ row.matched_name }}{% endif %}</strong>
+        </div>
       </div>
 
       <div class="decision-guidance">
@@ -396,9 +448,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Teklif Ofisi</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-review-flow">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-smart-match">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-review-flow"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-smart-match"></script>
 </head>
 <body
   class="app-body"

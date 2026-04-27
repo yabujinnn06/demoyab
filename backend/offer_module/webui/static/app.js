@@ -548,28 +548,52 @@ document.addEventListener("DOMContentLoaded", () => {
     checkbox.addEventListener("change", updateCorrectionSelectionState);
   });
 
-  document.querySelectorAll("[data-manual-match]").forEach((select) => {
-    select.addEventListener("change", () => {
-      const decisionCard = select.closest(".decision-card");
-      const checkbox = decisionCard?.querySelector("[data-apply-checkbox]");
-      const label = decisionCard?.querySelector("[data-apply-label]");
-      if (checkbox) {
-        const canApplyWithoutManual = checkbox.dataset.canApply === "true";
-        if (select.value) {
-          checkbox.disabled = false;
-          checkbox.checked = true;
-          if (label) {
-            label.textContent = "Manuel seçimle düzenlenecek";
-          }
-        } else if (!canApplyWithoutManual) {
-          checkbox.checked = false;
-          checkbox.disabled = true;
-          if (label) {
-            label.textContent = "Ürün seçince aktif olur";
-          }
+  const updateManualMatchCard = (select) => {
+    const decisionCard = select.closest(".decision-card");
+    const checkbox = decisionCard?.querySelector("[data-apply-checkbox]");
+    const label = decisionCard?.querySelector("[data-apply-label]");
+    const preview = decisionCard?.querySelector("[data-manual-preview]");
+    const previewLabel = decisionCard?.querySelector("[data-manual-preview-label]");
+    if (checkbox) {
+      const canApplyWithoutManual = checkbox.dataset.canApply === "true";
+      if (select.value) {
+        checkbox.disabled = false;
+        checkbox.checked = true;
+        if (label) {
+          label.textContent = "Manuel seçimle düzenlenecek";
+        }
+      } else if (!canApplyWithoutManual) {
+        checkbox.checked = false;
+        checkbox.disabled = true;
+        if (label) {
+          label.textContent = "Ürün seçince aktif olur";
         }
       }
-      updateCorrectionSelectionState();
+    }
+    if (preview && previewLabel) {
+      const selectedOption = select.selectedOptions?.[0];
+      const selectedText = selectedOption && select.value ? selectedOption.textContent.trim() : "";
+      preview.hidden = !selectedText;
+      previewLabel.textContent = selectedText;
+    }
+    updateCorrectionSelectionState();
+  };
+
+  document.querySelectorAll("[data-manual-match]").forEach((select) => {
+    select.addEventListener("change", () => updateManualMatchCard(select));
+    updateManualMatchCard(select);
+  });
+
+  document.querySelectorAll("[data-suggestion-pick]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const select = document.getElementById(button.dataset.targetSelect);
+      if (!select) {
+        return;
+      }
+      select.value = button.dataset.suggestionValue || "";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      button.closest(".decision-card")?.classList.add("decision-card-focus");
+      window.setTimeout(() => button.closest(".decision-card")?.classList.remove("decision-card-focus"), 1200);
     });
   });
 

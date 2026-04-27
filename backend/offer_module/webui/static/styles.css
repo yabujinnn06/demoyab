@@ -1163,6 +1163,124 @@ section.app-card::before {
   color: var(--app-ink);
 }
 
+.automation-insight,
+.decision-automation-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(20, 92, 157, 0.14);
+  border-radius: 0.9rem;
+  background: linear-gradient(180deg, rgba(248, 252, 255, 0.96), rgba(240, 247, 253, 0.92));
+}
+
+.automation-insight > div,
+.decision-automation-copy {
+  min-width: 0;
+}
+
+.automation-eyebrow {
+  display: block;
+  margin-bottom: 0.22rem;
+  color: #577189;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.automation-insight strong,
+.decision-automation-panel strong {
+  display: block;
+  color: var(--app-ink);
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.automation-insight p,
+.decision-automation-panel p {
+  margin: 0.25rem 0 0;
+  color: var(--app-muted);
+  line-height: 1.55;
+}
+
+.automation-insight-ok {
+  border-color: rgba(38, 103, 70, 0.18);
+  background: linear-gradient(180deg, rgba(242, 251, 246, 0.96), rgba(249, 255, 252, 0.94));
+}
+
+.automation-insight-warn {
+  border-color: rgba(180, 123, 26, 0.2);
+  background: linear-gradient(180deg, rgba(255, 249, 236, 0.96), rgba(255, 253, 248, 0.94));
+}
+
+.automation-insight-danger {
+  border-color: rgba(177, 67, 67, 0.18);
+  background: linear-gradient(180deg, rgba(255, 245, 245, 0.96), rgba(255, 250, 250, 0.94));
+}
+
+.suggestion-strip,
+.suggestion-action-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.suggestion-pill,
+.suggestion-action {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: min(100%, 13rem);
+  max-width: 100%;
+  gap: 0.18rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(20, 92, 157, 0.14);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--app-text);
+  text-align: left;
+}
+
+.suggestion-pill strong,
+.suggestion-action span {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--app-ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion-pill small,
+.suggestion-action small {
+  color: var(--app-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.suggestion-action {
+  cursor: pointer;
+}
+
+.suggestion-action:hover,
+.suggestion-action:focus-visible {
+  border-color: rgba(11, 134, 200, 0.38);
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(17, 62, 110, 0.1);
+}
+
+.suggestion-pill.is-current,
+.suggestion-action.is-current {
+  border-color: rgba(38, 103, 70, 0.24);
+  background: rgba(241, 251, 246, 0.95);
+}
+
 .result-note-block,
 .decision-guidance,
 .finance-review-note {
@@ -1544,6 +1662,49 @@ section.app-card::before {
   border: 1px solid rgba(73, 64, 54, 0.1);
   border-radius: 1rem;
   background: rgba(249, 252, 255, 0.88);
+}
+
+.decision-automation-panel {
+  grid-template-columns: minmax(0, 0.9fr) minmax(18rem, 1.1fr);
+  align-items: stretch;
+  margin-top: 0;
+}
+
+.decision-automation-panel .suggestion-action-list {
+  align-content: start;
+  margin-top: 0;
+}
+
+.decision-automation-panel .suggestion-action {
+  flex: 1 1 13rem;
+}
+
+.manual-match-preview {
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(38, 103, 70, 0.18);
+  border-radius: 0.75rem;
+  background: rgba(242, 251, 246, 0.95);
+}
+
+.manual-match-preview span {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: #5f766b;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.manual-match-preview strong {
+  display: block;
+  overflow: hidden;
+  color: #1f5f41;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .decision-guidance small {
@@ -2337,6 +2498,11 @@ section.app-card::before {
     justify-content: flex-start;
   }
 
+  .automation-insight,
+  .decision-automation-panel {
+    grid-template-columns: 1fr;
+  }
+
   .correction-queue {
     grid-template-columns: 1fr;
   }
@@ -2348,6 +2514,11 @@ section.app-card::before {
   }
 
   .smart-command-actions .btn {
+    width: 100%;
+  }
+
+  .automation-insight .btn,
+  .suggestion-action {
     width: 100%;
   }
 

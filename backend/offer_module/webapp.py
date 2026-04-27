@@ -60,6 +60,7 @@ from .teklif_kontrol import (
     resolve_price_column,
     run_comparison,
     sanitize_filename_part,
+    similarity_score,
 )
 
 
@@ -1102,7 +1103,108 @@ def describe_result_next_step(result: MatchResult, *, can_apply: bool, manual_se
     return "Excel listesinden urun secip yeniden karsilastir."
 
 
-def result_view_model(result: MatchResult, index: int) -> dict:
+def product_match_suggestions(
+    result: MatchResult,
+    price_rows: list,
+    *,
+    selected_column: str,
+    vat_included: bool,
+    vat_rate: float,
+    limit: int = 3,
+) -> list[dict]:
+    candidates: list[dict] = []
+    for row in price_rows:
+        score = similarity_score(result.offer_item.product_name, row.product_name)
+        if result.matched_row and row.row_number == result.matched_row.row_number:
+            score = max(score, result.score)
+        if score <= 0:
+            continue
+        reference_price, _, _ = resolve_price_for_vat_mode(
+            row,
+            selected_column,
+            vat_included=vat_included,
+            vat_rate=vat_rate,
+        )
+        candidates.append(
+            {
+                "value": str(row.row_number),
+                "label": row.product_name,
+                "score": int(round(score * 100)),
+                "price": format_money(reference_price),
+                "is_current": bool(result.matched_row and row.row_number == result.matched_row.row_number),
+            }
+        )
+
+    candidates.sort(key=lambda item: (item["is_current"], item["score"]), reverse=True)
+    filtered: list[dict] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate["value"] in seen:
+            continue
+        seen.add(candidate["value"])
+        if candidate["is_current"] or candidate["score"] >= 28:
+            filtered.append(candidate)
+        if len(filtered) >= limit:
+            break
+    return filtered
+
+
+def describe_result_action(result: MatchResult, *, can_apply: bool, suggestions: list[dict]) -> dict:
+    if can_apply:
+        return {
+            "tone": "danger",
+            "title": "Fiyat düzeltmesi hazır",
+            "body": (
+                f"Teklifte {format_money(result.offer_item.discounted_price)} görünüyor; "
+                f"listeye göre {format_money(result.suggested_unit_price)} olmalı."
+            ),
+        }
+    if result.status == "ESLESMEDI":
+        if suggestions:
+            return {
+                "tone": "warn",
+                "title": "Ürün eşleşmedi, yakın aday var",
+                "body": f"Sistem en yakın aday olarak {suggestions[0]['label']} ürününü görüyor.",
+            }
+        return {
+            "tone": "warn",
+            "title": "Ürün eşleşmedi",
+            "body": "Fiyat listesinden ürün seçilmeden bu satır PDF düzeltmesine alınamaz.",
+        }
+    if result.status == "INCELE":
+        if suggestions:
+            return {
+                "tone": "warn",
+                "title": "Eşleşme güveni düşük",
+                "body": f"Önce {suggestions[0]['label']} adayını kontrol et.",
+            }
+        return {
+            "tone": "warn",
+            "title": "Manuel kontrol gerekiyor",
+            "body": "Satır otomatik onay için yeterince net değil.",
+        }
+    if result.status == "ONAY":
+        return {
+            "tone": "ok",
+            "title": "Satır uyumlu",
+            "body": "Ürün ve fiyat kontrolünden geçti.",
+        }
+    return {
+        "tone": "info",
+        "title": "Kontrol notu",
+        "body": result.note,
+    }
+
+
+def result_view_model(
+    result: MatchResult,
+    index: int,
+    *,
+    price_rows: list | None = None,
+    selected_column: str = "",
+    vat_included: bool = True,
+    vat_rate: float = DEFAULT_VAT_RATE,
+) -> dict:
     matched_name = result.matched_row.product_name if result.matched_row else "-"
     manual_selected = result.note.startswith("Ürün elle seçildi.")
     can_apply = (
@@ -1110,7 +1212,15 @@ def result_view_model(result: MatchResult, index: int) -> dict:
         and result.suggested_unit_price is not None
         and result.suggested_total_price is not None
     )
+    suggestions = product_match_suggestions(
+        result,
+        price_rows or [],
+        selected_column=selected_column or result.selected_column,
+        vat_included=vat_included,
+        vat_rate=vat_rate,
+    )
     apply_hint = describe_result_next_step(result, can_apply=can_apply, manual_selected=manual_selected)
+    action = describe_result_action(result, can_apply=can_apply, suggestions=suggestions)
     return {
         "index": index,
         "status": result.status,
@@ -1131,6 +1241,9 @@ def result_view_model(result: MatchResult, index: int) -> dict:
         "note": result.note,
         "selected_column": result.selected_column,
         "apply_hint": apply_hint,
+        "action": action,
+        "suggestions": suggestions,
+        "suggestion_count": len(suggestions),
         "can_apply": can_apply,
     }
 
@@ -1704,7 +1817,21 @@ def build_context(
 
     if session is not None:
         metrics = Counter(result.status for result in session.results)
-        results = [result_view_model(result, index) for index, result in enumerate(session.results)]
+        try:
+            session_price_rows, _ = load_price_rows(session.price_list_path)
+        except Exception:
+            session_price_rows = []
+        results = [
+            result_view_model(
+                result,
+                index,
+                price_rows=session_price_rows,
+                selected_column=session.selected_column,
+                vat_included=session.financial_review.vat_included,
+                vat_rate=session.financial_review.vat_rate,
+            )
+            for index, result in enumerate(session.results)
+        ]
         apply_ready_count = sum(1 for row in results if row["can_apply"])
         review_needed_count = metrics.get("INCELE", 0) + metrics.get("ESLESMEDI", 0)
         financial_checks = [financial_check_view_model(check) for check in session.financial_review.checks]
