@@ -10,7 +10,7 @@ import shutil
 import sys
 import tempfile
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 from functools import lru_cache
@@ -312,6 +312,7 @@ class MatchResult:
     suggested_total_price: float | None
     difference: float | None
     note: str
+    bundle_components: list[BundleComponentMatch] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -3768,6 +3769,7 @@ def build_bundle_match_result(
         suggested_total_price=suggested_total_price,
         difference=difference,
         note=note,
+        bundle_components=component_matches,
     )
 
 

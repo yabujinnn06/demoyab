@@ -243,16 +243,28 @@
 
     <section class="product-showcase product-showcase-match">
       <p class="product-label">Excel referansi</p>
-      <h3 class="product-name">{{ row.matched_name }}</h3>
-      <p class="product-subtext">
-        {% if row.manual_selected %}
-          Elle seçilen ürün
-        {% elif row.matched_name != "-" %}
-          Otomatik eslestirme sonucu
-        {% else %}
-          Güvenilir eşleşme bulunamadi
-        {% endif %}
-      </p>
+      {% if row.is_bundle %}
+        <div class="bundle-component-list">
+          {% for component in row.bundle_components %}
+            <div class="bundle-component">
+              <span>{{ component.requested_name }}</span>
+              <strong>{{ component.matched_name }}</strong>
+              <small>{{ component.price }} · {{ component.score }}%</small>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <h3 class="product-name">{{ row.matched_name }}</h3>
+        <p class="product-subtext">
+          {% if row.manual_selected %}
+            Elle seçilen ürün
+          {% elif row.matched_name != "-" %}
+            Otomatik eslestirme sonucu
+          {% else %}
+            Güvenilir eşleşme bulunamadi
+          {% endif %}
+        </p>
+      {% endif %}
     </section>
   </div>
 
@@ -362,17 +374,29 @@
       </section>
 
       <section class="product-showcase product-showcase-match">
-        <p class="product-label">Secilen eşleşme</p>
-        <h3 class="product-name">{{ row.matched_name }}</h3>
-        <p class="product-subtext">
-          {% if row.manual_selected %}
-            Elle seçilen ürün aktif
-          {% elif row.matched_name != "-" %}
-            Otomatik onerilen ürün
-          {% else %}
-            Elle ürün seçimi bekleniyor
-          {% endif %}
-        </p>
+        <p class="product-label">{% if row.is_bundle %}Birleşik eşleşme{% else %}Secilen eşleşme{% endif %}</p>
+        {% if row.is_bundle %}
+          <div class="bundle-component-list">
+            {% for component in row.bundle_components %}
+              <div class="bundle-component">
+                <span>{{ component.requested_name }}</span>
+                <strong>{{ component.matched_name }}</strong>
+                <small>{{ component.price }} · {{ component.score }}%</small>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <h3 class="product-name">{{ row.matched_name }}</h3>
+          <p class="product-subtext">
+            {% if row.manual_selected %}
+              Elle seçilen ürün aktif
+            {% elif row.matched_name != "-" %}
+              Otomatik onerilen ürün
+            {% else %}
+              Elle ürün seçimi bekleniyor
+            {% endif %}
+          </p>
+        {% endif %}
       </section>
     </div>
 
@@ -419,13 +443,20 @@
 
     <div class="decision-control-grid">
       <div class="decision-select-panel">
-        <label class="form-label" for="manual-match-{{ row.index }}">Elle ürün seç</label>
+        <label class="form-label" for="manual-match-{{ row.index }}">
+          {% if row.is_bundle %}Tek ürünle override{% else %}Elle ürün seç{% endif %}
+        </label>
         <select class="form-select form-select-sm" id="manual-match-{{ row.index }}" name="manual_match_row_ids" data-manual-match>
           <option value="">Elle seçme</option>
           {% for item in result_catalog_options %}
             <option value="{{ item.value }}" {% if item.value == row.manual_match_row_id %}selected{% endif %}>{{ item.label }}</option>
           {% endfor %}
         </select>
+        {% if row.is_bundle %}
+          <p class="manual-match-warning mb-0">
+            Otomatik eşleşen bileşenler yukarıda birlikte hesaplanır. Bu alan yalnızca satırı tek ürünle değiştirmek istersen kullanılır.
+          </p>
+        {% endif %}
         <div class="manual-match-preview" data-manual-preview {% if not row.manual_selected %}hidden{% endif %}>
           <span>Seçilen ürün</span>
           <strong data-manual-preview-label>{% if row.manual_selected %}{{ row.matched_name }}{% endif %}</strong>
@@ -448,9 +479,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Teklif Ofisi</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-smart-match">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-bundle-match">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-smart-match"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-bundle-match"></script>
 </head>
 <body
   class="app-body"

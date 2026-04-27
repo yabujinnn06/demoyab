@@ -1558,6 +1558,10 @@ def test_rainwater_pdf_price_list_converts_to_readable_workbook(tmp_path) -> Non
     assert next(row for row in rows if row.product_name == "Rnw 3100 Arıtmasız Su Sebili").prices[
         "2026 KURUMSAL 6 TAKSIT"
     ] == 68950
+    assert sum(1 for row in rows if row.product_name == "Rainwater 40 LT Emaye Tank") == 1
+    emaye_80 = next(row for row in rows if row.product_name == "Rainwater 80 LT Emaye Tank")
+    assert emaye_80.prices["2026 KURUMSAL NAKIT"] == 19950
+    assert emaye_80.prices["2026 PERAKENDE 6 TAKSIT"] == 28950
 
 
 def test_product_match_suggestions_surface_nearest_catalog_item() -> None:
@@ -1608,6 +1612,45 @@ def test_product_match_suggestions_surface_nearest_catalog_item() -> None:
     assert suggestions[0]["price"] == "68.950 TL"
     assert view["action"]["title"] == "Ürün eşleşmedi, yakın aday var"
     assert view["suggestions"][0]["label"] == "Rnw 3100 Arıtmasız Su Sebili"
+
+
+def test_bundle_match_view_model_shows_all_components() -> None:
+    from backend.offer_module import webapp as offer_webapp
+    from backend.offer_module.teklif_kontrol import BundleComponentMatch, MatchResult, OfferItem, PriceRow
+
+    first = PriceRow(row_number=4, product_name="Rainwater RO-500 (1600 lt/gün) 20 INCH", prices={})
+    second = PriceRow(row_number=5, product_name="Rainwater 80 LT Fiber Tank", prices={})
+    result = MatchResult(
+        offer_item=OfferItem(
+            product_name="RAINWATER RO-500 20” + 80 LT TANK",
+            quantity=1,
+            unit_price=68900,
+            discounted_price=68900,
+            total_price=68900,
+        ),
+        matched_row=first,
+        score=0.88,
+        status="DUZELT",
+        selected_column="2026 KURUMSAL NAKIT",
+        reference_unit_price=81900,
+        reference_total_price=81900,
+        suggested_unit_price=81900,
+        suggested_total_price=81900,
+        difference=-13000,
+        note="Satir birden fazla urunden olusuyor; bilesen fiyatlari toplami teklif satiriyla uyusmuyor.",
+        bundle_components=[
+            BundleComponentMatch("RAINWATER RO-500 20”", first, 0.88, 48950, "2026 KURUMSAL NAKIT", "list"),
+            BundleComponentMatch("80 LT TANK", second, 0.84, 32950, "2026 KURUMSAL NAKIT", "list"),
+        ],
+    )
+
+    view = offer_webapp.result_view_model(result, 0)
+
+    assert view["is_bundle"] is True
+    assert view["matched_name"] == "Rainwater RO-500 (1600 lt/gün) 20 INCH + Rainwater 80 LT Fiber Tank"
+    assert [component["price"] for component in view["bundle_components"]] == ["48.950 TL", "32.950 TL"]
+    assert view["action"]["title"] == "Birleşik fiyat düzeltmesi hazır"
+    assert view["suggestion_count"] == 2
 
 
 def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) -> None:

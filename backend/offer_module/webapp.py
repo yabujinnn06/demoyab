@@ -461,6 +461,13 @@ def _extract_price_pdf_rows(pdf_path: Path) -> list[dict[str, float | str | None
                         "PDF kartında 6 Taksit satırı yok; sistem uyumu için 4 Taksit değeri 6 Taksit kolonuna kopyalandı."
                     )
 
+                if (
+                    title == "Rainwater 40 LT Emaye Tank"
+                    and row.get("2026 KURUMSAL NAKIT") == 19950
+                    and row.get("2026 PERAKENDE NAKIT") == 24950
+                ):
+                    row["URUN"] = "Rainwater 80 LT Emaye Tank"
+
                 if any(row.get(header) is not None for header in PRICE_PDF_HEADERS[1:-1]):
                     row["NOT"] = " ".join(notes)
                     rows.append(row)
@@ -1112,6 +1119,18 @@ def product_match_suggestions(
     vat_rate: float,
     limit: int = 3,
 ) -> list[dict]:
+    if result.bundle_components:
+        return [
+            {
+                "value": str(component.matched_row.row_number),
+                "label": component.matched_row.product_name,
+                "score": int(round(component.score * 100)),
+                "price": format_money(component.reference_unit_price),
+                "is_current": True,
+            }
+            for component in result.bundle_components[:limit]
+        ]
+
     candidates: list[dict] = []
     for row in price_rows:
         score = similarity_score(result.offer_item.product_name, row.product_name)
@@ -1151,6 +1170,15 @@ def product_match_suggestions(
 
 def describe_result_action(result: MatchResult, *, can_apply: bool, suggestions: list[dict]) -> dict:
     if can_apply:
+        if result.bundle_components:
+            return {
+                "tone": "danger",
+                "title": "Birleşik fiyat düzeltmesi hazır",
+                "body": (
+                    f"Teklifte {format_money(result.offer_item.discounted_price)} görünüyor; "
+                    f"{len(result.bundle_components)} ürünün liste toplamı {format_money(result.suggested_unit_price)}."
+                ),
+            }
         return {
             "tone": "danger",
             "title": "Fiyat düzeltmesi hazır",
@@ -1205,7 +1233,21 @@ def result_view_model(
     vat_included: bool = True,
     vat_rate: float = DEFAULT_VAT_RATE,
 ) -> dict:
-    matched_name = result.matched_row.product_name if result.matched_row else "-"
+    bundle_components = [
+        {
+            "requested_name": component.requested_name,
+            "matched_name": component.matched_row.product_name,
+            "score": int(round(component.score * 100)),
+            "price": format_money(component.reference_unit_price),
+            "ambiguous": component.ambiguous,
+        }
+        for component in result.bundle_components
+    ]
+    matched_name = (
+        " + ".join(component["matched_name"] for component in bundle_components)
+        if bundle_components
+        else result.matched_row.product_name if result.matched_row else "-"
+    )
     manual_selected = result.note.startswith("Ürün elle seçildi.")
     can_apply = (
         result.status == "DUZELT"
@@ -1228,6 +1270,8 @@ def result_view_model(
         "row_class": f"status-{result.status.lower()}",
         "product_name": result.offer_item.product_name,
         "matched_name": matched_name,
+        "is_bundle": bool(bundle_components),
+        "bundle_components": bundle_components,
         "manual_selected": manual_selected,
         "manual_match_row_id": str(result.matched_row.row_number) if result.matched_row and manual_selected else "",
         "offer_price": format_money(result.offer_item.discounted_price),

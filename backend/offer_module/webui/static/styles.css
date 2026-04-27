@@ -1133,6 +1133,38 @@ section.app-card::before {
   line-height: 1.6;
 }
 
+.bundle-component-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.55rem;
+}
+
+.bundle-component {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.58rem 0.68rem;
+  border: 1px solid rgba(38, 103, 70, 0.16);
+  border-radius: 0.72rem;
+  background: rgba(244, 252, 248, 0.86);
+}
+
+.bundle-component span,
+.bundle-component small {
+  color: var(--app-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.bundle-component strong {
+  overflow: hidden;
+  color: var(--app-ink);
+  font-size: 0.86rem;
+  line-height: 1.28;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .result-stat-grid,
 .finance-review-grid .result-stat-grid {
   display: grid;
@@ -1705,6 +1737,13 @@ section.app-card::before {
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.manual-match-warning {
+  margin-top: 0.65rem;
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .decision-guidance small {
