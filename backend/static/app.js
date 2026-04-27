@@ -294,6 +294,12 @@ function percentValue(value, total) {
   return Math.max(0, Math.min(100, Math.round((value / total) * 100)));
 }
 
+function percentBucketClass(prefix, value) {
+  const numericValue = Number(value) || 0;
+  const bucket = Math.max(0, Math.min(100, Math.round(numericValue / 5) * 5));
+  return `${prefix}-${bucket}`;
+}
+
 function getAuthHeaders(extra = {}) {
   return state.token ? { ...extra, Authorization: `Bearer ${state.token}` } : extra;
 }
@@ -807,7 +813,7 @@ function managementDashboardMarkup() {
           <h2>İş dağıtımı ve çalışan denetimi</h2>
           <p>Program arama yapmaz; atanmış işi, günlük hedefi, sonuç girişini ve takip disiplinini yönetir.</p>
         </div>
-        <div class="target-ring" style="--target:${targetPercent}">
+        <div class="target-ring ${percentBucketClass("target-pct", targetPercent)}">
           <strong>${targetPercent}%</strong>
           <span>günlük hedef</span>
         </div>
@@ -1676,7 +1682,7 @@ function operatorControlContentMarkup() {
                         <span class="operator-status ${statusClass}">${statusLabel}</span>
                       </div>
                       <div class="operator-progress">
-                        <div class="operator-progress-fill" style="width: ${doneRate}%"></div>
+                        <div class="operator-progress-fill ${percentBucketClass("width-pct", doneRate)}"></div>
                       </div>
                       <div class="operator-metrics">
                         <div><span>Atanan</span><strong>${item.assigned_count}</strong></div>
