@@ -34,6 +34,9 @@ const REACH_STATUS_OPTIONS = [
   ["UNKNOWN", "Belirsiz"],
 ];
 
+const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
+const RETRY_DELAYS_MS = [650, 1400, 2600];
+
 const DEFAULT_FILTERS = {
   q: "",
   call_status: "",
@@ -114,6 +117,17 @@ const interactionState = {
   deferredRenderHandle: null,
 };
 
+document.addEventListener(
+  "error",
+  (event) => {
+    const target = event.target;
+    if (target instanceof HTMLImageElement && target.classList.contains("brand-logo")) {
+      target.closest(".brand-mark")?.classList.add("logo-missing");
+    }
+  },
+  true,
+);
+
 function noteUserInteraction() {
   interactionState.lastUserInteractionAt = Date.now();
 }
@@ -189,7 +203,12 @@ function escapeHtml(value) {
 }
 
 function brandMark() {
-  return `<img class="brand-logo" src="/static/yabujin-mark.svg" alt="Yabujin logo" />`;
+  return `
+    <span class="brand-mark" aria-hidden="true">
+      <img class="brand-logo" src="/static/yabujin-mark.svg" alt="" />
+      <span class="brand-logo-fallback">RW</span>
+    </span>
+  `;
 }
 
 function roleLabel(role) {
@@ -300,19 +319,51 @@ function percentBucketClass(prefix, value) {
   return `${prefix}-${bucket}`;
 }
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function getAuthHeaders(extra = {}) {
   return state.token ? { ...extra, Authorization: `Bearer ${state.token}` } : extra;
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    ...options,
-    headers: getAuthHeaders(options.headers ?? {}),
-  });
+  const { retry, ...fetchOptions } = options;
+  const method = String(fetchOptions.method || "GET").toUpperCase();
+  const canRetry = retry !== false && (method === "GET" || method === "HEAD");
+  const maxAttempts = canRetry ? RETRY_DELAYS_MS.length + 1 : 1;
+  let response;
+  let fetchError;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      response = await fetch(path, {
+        credentials: "same-origin",
+        ...fetchOptions,
+        headers: getAuthHeaders(fetchOptions.headers ?? {}),
+      });
+      if (!TRANSIENT_HTTP_STATUSES.has(response.status) || attempt === maxAttempts - 1) {
+        break;
+      }
+    } catch (error) {
+      fetchError = error;
+      if (!canRetry || attempt === maxAttempts - 1) {
+        throw error;
+      }
+    }
+    await wait(RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)]);
+  }
+
+  if (!response) {
+    throw fetchError || new Error("İstek başarısız.");
+  }
 
   if (!response.ok) {
-    let detail = "İstek başarısız.";
+    let detail = TRANSIENT_HTTP_STATUSES.has(response.status)
+      ? "Sunucu geçici olarak hazır değil. Birkaç saniye sonra tekrar deneyin."
+      : "İstek başarısız.";
     try {
       const data = await response.json();
       detail = formatApiDetail(data.detail) || detail;
