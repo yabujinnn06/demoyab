@@ -812,6 +812,12 @@ function managementDashboardMarkup() {
           <p class="section-kicker">Rainwater Operasyon Kontrolü</p>
           <h2>İş dağıtımı ve çalışan denetimi</h2>
           <p>Program arama yapmaz; atanmış işi, günlük hedefi, sonuç girişini ve takip disiplinini yönetir.</p>
+          <div class="ops-live-strip" aria-hidden="true">
+            <span>Atama</span>
+            <span>Takip</span>
+            <span>Performans</span>
+            <span>Rapor</span>
+          </div>
         </div>
         <div class="target-ring ${percentBucketClass("target-pct", targetPercent)}">
           <strong>${targetPercent}%</strong>
@@ -2238,6 +2244,11 @@ function appMarkup() {
               <h1>Rainwater Kontrol Merkezi</h1>
               <p>Atama, takip ve çalışan performansını yöneten operasyon yüzeyi.</p>
             </div>
+          </div>
+          <div class="brand-telemetry" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
           </div>
           <div class="selection-summary">
             <div class="selection-summary-label">Seçili Liste</div>
