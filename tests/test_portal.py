@@ -1532,6 +1532,34 @@ def test_batch_compare_route_renders_results_without_server_error(tmp_path, monk
         assert "batch-issue-table" in batch_response.text
 
 
+def test_rainwater_pdf_price_list_converts_to_readable_workbook(tmp_path) -> None:
+    from backend.offer_module import webapp as offer_webapp
+    from backend.offer_module.teklif_kontrol import load_price_rows
+
+    pdf_path = (
+        PROJECT_ROOT
+        / "backend"
+        / "offer_module"
+        / "veri"
+        / "fiyat_listeleri"
+        / "20260427_FIYAT_LISTESI_2026.pdf"
+    )
+    workbook_path = tmp_path / "fiyat_listesi_2026.xlsx"
+
+    converted_count = offer_webapp.convert_price_pdf_to_workbook(pdf_path, workbook_path)
+    rows, headers = load_price_rows(workbook_path)
+
+    assert converted_count == 75
+    assert len(rows) == 75
+    assert "2026 KURUMSAL NAKIT" in headers
+    assert "2026 PERAKENDE 6 TAKSIT" in headers
+    assert rows[0].product_name == "Rainwater Superior"
+    assert rows[0].prices["2026 KURUMSAL NAKIT"] == 42950
+    assert next(row for row in rows if row.product_name == "Rnw 3100 Arıtmasız Su Sebili").prices[
+        "2026 KURUMSAL 6 TAKSIT"
+    ] == 68950
+
+
 def test_generated_offer_pdf_keeps_turkish_text_and_template_layout(tmp_path) -> None:
     from datetime import date
 

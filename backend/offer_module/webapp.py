@@ -3,6 +3,7 @@ import csv
 import io
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -17,6 +18,7 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import uvicorn
+import fitz
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -140,6 +142,17 @@ PRICE_MODE_GROUPS = (
     ("Otomatik", (PRICE_MODE_AUTO,)),
     ("Kurumsal", ("kurumsal_nakit", "kurumsal_4", "kurumsal_6")),
     ("Perakende", ("perakende_nakit", "perakende_4", "perakende_6")),
+)
+PRICE_PDF_COLUMN_BOUNDS = ((40.0, 198.0), (205.0, 363.0), (370.0, 528.0))
+PRICE_PDF_HEADERS = (
+    "URUN",
+    "2026 KURUMSAL NAKIT",
+    "2026 KURUMSAL 4 TAKSIT",
+    "2026 KURUMSAL 6 TAKSIT",
+    "2026 PERAKENDE NAKIT",
+    "2026 PERAKENDE 4 TAKSIT",
+    "2026 PERAKENDE 6 TAKSIT",
+    "NOT",
 )
 VAT_MODE_INCLUDED = "dahil"
 VAT_MODE_EXCLUDED = "haric"
@@ -331,29 +344,193 @@ def validate_price_workbook(workbook_path: Path) -> tuple[int, list[str]]:
     return len(price_rows), price_columns
 
 
+def _price_pdf_word_center(word: tuple) -> tuple[float, float]:
+    return (float(word[0]) + float(word[2])) / 2, (float(word[1]) + float(word[3])) / 2
+
+
+def _price_pdf_words_in(words: list[tuple], x0: float, x1: float, y0: float, y1: float) -> list[tuple]:
+    return [
+        word
+        for word in words
+        if x0 <= _price_pdf_word_center(word)[0] <= x1
+        and y0 <= _price_pdf_word_center(word)[1] <= y1
+    ]
+
+
+def _price_pdf_line_text(words: list[tuple]) -> str:
+    return " ".join(
+        str(word[4]).strip()
+        for word in sorted(words, key=lambda candidate: float(candidate[0]))
+        if str(word[4]).strip()
+    ).strip()
+
+
+def _price_pdf_money(value: str) -> float | None:
+    cleaned = re.sub(r"[^0-9,.]", "", value.replace(" ", ""))
+    return parse_money(cleaned)
+
+
+def _extract_price_pdf_rows(pdf_path: Path) -> list[dict[str, float | str | None]]:
+    rows: list[dict[str, float | str | None]] = []
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as exc:
+        raise ValueError(f"PDF fiyat listesi okunamadı: {pdf_path.name}") from exc
+
+    try:
+        for page in doc:
+            words = [word for word in page.get_text("words") if str(word[4]).strip()]
+            perakende_words = [word for word in words if str(word[4]).strip().lower() == "perakende"]
+            seen_cards: set[tuple[int, int]] = set()
+
+            for marker in sorted(perakende_words, key=lambda word: (float(word[1]), float(word[0]))):
+                center_x, center_y = _price_pdf_word_center(marker)
+                column_index = next(
+                    (
+                        index
+                        for index, (x0, x1) in enumerate(PRICE_PDF_COLUMN_BOUNDS)
+                        if x0 <= center_x <= x1
+                    ),
+                    None,
+                )
+                if column_index is None:
+                    continue
+
+                card_key = (column_index, round(center_y / 10))
+                if card_key in seen_cards:
+                    continue
+                seen_cards.add(card_key)
+
+                x0, x1 = PRICE_PDF_COLUMN_BOUNDS[column_index]
+                title = re.sub(
+                    r"\s+",
+                    " ",
+                    _price_pdf_line_text(_price_pdf_words_in(words, x0, x1, center_y - 25, center_y - 6)),
+                ).strip()
+                if not title or title.upper().startswith("RAINWATER 23") or title.upper().startswith("FIYAT"):
+                    continue
+
+                label_words = _price_pdf_words_in(words, x0, x0 + 75, center_y + 7, center_y + 62)
+                label_lines: list[list[float | str]] = []
+                for label_word in sorted(label_words, key=lambda word: _price_pdf_word_center(word)[1]):
+                    _, label_y = _price_pdf_word_center(label_word)
+                    label_text = str(label_word[4]).strip()
+                    if label_text != "Nakit" and label_text not in {"4", "6", "9"}:
+                        continue
+                    if not label_lines or abs(float(label_lines[-1][0]) - label_y) > 4:
+                        label_lines.append([label_y, label_text])
+                    else:
+                        label_lines[-1][1] = f"{label_lines[-1][1]} {label_text}"
+
+                row: dict[str, float | str | None] = {"URUN": title, "NOT": ""}
+                notes: list[str] = []
+                for label_y, label in label_lines[:3]:
+                    price_words = _price_pdf_words_in(
+                        words,
+                        x0 + 60,
+                        x1,
+                        float(label_y) - 5.5,
+                        float(label_y) + 5.5,
+                    )
+                    split_x = x0 + ((x1 - x0) * 0.68)
+                    perakende_text = _price_pdf_line_text(
+                        [word for word in price_words if _price_pdf_word_center(word)[0] < split_x]
+                    )
+                    kurumsal_text = _price_pdf_line_text(
+                        [word for word in price_words if _price_pdf_word_center(word)[0] >= split_x]
+                    )
+
+                    first_token = str(label).split()[0]
+                    if first_token == "Nakit":
+                        suffix = "NAKIT"
+                    elif first_token == "4":
+                        suffix = "4 TAKSIT"
+                    elif first_token in {"6", "9"}:
+                        suffix = "6 TAKSIT"
+                    else:
+                        continue
+
+                    row[f"2026 PERAKENDE {suffix}"] = _price_pdf_money(perakende_text)
+                    row[f"2026 KURUMSAL {suffix}"] = _price_pdf_money(kurumsal_text)
+
+                if row.get("2026 PERAKENDE 4 TAKSIT") and not row.get("2026 PERAKENDE 6 TAKSIT"):
+                    row["2026 PERAKENDE 6 TAKSIT"] = row.get("2026 PERAKENDE 4 TAKSIT")
+                    row["2026 KURUMSAL 6 TAKSIT"] = row.get("2026 KURUMSAL 4 TAKSIT")
+                    notes.append(
+                        "PDF kartında 6 Taksit satırı yok; sistem uyumu için 4 Taksit değeri 6 Taksit kolonuna kopyalandı."
+                    )
+
+                if any(row.get(header) is not None for header in PRICE_PDF_HEADERS[1:-1]):
+                    row["NOT"] = " ".join(notes)
+                    rows.append(row)
+    finally:
+        doc.close()
+
+    if not rows:
+        raise ValueError("PDF fiyat listesinde okunabilir ürün/fiyat satırı bulunamadı.")
+    return rows
+
+
+def convert_price_pdf_to_workbook(pdf_path: Path, workbook_path: Path) -> int:
+    rows = _extract_price_pdf_rows(pdf_path)
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Fiyat Listesi 2026"
+    sheet.append(list(PRICE_PDF_HEADERS))
+    for row in rows:
+        sheet.append([row.get(header) for header in PRICE_PDF_HEADERS])
+
+    sheet.freeze_panes = "A2"
+    for column, width in {
+        "A": 42,
+        "B": 18,
+        "C": 18,
+        "D": 18,
+        "E": 18,
+        "F": 18,
+        "G": 18,
+        "H": 52,
+    }.items():
+        sheet.column_dimensions[column].width = width
+    for row in sheet.iter_rows(min_row=2, min_col=2, max_col=7):
+        for cell in row:
+            cell.number_format = '#,##0.00 "TL"'
+
+    workbook_path.parent.mkdir(parents=True, exist_ok=True)
+    workbook.save(workbook_path)
+    return len(rows)
+
+
 def import_price_file(upload: UploadFile, *, activate_after_import: bool) -> tuple[Path, int, list[str]]:
     ensure_admin_storage()
     if not upload.filename:
-        raise ValueError("İçe aktarılacak Excel dosyasını seç.")
+        raise ValueError("İçe aktarılacak fiyat listesi dosyasını seç.")
 
     suffix = Path(upload.filename).suffix.lower()
-    if suffix not in {".xlsx", ".xlsm"}:
-        raise ValueError("Sadece .xlsx veya .xlsm formatında Excel yükleyebilirsin.")
+    if suffix not in {".xlsx", ".xlsm", ".pdf"}:
+        raise ValueError("Sadece .xlsx, .xlsm veya Rainwater PDF fiyat listesi yükleyebilirsin.")
 
     safe_stem = sanitize_filename_part(Path(upload.filename).stem) or "FIYAT_LISTESI"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    target_path = PRICE_LISTS_DIR / f"{timestamp}_{safe_stem}{suffix}"
+    target_path = PRICE_LISTS_DIR / f"{timestamp}_{safe_stem}{'.xlsx' if suffix == '.pdf' else suffix}"
+    source_pdf_path = PRICE_LISTS_DIR / f"{timestamp}_{safe_stem}.pdf" if suffix == ".pdf" else None
 
     file_bytes = upload.file.read()
     if not file_bytes:
         raise ValueError("Yüklenen dosya boş görünüyor.")
 
     try:
-        target_path.write_bytes(file_bytes)
+        if source_pdf_path is not None:
+            source_pdf_path.write_bytes(file_bytes)
+            convert_price_pdf_to_workbook(source_pdf_path, target_path)
+        else:
+            target_path.write_bytes(file_bytes)
         row_count, price_columns = validate_price_workbook(target_path)
     except Exception:
         if target_path.exists():
             target_path.unlink(missing_ok=True)
+        if source_pdf_path is not None and source_pdf_path.exists():
+            source_pdf_path.unlink(missing_ok=True)
         raise
     finally:
         upload.file.close()

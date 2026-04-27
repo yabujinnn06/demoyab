@@ -4,6 +4,7 @@ __pycache__/
 .tmp_pytest/
 .tmp_testdata/
 .tmp_header_preview/
+.tmp_price_*
 .gitnexus/
 pytest-cache-files-*/
 data/*.db
