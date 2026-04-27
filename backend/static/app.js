@@ -44,6 +44,7 @@ const DEFAULT_FILTERS = {
   has_phone: false,
   has_address: false,
   has_website: false,
+  due_callbacks: false,
 };
 
 const DEFAULT_CONTACT_POOL_FILTERS = {
@@ -62,6 +63,7 @@ const state = {
   records: [],
   contactPool: [],
   operatorStats: [],
+  operationSummary: null,
   filteredSummary: null,
   users: [],
   activity: [],
@@ -142,6 +144,7 @@ function resetSessionState(message = "") {
   state.records = [];
   state.contactPool = [];
   state.operatorStats = [];
+  state.operationSummary = null;
   state.filteredSummary = null;
   state.users = [];
   state.activity = [];
@@ -276,6 +279,19 @@ function formatClock(value) {
     minute: "2-digit",
     second: "2-digit",
   }).format(date);
+}
+
+function formatDateTimeInput(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (part) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function percentValue(value, total) {
+  if (!total) return 0;
+  return Math.max(0, Math.min(100, Math.round((value / total) * 100)));
 }
 
 function getAuthHeaders(extra = {}) {
@@ -449,7 +465,7 @@ function markSync(source) {
 }
 
 async function refreshOperationalData(source = "manual") {
-  const tasks = [loadLists(), loadRecords(), loadActivity(), loadOperatorStats()];
+  const tasks = [loadLists(), loadRecords(), loadActivity(), loadOperatorStats(), loadOperationSummary()];
   if (state.contactPoolModalOpen) {
     tasks.push(loadContactPool());
   }
@@ -585,6 +601,16 @@ async function loadOperatorStats() {
   state.operatorStats = await api(`/api/operator-stats?${params.toString()}`);
 }
 
+async function loadOperationSummary() {
+  if (state.me?.role !== "admin") {
+    state.operationSummary = null;
+    return;
+  }
+  const params = new URLSearchParams();
+  if (state.selectedListId) params.set("call_list_id", state.selectedListId);
+  state.operationSummary = await api(`/api/operation-summary?${params.toString()}`);
+}
+
 async function loadOperatorDetailRecords() {
   if (state.me?.role !== "admin" || !state.operatorDetailUserId) {
     state.operatorDetailRecords = [];
@@ -674,6 +700,7 @@ async function loadRecords() {
   if (state.filters.has_phone) params.set("has_phone", "true");
   if (state.filters.has_address) params.set("has_address", "true");
   if (state.filters.has_website) params.set("has_website", "true");
+  if (state.filters.due_callbacks) params.set("due_callbacks", "true");
   params.set("offset", String(state.pagination.offset));
   params.set("limit", String(state.pagination.limit));
 
@@ -762,6 +789,82 @@ function statsMarkup() {
         <span>Olumlu</span>
         <strong>${summary.positive ?? 0}</strong>
       </article>
+    </section>
+  `;
+}
+
+function managementDashboardMarkup() {
+  if (state.me?.role !== "admin") return "";
+  const summary = state.operationSummary || {};
+  const targetPercent = summary.target_percent || percentValue(summary.today_processed_count || 0, summary.total_daily_target || 0);
+  const idleText = (summary.idle_operator_count || 0) > 0 ? `${summary.idle_operator_count} operatör bugün işlem girmedi` : "Ekip bugün aktif";
+  const callbackText = (summary.due_callback_count || 0) > 0 ? `${summary.due_callback_count} takip zamanı geçti` : "Geciken takip yok";
+  return `
+    <section class="ops-command-center">
+      <div class="ops-command-head">
+        <div>
+          <p class="section-kicker">Rainwater Operasyon Kontrolü</p>
+          <h2>İş dağıtımı ve çalışan denetimi</h2>
+          <p>Program arama yapmaz; atanmış işi, günlük hedefi, sonuç girişini ve takip disiplinini yönetir.</p>
+        </div>
+        <div class="target-ring" style="--target:${targetPercent}">
+          <strong>${targetPercent}%</strong>
+          <span>günlük hedef</span>
+        </div>
+      </div>
+      <div class="ops-signal-grid">
+        <article class="ops-signal">
+          <span>Bugün işlenen</span>
+          <strong>${summary.today_processed_count || 0}</strong>
+          <small>${summary.total_daily_target || 0} kayıt hedef</small>
+        </article>
+        <article class="ops-signal ${summary.unassigned_count ? "warn" : ""}">
+          <span>Atanmayı bekleyen</span>
+          <strong>${summary.unassigned_count || 0}</strong>
+          <small>çalışana verilmemiş kayıt</small>
+        </article>
+        <article class="ops-signal ${summary.due_callback_count ? "danger" : ""}">
+          <span>Takip alarmı</span>
+          <strong>${summary.due_callback_count || 0}</strong>
+          <small>${escapeHtml(callbackText)}</small>
+        </article>
+        <article class="ops-signal ${summary.stale_assigned_count ? "warn" : ""}">
+          <span>Bekleyen atanmış iş</span>
+          <strong>${summary.stale_assigned_count || 0}</strong>
+          <small>2+ gündür dokunulmamış</small>
+        </article>
+        <article class="ops-signal ${summary.idle_operator_count ? "warn" : ""}">
+          <span>Ekip canlılığı</span>
+          <strong>${summary.active_operator_count || 0}</strong>
+          <small>${escapeHtml(idleText)}</small>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function agentTaskDeskMarkup() {
+  if (state.me?.role !== "agent") return "";
+  const summary = state.filteredSummary || summarizeRecords(state.records);
+  const pending = Math.max(0, (summary.total || 0) - (summary.calling || 0));
+  const dueCallbacks = state.records.filter((record) => {
+    if (record.call_status !== "CALLBACK" || !record.callback_at) return false;
+    const date = new Date(record.callback_at);
+    return !Number.isNaN(date.getTime()) && date.getTime() <= Date.now();
+  }).length;
+  return `
+    <section class="agent-task-desk">
+      <div class="agent-task-copy">
+        <p class="section-kicker">Çalışan Görev Ekranı</p>
+        <h2>Bugünkü iş listem</h2>
+        <p>Atanmış kayıtları sırayla güncelle; arama dışarıdan yapılsa da sonuç ve takip buradan kapatılır.</p>
+      </div>
+      <div class="agent-task-grid">
+        <article><span>Atanan</span><strong>${summary.total || 0}</strong></article>
+        <article><span>Bekleyen</span><strong>${pending}</strong></article>
+        <article><span>İşlenen</span><strong>${summary.calling || 0}</strong></article>
+        <article class="${dueCallbacks ? "danger" : ""}"><span>Takip zamanı</span><strong>${dueCallbacks}</strong></article>
+      </div>
     </section>
   `;
 }
@@ -878,8 +981,8 @@ function loginMarkup() {
           <div class="hero-lockup">
             ${brandMark()}
             <div>
-              <p class="brand-kicker">Rainwater Systems</p>
-              <h1>Yabujin Scrap Controller</h1>
+              <p class="brand-kicker">Rainwater Arama Operasyonu</p>
+              <h1>Rainwater Kontrol Merkezi</h1>
             </div>
           </div>
           ${loginConsoleMarkup()}
@@ -908,8 +1011,8 @@ function bootMarkup() {
       <div class="boot-window window-shell" data-window-title="Oturum Doğrulanıyor">
         ${brandMark()}
         <div>
-          <p class="brand-kicker">Rainwater Systems</p>
-          <h1>Yabujin Scrap Controller</h1>
+          <p class="brand-kicker">Rainwater Arama Operasyonu</p>
+          <h1>Rainwater Kontrol Merkezi</h1>
           <p>Oturum ve operasyon verileri yükleniyor.</p>
         </div>
         <div class="boot-progress" aria-hidden="true">
@@ -992,6 +1095,7 @@ function teamModalMarkup() {
               <input class="field" name="full_name" placeholder="Adı / takma adı" required />
               <input class="field" type="email" name="email" placeholder="Email" required />
               <input class="field" type="password" name="password" placeholder="Geçici şifre: Operator123!" required />
+              <input class="field" type="number" min="0" max="1000" name="daily_target" placeholder="Günlük hedef (örn. 50)" />
               <select class="select" name="role">
                 <option value="agent">Operatör</option>
                 <option value="admin">Yönetici</option>
@@ -1020,6 +1124,7 @@ function teamModalMarkup() {
                     <th>Email</th>
                     <th>Adı / Takma Adı</th>
                     <th>Rol</th>
+                    <th>Hedef</th>
                     <th>Teklif</th>
                     <th>Yeni Şifre</th>
                     <th>Durum</th>
@@ -1040,6 +1145,9 @@ function teamModalMarkup() {
                               <option value="agent" ${user.role === "agent" ? "selected" : ""}>Operatör</option>
                               <option value="admin" ${user.role === "admin" ? "selected" : ""}>Yönetici</option>
                             </select>
+                          </td>
+                          <td>
+                            <input class="field compact-field" type="number" min="0" max="1000" data-user-daily-target="${user.id}" value="${escapeHtml(user.daily_target || 0)}" />
                           </td>
                           <td>
                             <label class="inline-check">
@@ -1777,6 +1885,7 @@ function filtersMarkup() {
   if (state.filters.has_phone) activePresence.push("telefon");
   if (state.filters.has_address) activePresence.push("adres");
   if (state.filters.has_website) activePresence.push("web");
+  if (state.filters.due_callbacks) activePresence.push("takip zamanı");
   return `
     <section class="panel filter-panel window-shell" data-window-title="Kayıt Filtresi">
       <div class="panel-head">
@@ -1843,6 +1952,10 @@ function filtersMarkup() {
           <input type="checkbox" id="filter-has-website" ${state.filters.has_website ? "checked" : ""} />
           <span>Web sitesi olanlar</span>
         </label>
+        <label class="check-item">
+          <input type="checkbox" id="filter-due-callbacks" ${state.filters.due_callbacks ? "checked" : ""} />
+          <span>Takip zamanı gelenler</span>
+        </label>
       </div>
     </section>
   `;
@@ -1891,6 +2004,7 @@ function recordsTableMarkup() {
             <col class="col-call" />
             <col class="col-result" />
             <col class="col-note" />
+            <col class="col-callback" />
             <col class="col-updated" />
             <col class="col-action" />
           </colgroup>
@@ -1906,6 +2020,7 @@ function recordsTableMarkup() {
               <th>Arama</th>
               <th>Sonuç</th>
               <th>Not</th>
+              <th>Takip</th>
               <th>Güncel</th>
               <th>İşlem</th>
             </tr>
@@ -1963,6 +2078,10 @@ function recordsTableMarkup() {
                     </td>
                     <td>
                       <textarea class="textarea table-note" data-record-note="${current.id}" rows="4">${escapeHtml(current.note || "")}</textarea>
+                    </td>
+                    <td>
+                      <input class="field table-date" type="datetime-local" data-record-callback="${current.id}" value="${escapeHtml(formatDateTimeInput(current.callback_at))}" />
+                      <div class="record-meta">${current.callback_at ? escapeHtml(formatDate(current.callback_at)) : "Takip zamanı yok"}</div>
                     </td>
                     <td>
                       <div class="record-meta">${formatDate(current.updated_at)}</div>
@@ -2048,9 +2167,9 @@ function appMarkup() {
           <div class="brand-lockup">
             ${brandMark()}
             <div>
-              <span class="brand-kicker">Rainwater Systems</span>
-              <h1>Yabujin Scrap Controller</h1>
-              <p>Kaynak verileri günlük saha operasyonuna çeviren kontrol yüzeyi.</p>
+              <span class="brand-kicker">Rainwater Arama Operasyonu</span>
+              <h1>Rainwater Kontrol Merkezi</h1>
+              <p>Atama, takip ve çalışan performansını yöneten operasyon yüzeyi.</p>
             </div>
           </div>
           <div class="selection-summary">
@@ -2073,7 +2192,7 @@ function appMarkup() {
       <main class="main">
         <header class="topbar window-shell" data-window-title="Oturum Durumu">
           <div class="topbar-copy">
-            <p class="section-kicker">Rainwater saha operasyonu</p>
+            <p class="section-kicker">Rainwater Saha Operasyonu</p>
             <h2>${state.me?.role === "admin" ? "Yönetim Ekranı" : "Operatör Ekranı"}</h2>
             <p class="helper">${currentList ? escapeHtml(currentList.name) : "Liste seçilmedi"}</p>
           </div>
@@ -2099,6 +2218,8 @@ function appMarkup() {
 
         ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
         ${statsMarkup()}
+        ${managementDashboardMarkup()}
+        ${agentTaskDeskMarkup()}
         ${filtersMarkup()}
         ${
           state.me?.role === "admin"
@@ -2154,6 +2275,7 @@ async function handleUserCreate(event) {
   const password = formString(form, "password");
   const role = formString(form, "role") || "agent";
   const canAccessOfferTool = form.has("can_access_offer_tool");
+  const dailyTarget = Math.max(0, Number(formString(form, "daily_target") || 0));
 
   if (fullName.length < 2) {
     setFlash("error", "Ad / takma ad en az 2 karakter olmalı.");
@@ -2178,6 +2300,7 @@ async function handleUserCreate(event) {
         email,
         password,
         role,
+        daily_target: dailyTarget,
         can_access_offer_tool: role === "admin" ? true : canAccessOfferTool,
       }),
     });
@@ -2283,6 +2406,7 @@ async function handleUserUpdate(userId) {
   const canAccessOfferTool = Boolean(document.querySelector(`[data-user-offer-access='${userId}']`)?.checked);
   const password = document.querySelector(`[data-user-password='${userId}']`)?.value?.trim() ?? "";
   const isActive = Boolean(document.querySelector(`[data-user-active='${userId}']`)?.checked);
+  const dailyTarget = Math.max(0, Number(document.querySelector(`[data-user-daily-target='${userId}']`)?.value || 0));
 
   if (!fullName) {
     setFlash("error", "Kullanıcı adı boş bırakılamaz.");
@@ -2301,6 +2425,7 @@ async function handleUserUpdate(userId) {
       body: JSON.stringify({
         full_name: fullName,
         role,
+        daily_target: dailyTarget,
         can_access_offer_tool: role === "admin" ? true : canAccessOfferTool,
         is_active: isActive,
         ...(password ? { password } : {}),
@@ -2423,6 +2548,7 @@ async function handleSaveRecord(recordId) {
   const draft = state.recordDrafts[recordId] || {};
   const assigneeField = document.querySelector(`[data-record-assignee='${recordId}']`);
   const noteField = document.querySelector(`[data-record-note='${recordId}']`);
+  const callbackField = document.querySelector(`[data-record-callback='${recordId}']`);
   const callStatusField = document.querySelector(`[data-record-call-status='${recordId}']`);
   const resultStatusField = document.querySelector(`[data-record-result-status='${recordId}']`);
 
@@ -2430,6 +2556,7 @@ async function handleSaveRecord(recordId) {
     call_status: draft.call_status ?? callStatusField?.value,
     result_status: draft.result_status ?? resultStatusField?.value,
     note: draft.note ?? noteField?.value ?? "",
+    callback_at: draft.callback_at ?? callbackField?.value ?? "",
   };
 
   if (state.me?.role === "admin") {
@@ -2585,6 +2712,7 @@ async function applyFilters() {
   state.filters.has_phone = Boolean(document.querySelector("#filter-has-phone")?.checked);
   state.filters.has_address = Boolean(document.querySelector("#filter-has-address")?.checked);
   state.filters.has_website = Boolean(document.querySelector("#filter-has-website")?.checked);
+  state.filters.due_callbacks = Boolean(document.querySelector("#filter-due-callbacks")?.checked);
   state.pagination.offset = 0;
   try {
     await loadRecords();
@@ -2723,6 +2851,7 @@ function bindEvents() {
   document.querySelector("#filter-has-phone")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-has-address")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-has-website")?.addEventListener("change", applyFilters);
+  document.querySelector("#filter-due-callbacks")?.addEventListener("change", applyFilters);
   document.querySelector("#filter-q")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -2855,6 +2984,14 @@ function bindEvents() {
     node.addEventListener("input", (event) => {
       updateDraft(event.currentTarget.getAttribute("data-record-note"), {
         note: event.currentTarget.value,
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-record-callback]").forEach((node) => {
+    node.addEventListener("input", (event) => {
+      updateDraft(event.currentTarget.getAttribute("data-record-callback"), {
+        callback_at: event.currentTarget.value,
       });
     });
   });

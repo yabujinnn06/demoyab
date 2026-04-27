@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 import csv
+from datetime import UTC, datetime, timedelta
 import io
 import os
 import sqlite3
@@ -182,6 +183,7 @@ class UserCreateRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=255)
     role: Literal["admin", "agent"] = "agent"
     can_access_offer_tool: bool = False
+    daily_target: int = Field(default=0, ge=0, le=1000)
 
     @field_validator("password")
     @classmethod
@@ -195,6 +197,7 @@ class UserUpdateRequest(BaseModel):
     role: Literal["admin", "agent"] | None = None
     is_active: bool | None = None
     can_access_offer_tool: bool | None = None
+    daily_target: int | None = Field(default=None, ge=0, le=1000)
 
     @field_validator("password")
     @classmethod
@@ -211,6 +214,7 @@ class UserRead(BaseModel):
     role: Literal["admin", "agent"]
     is_active: bool
     can_access_offer_tool: bool = False
+    daily_target: int = 0
     created_at: str
     updated_at: str
 
@@ -270,6 +274,7 @@ class CallRecordRead(BaseModel):
     call_status: Literal["NOT_CALLED", "CALLING", "CALLED", "UNREACHABLE", "CALLBACK", "COMPLETED"]
     result_status: Literal["PENDING", "POSITIVE", "NEGATIVE", "NO_ANSWER", "WRONG_NUMBER", "NOT_INTERESTED"]
     note: str | None = None
+    callback_at: str | None = None
     locked_by_user_id: str | None = None
     locked_by_user_name: str | None = None
     last_contacted_at: str | None = None
@@ -334,6 +339,11 @@ class OperatorStatsRead(BaseModel):
     negative_count: int
     no_answer_count: int
     callback_count: int
+    pending_count: int = 0
+    today_processed_count: int = 0
+    daily_target: int = 0
+    target_percent: int = 0
+    stale_assigned_count: int = 0
     last_activity_at: str | None = None
 
 
@@ -381,6 +391,23 @@ class CallRecordUpdateRequest(BaseModel):
     call_status: str | None = None
     result_status: str | None = None
     note: str | None = Field(default=None, max_length=4000)
+    callback_at: str | None = Field(default=None, max_length=64)
+
+
+class OperationSummaryRead(BaseModel):
+    total_records: int = 0
+    assigned_count: int = 0
+    unassigned_count: int = 0
+    pending_count: int = 0
+    processed_count: int = 0
+    today_processed_count: int = 0
+    due_callback_count: int = 0
+    stale_assigned_count: int = 0
+    active_operator_count: int = 0
+    inactive_operator_count: int = 0
+    idle_operator_count: int = 0
+    total_daily_target: int = 0
+    target_percent: int = 0
 
 
 class AssignResponse(BaseModel):
@@ -549,6 +576,31 @@ def _validate_result_status(value: str) -> str:
     return normalized
 
 
+def _normalize_callback_at(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    try:
+        parsed = datetime.fromisoformat(stripped.replace("Z", "+00:00"))
+    except ValueError:
+        raise _api_error(422, "Tekrar arama zamani gecersiz.")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).isoformat()
+
+
+def _coerce_status_pair(call_status: str, result_status: str) -> tuple[str, str]:
+    if result_status in {"POSITIVE", "NEGATIVE", "NOT_INTERESTED"} and call_status in {"NOT_CALLED", "CALLING"}:
+        call_status = "COMPLETED"
+    elif result_status in {"NO_ANSWER", "WRONG_NUMBER"} and call_status in {"NOT_CALLED", "CALLING"}:
+        call_status = "UNREACHABLE"
+    elif call_status == "CALLBACK" and result_status in {"NEGATIVE", "NOT_INTERESTED"}:
+        call_status = "COMPLETED"
+    return call_status, result_status
+
+
 def _summary_for_list(connection: sqlite3.Connection, call_list_id: str) -> dict[str, int]:
     rows = connection.execute(
         "SELECT assigned_user_id, call_status, result_status FROM call_records WHERE call_list_id = ?",
@@ -599,6 +651,7 @@ def _user_read(row: sqlite3.Row) -> UserRead:
         role=row["role"],
         is_active=bool(row["is_active"]),
         can_access_offer_tool=bool(row["can_access_offer_tool"]),
+        daily_target=int(row["daily_target"] or 0),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -643,6 +696,7 @@ def _record_row(row: sqlite3.Row) -> CallRecordRead:
         call_status=row["call_status"],
         result_status=row["result_status"],
         note=row["note"],
+        callback_at=row["callback_at"],
         locked_by_user_id=row["locked_by_user_id"],
         locked_by_user_name=row["locked_by_user_name"],
         last_contacted_at=row["last_contacted_at"],
@@ -840,11 +894,14 @@ def _contact_pool_row(row: sqlite3.Row) -> ContactPoolEntryRead:
 
 
 def _operator_stats_row(row: sqlite3.Row) -> OperatorStatsRead:
+    daily_target = int(row["daily_target"] or 0)
+    today_processed = int(row["today_processed_count"] or 0)
     return OperatorStatsRead(
         user_id=row["user_id"],
         full_name=row["full_name"],
         email=row["email"],
         is_active=bool(row["is_active"]),
+        daily_target=daily_target,
         assigned_count=int(row["assigned_count"] or 0),
         processed_count=int(row["processed_count"] or 0),
         reached_count=int(row["reached_count"] or 0),
@@ -853,6 +910,10 @@ def _operator_stats_row(row: sqlite3.Row) -> OperatorStatsRead:
         negative_count=int(row["negative_count"] or 0),
         no_answer_count=int(row["no_answer_count"] or 0),
         callback_count=int(row["callback_count"] or 0),
+        pending_count=int(row["pending_count"] or 0),
+        today_processed_count=today_processed,
+        target_percent=min(100, round((today_processed / daily_target) * 100)) if daily_target else 0,
+        stale_assigned_count=int(row["stale_assigned_count"] or 0),
         last_activity_at=row["last_activity_at"],
     )
 
@@ -1131,7 +1192,7 @@ def login(payload: LoginRequest, request: Request, response: Response) -> UserLo
         ip_address = _ensure_login_allowed(connection, request)
         row = connection.execute(
             """
-            SELECT id, email, full_name, role, is_active, can_access_offer_tool, password_hash, token_version, created_at, updated_at
+            SELECT id, email, full_name, role, is_active, can_access_offer_tool, daily_target, password_hash, token_version, created_at, updated_at
             FROM users
             WHERE lower(email) = ?
             """,
@@ -1163,6 +1224,7 @@ def login(payload: LoginRequest, request: Request, response: Response) -> UserLo
                 role=row["role"],
                 is_active=bool(row["is_active"]),
                 can_access_offer_tool=bool(row["can_access_offer_tool"]),
+                daily_target=int(row["daily_target"] or 0),
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
             ),
@@ -1189,7 +1251,7 @@ def list_users(_admin: AuthUser = Depends(require_admin)) -> list[UserRead]:
     with get_connection() as connection:
         rows = connection.execute(
             """
-            SELECT id, email, full_name, role, is_active, can_access_offer_tool, created_at, updated_at
+            SELECT id, email, full_name, role, is_active, can_access_offer_tool, daily_target, created_at, updated_at
             FROM users
             ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END, full_name, email
             """
@@ -1212,9 +1274,10 @@ def create_user(payload: UserCreateRequest, _admin: AuthUser = Depends(require_a
         connection.execute(
             """
             INSERT INTO users (
-                id, email, password_hash, full_name, role, is_active, can_access_offer_tool, created_at, updated_at
+                id, email, password_hash, full_name, role, is_active, can_access_offer_tool,
+                daily_target, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -1223,6 +1286,7 @@ def create_user(payload: UserCreateRequest, _admin: AuthUser = Depends(require_a
                 payload.full_name.strip(),
                 payload.role,
                 1 if can_access_offer_tool else 0,
+                payload.daily_target,
                 now,
                 now,
             ),
@@ -1257,6 +1321,7 @@ def update_user(
         next_name = row["full_name"]
         if payload.full_name is not None:
             next_name = payload.full_name.strip()
+        next_daily_target = int(row["daily_target"] or 0) if payload.daily_target is None else payload.daily_target
 
         if user_id == admin.id:
             if payload.role is not None and payload.role != row["role"]:
@@ -1289,7 +1354,8 @@ def update_user(
         connection.execute(
             """
             UPDATE users
-            SET full_name = ?, password_hash = ?, role = ?, is_active = ?, can_access_offer_tool = ?, token_version = ?, updated_at = ?
+            SET full_name = ?, password_hash = ?, role = ?, is_active = ?, can_access_offer_tool = ?,
+                daily_target = ?, token_version = ?, updated_at = ?
             WHERE id = ?
             """,
             (
@@ -1298,6 +1364,7 @@ def update_user(
                 next_role,
                 1 if next_active else 0,
                 1 if next_offer_access else 0,
+                next_daily_target,
                 token_version,
                 now,
                 user_id,
@@ -1441,6 +1508,7 @@ def list_records(
     has_phone: bool = False,
     has_address: bool = False,
     has_website: bool = False,
+    due_callbacks: bool = False,
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
     user: AuthUser = Depends(get_current_user),
@@ -1476,6 +1544,9 @@ def list_records(
         filters.append("r.address IS NOT NULL AND trim(r.address) != ''")
     if has_website:
         filters.append("r.website IS NOT NULL AND trim(r.website) != ''")
+    if due_callbacks:
+        filters.append("r.call_status = 'CALLBACK' AND r.callback_at IS NOT NULL AND r.callback_at <= ?")
+        params.append(utcnow())
 
     if user.role != "admin":
         filters.append("r.assigned_user_id = ?")
@@ -1553,6 +1624,8 @@ def operator_stats(
     if call_list_id:
         join_filters.append("r.call_list_id = ?")
         params.append(call_list_id)
+    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    stale_before = (datetime.now(UTC) - timedelta(days=2)).isoformat()
 
     with get_connection() as connection:
         rows = connection.execute(
@@ -1562,11 +1635,16 @@ def operator_stats(
                 u.full_name,
                 u.email,
                 u.is_active,
+                u.daily_target,
                 COUNT(r.id) AS assigned_count,
                 SUM(CASE
                     WHEN r.id IS NOT NULL AND (r.call_status != 'NOT_CALLED' OR r.result_status != 'PENDING')
                     THEN 1 ELSE 0
                 END) AS processed_count,
+                SUM(CASE
+                    WHEN r.id IS NOT NULL AND r.call_status = 'NOT_CALLED' AND r.result_status = 'PENDING'
+                    THEN 1 ELSE 0
+                END) AS pending_count,
                 SUM(CASE
                     WHEN r.call_status IN ('CALLED', 'COMPLETED')
                       OR r.result_status IN ('POSITIVE', 'NEGATIVE', 'NOT_INTERESTED')
@@ -1581,6 +1659,14 @@ def operator_stats(
                 SUM(CASE WHEN r.result_status IN ('NEGATIVE', 'NOT_INTERESTED') THEN 1 ELSE 0 END) AS negative_count,
                 SUM(CASE WHEN r.result_status = 'NO_ANSWER' THEN 1 ELSE 0 END) AS no_answer_count,
                 SUM(CASE WHEN r.call_status = 'CALLBACK' THEN 1 ELSE 0 END) AS callback_count,
+                SUM(CASE
+                    WHEN r.id IS NOT NULL AND (r.call_status != 'NOT_CALLED' OR r.result_status != 'PENDING') AND r.updated_at >= ?
+                    THEN 1 ELSE 0
+                END) AS today_processed_count,
+                SUM(CASE
+                    WHEN r.id IS NOT NULL AND r.call_status = 'NOT_CALLED' AND r.result_status = 'PENDING' AND r.updated_at <= ?
+                    THEN 1 ELSE 0
+                END) AS stale_assigned_count,
                 MAX(CASE
                     WHEN r.call_status != 'NOT_CALLED' OR r.result_status != 'PENDING'
                     THEN r.updated_at ELSE NULL
@@ -1588,12 +1674,85 @@ def operator_stats(
             FROM users u
             LEFT JOIN call_records r ON {' AND '.join(join_filters)}
             WHERE u.role = 'agent'
-            GROUP BY u.id, u.full_name, u.email, u.is_active
+            GROUP BY u.id, u.full_name, u.email, u.is_active, u.daily_target
             ORDER BY u.is_active DESC, processed_count DESC, positive_count DESC, u.full_name, u.email
             """,
-            tuple(params),
+            tuple([today_start, stale_before, *params]),
         ).fetchall()
     return [_operator_stats_row(row) for row in rows]
+
+
+@app.get("/api/operation-summary", response_model=OperationSummaryRead)
+def operation_summary(
+    call_list_id: str | None = None,
+    _admin: AuthUser = Depends(require_admin),
+) -> OperationSummaryRead:
+    filters: list[str] = []
+    params: list[Any] = []
+    if call_list_id:
+        filters.append("r.call_list_id = ?")
+        params.append(call_list_id)
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    stale_before = (datetime.now(UTC) - timedelta(days=2)).isoformat()
+    now = utcnow()
+
+    with get_connection() as connection:
+        summary_row = connection.execute(
+            f"""
+            SELECT
+                COUNT(*) AS total_records,
+                SUM(CASE WHEN r.assigned_user_id IS NOT NULL THEN 1 ELSE 0 END) AS assigned_count,
+                SUM(CASE WHEN r.assigned_user_id IS NULL THEN 1 ELSE 0 END) AS unassigned_count,
+                SUM(CASE WHEN r.call_status = 'NOT_CALLED' AND r.result_status = 'PENDING' THEN 1 ELSE 0 END) AS pending_count,
+                SUM(CASE WHEN r.call_status != 'NOT_CALLED' OR r.result_status != 'PENDING' THEN 1 ELSE 0 END) AS processed_count,
+                SUM(CASE WHEN (r.call_status != 'NOT_CALLED' OR r.result_status != 'PENDING') AND r.updated_at >= ? THEN 1 ELSE 0 END) AS today_processed_count,
+                SUM(CASE WHEN r.call_status = 'CALLBACK' AND r.callback_at IS NOT NULL AND r.callback_at <= ? THEN 1 ELSE 0 END) AS due_callback_count,
+                SUM(CASE WHEN r.assigned_user_id IS NOT NULL AND r.call_status = 'NOT_CALLED' AND r.result_status = 'PENDING' AND r.updated_at <= ? THEN 1 ELSE 0 END) AS stale_assigned_count
+            FROM call_records r
+            JOIN call_lists l ON l.id = r.call_list_id
+            {where_clause}
+            """,
+            tuple([today_start, now, stale_before, *params]),
+        ).fetchone()
+        operator_rows = connection.execute(
+            """
+            SELECT
+                u.id,
+                u.is_active,
+                u.daily_target,
+                MAX(CASE
+                    WHEN e.created_at >= ? THEN e.created_at ELSE NULL
+                END) AS today_activity_at
+            FROM users u
+            LEFT JOIN call_record_events e ON e.actor_user_id = u.id
+            WHERE u.role = 'agent'
+            GROUP BY u.id, u.is_active, u.daily_target
+            """,
+            (today_start,),
+        ).fetchall()
+
+    total_daily_target = sum(int(row["daily_target"] or 0) for row in operator_rows if bool(row["is_active"]))
+    today_processed = int(summary_row["today_processed_count"] or 0)
+    active_operator_count = sum(1 for row in operator_rows if bool(row["is_active"]))
+    inactive_operator_count = len(operator_rows) - active_operator_count
+    idle_operator_count = sum(1 for row in operator_rows if bool(row["is_active"]) and not row["today_activity_at"])
+
+    return OperationSummaryRead(
+        total_records=int(summary_row["total_records"] or 0),
+        assigned_count=int(summary_row["assigned_count"] or 0),
+        unassigned_count=int(summary_row["unassigned_count"] or 0),
+        pending_count=int(summary_row["pending_count"] or 0),
+        processed_count=int(summary_row["processed_count"] or 0),
+        today_processed_count=today_processed,
+        due_callback_count=int(summary_row["due_callback_count"] or 0),
+        stale_assigned_count=int(summary_row["stale_assigned_count"] or 0),
+        active_operator_count=active_operator_count,
+        inactive_operator_count=inactive_operator_count,
+        idle_operator_count=idle_operator_count,
+        total_daily_target=total_daily_target,
+        target_percent=min(100, round((today_processed / total_daily_target) * 100)) if total_daily_target else 0,
+    )
 
 
 @app.get("/api/activity", response_model=list[ActivityRead])
@@ -1801,10 +1960,17 @@ def update_record(
         next_result_status = row["result_status"]
         if payload.result_status is not None:
             next_result_status = _validate_result_status(payload.result_status)
+        next_call_status, next_result_status = _coerce_status_pair(next_call_status, next_result_status)
 
         note = payload.note.strip() if isinstance(payload.note, str) else row["note"]
         if note == "":
             note = None
+
+        callback_at = row["callback_at"]
+        if payload.callback_at is not None:
+            callback_at = _normalize_callback_at(payload.callback_at)
+        if next_call_status != "CALLBACK" and next_result_status != "PENDING":
+            callback_at = None
 
         locked_by_user_id = user.id if next_call_status == "CALLING" else None
         last_contacted_at = row["last_contacted_at"]
@@ -1818,6 +1984,7 @@ def update_record(
                 call_status = ?,
                 result_status = ?,
                 note = ?,
+                callback_at = ?,
                 locked_by_user_id = ?,
                 locked_at = ?,
                 last_contacted_at = ?,
@@ -1830,6 +1997,7 @@ def update_record(
                 next_call_status,
                 next_result_status,
                 note,
+                callback_at,
                 locked_by_user_id,
                 now if locked_by_user_id else None,
                 last_contacted_at,
@@ -2099,6 +2267,7 @@ def export_call_list(call_list_id: str, user: AuthUser = Depends(get_current_use
             "Sorumlu",
             "Arama Durumu",
             "Sonuc",
+            "Tekrar Arama",
             "Not",
             "Guncelleyen",
             "Guncellenme",
@@ -2123,6 +2292,7 @@ def export_call_list(call_list_id: str, user: AuthUser = Depends(get_current_use
                 row["assigned_user_name"],
                 row["call_status"],
                 row["result_status"],
+                row["callback_at"],
                 row["note"],
                 row["updated_by_user_name"],
                 row["updated_at"],

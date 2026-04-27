@@ -13,7 +13,7 @@ from .security import get_password_hash
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = BASE_DIR / "data" / "portal.db"
-CURRENT_SCHEMA_VERSION = 5
+CURRENT_SCHEMA_VERSION = 6
 POOL_CALL_STATUSES = {"CALLED", "UNREACHABLE", "CALLBACK", "COMPLETED"}
 REACHED_RESULT_STATUSES = {"POSITIVE", "NEGATIVE", "NOT_INTERESTED"}
 UNREACHED_RESULT_STATUSES = {"NO_ANSWER", "WRONG_NUMBER"}
@@ -163,12 +163,23 @@ def _migration_005_offer_permission() -> str:
     return "SELECT 1;"
 
 
+def _migration_006_operation_management() -> str:
+    return """
+        ALTER TABLE users ADD COLUMN daily_target INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE call_records ADD COLUMN callback_at TEXT;
+
+        CREATE INDEX IF NOT EXISTS idx_call_records_callback
+        ON call_records(callback_at);
+    """
+
+
 MIGRATIONS: tuple[tuple[int, str, str], ...] = (
     (1, "initial_schema", _migration_001_initial_schema()),
     (2, "login_attempts", _migration_002_login_attempts()),
     (3, "user_token_version", _migration_003_user_token_version()),
     (4, "contact_pool", _migration_004_contact_pool()),
     (5, "offer_permission", _migration_005_offer_permission()),
+    (6, "operation_management", _migration_006_operation_management()),
 )
 
 
@@ -270,8 +281,24 @@ def _ensure_user_offer_permission_column(connection: sqlite3.Connection) -> None
         connection.execute(
             "ALTER TABLE users ADD COLUMN can_access_offer_tool INTEGER NOT NULL DEFAULT 0"
         )
+    if "daily_target" not in columns:
+        connection.execute(
+            "ALTER TABLE users ADD COLUMN daily_target INTEGER NOT NULL DEFAULT 0"
+        )
     connection.execute(
         "UPDATE users SET can_access_offer_tool = 1 WHERE role = 'admin'"
+    )
+
+
+def _ensure_operation_columns(connection: sqlite3.Connection) -> None:
+    record_columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(call_records)").fetchall()
+    }
+    if "callback_at" not in record_columns:
+        connection.execute("ALTER TABLE call_records ADD COLUMN callback_at TEXT")
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_call_records_callback ON call_records(callback_at)"
     )
 
 
@@ -347,6 +374,7 @@ def init_db() -> None:
     with get_connection() as connection:
         _apply_migrations(connection)
         _ensure_user_offer_permission_column(connection)
+        _ensure_operation_columns(connection)
         _ensure_admin_user(connection)
         _backfill_contact_pool_entries(connection)
         connection.commit()

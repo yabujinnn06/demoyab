@@ -693,6 +693,10 @@ a {
   width: 144px;
 }
 
+.records-table .col-callback {
+  width: 130px;
+}
+
 .records-table .col-updated {
   width: 100px;
 }
@@ -1944,5 +1948,315 @@ strong {
 
   .login-console-viewport {
     height: 182px;
+  }
+}
+
+/* Rainwater operation shell */
+:root {
+  --bg: #edf5fc;
+  --bg-2: #f8fbfe;
+  --app: #f3f8fd;
+  --panel: #ffffff;
+  --panel-alt: #eef6fd;
+  --sidebar: #e8f2fb;
+  --line: #c9d9e8;
+  --line-strong: #9eb9d0;
+  --text: #17314a;
+  --muted: #5f7a91;
+  --accent: #0b86c8;
+  --accent-2: #e3f3ff;
+  --success: #19724c;
+  --warning: #b87918;
+  --danger: #c54a45;
+  --shadow: 0 12px 28px rgba(17, 62, 110, 0.08);
+  --font: "Bahnschrift", "Aptos", "Segoe UI Variable", "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
+html,
+body {
+  background:
+    linear-gradient(180deg, #edf6fd 0%, #f8fbfe 360px, #eef5fb 100%);
+  font-size: 13px;
+}
+
+.app-shell {
+  background: transparent;
+}
+
+.sidebar {
+  background: linear-gradient(180deg, #e7f2fb, #f4f9fd);
+  border-right-color: #c2d5e5;
+}
+
+.brand-block,
+.panel,
+.topbar,
+.login-card,
+.login-hero,
+.modal-window {
+  border-color: rgba(24, 83, 143, 0.12);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 254, 0.96));
+  box-shadow: var(--shadow);
+}
+
+.window-shell {
+  padding-top: 10px;
+}
+
+.window-shell::before,
+.modal-titlebar {
+  position: static;
+  height: auto;
+  min-height: 0;
+  display: block;
+  margin: -10px -10px 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid rgba(24, 83, 143, 0.12);
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, #f8fcff, #eaf4fc);
+  color: #23506f;
+  text-shadow: none;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.brand-block {
+  background:
+    radial-gradient(circle at top right, rgba(255,255,255,0.22), transparent 34%),
+    linear-gradient(145deg, #0d5a97 0%, #0b86c8 58%, #1494d7 100%);
+  color: #ffffff;
+}
+
+.brand-block.window-shell::before {
+  color: rgba(232, 248, 255, 0.86);
+  background: rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+.modal-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-block h1,
+.brand-block p,
+.brand-block .brand-kicker {
+  color: #ffffff;
+}
+
+.brand-block .brand-kicker {
+  color: rgba(228, 247, 255, 0.82);
+}
+
+.selection-summary {
+  margin-top: 10px;
+  border-color: rgba(230, 246, 255, 0.18);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.selection-summary-label,
+.selection-summary-meta {
+  color: rgba(231, 245, 255, 0.78);
+}
+
+.selection-summary-name {
+  color: #ffffff;
+}
+
+.btn {
+  min-height: 32px;
+  border: 1px solid #b8cce0;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #ffffff, #edf5fc);
+  box-shadow: none;
+  font-weight: 700;
+}
+
+.btn-primary {
+  color: #ffffff;
+  border-color: #0b75b8;
+  background: linear-gradient(135deg, #0a6ab0, #0b86c8);
+}
+
+.field,
+.select,
+.textarea {
+  border: 1px solid #b9ccde;
+  border-radius: 6px;
+  box-shadow: none;
+  background: #ffffff;
+}
+
+.stats-band {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stat,
+.ops-signal,
+.agent-task-grid article {
+  border: 1px solid rgba(24, 83, 143, 0.1);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #f1f7fd);
+  box-shadow: 0 8px 18px rgba(17, 62, 110, 0.05);
+}
+
+.ops-command-center,
+.agent-task-desk {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(24, 83, 143, 0.12);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,247,253,0.94));
+  box-shadow: var(--shadow);
+}
+
+.ops-command-head,
+.agent-task-desk {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ops-command-head h2,
+.agent-task-copy h2 {
+  margin: 3px 0 4px;
+  font-size: 22px;
+  line-height: 1.1;
+  color: #112f49;
+}
+
+.ops-command-head p,
+.agent-task-copy p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.target-ring {
+  --target: 0;
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, #ffffff 0 58%, transparent 59%),
+    conic-gradient(var(--accent) calc(var(--target) * 1%), #dbe9f5 0);
+}
+
+.target-ring strong {
+  display: block;
+  color: #103f65;
+  font: 800 22px/1 var(--font);
+}
+
+.target-ring span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ops-signal-grid,
+.agent-task-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.agent-task-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-width: min(100%, 520px);
+}
+
+.ops-signal,
+.agent-task-grid article {
+  min-width: 0;
+  padding: 11px 12px;
+}
+
+.ops-signal span,
+.agent-task-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ops-signal strong,
+.agent-task-grid strong {
+  display: block;
+  margin-top: 4px;
+  color: #102f48;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.ops-signal small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.ops-signal.warn,
+.agent-task-grid article.warn {
+  background: linear-gradient(180deg, #fffaf1, #fff4df);
+  border-color: rgba(184, 121, 24, 0.22);
+}
+
+.ops-signal.danger,
+.agent-task-grid article.danger {
+  background: linear-gradient(180deg, #fff7f6, #ffefee);
+  border-color: rgba(197, 74, 69, 0.22);
+}
+
+.records-table {
+  min-width: 1390px;
+}
+
+.table-date {
+  min-height: 28px;
+  padding: 3px 5px;
+  font-size: 11px;
+}
+
+tbody tr:hover td {
+  background: #f2f8fd;
+}
+
+.modal-backdrop {
+  background: rgba(17, 49, 74, 0.32);
+}
+
+@media (max-width: 1180px) {
+  .ops-signal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .ops-command-head,
+  .agent-task-desk {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .target-ring {
+    width: 92px;
+    height: 92px;
+  }
+
+  .ops-signal-grid,
+  .agent-task-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -369,6 +369,93 @@ def test_processed_records_are_added_to_contact_pool(monkeypatch) -> None:
     db_path.unlink(missing_ok=True)
 
 
+def test_operation_summary_tracks_targets_and_due_callbacks(monkeypatch) -> None:
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+    workbook = build_xlsx_bytes(
+        [
+            ["İsim", "Adres", "Telefon", "Website", "Email"],
+            ["Takip Firma", "Konak", "05301112233", "https://takip.example", "takip@example.com"],
+        ]
+    )
+
+    with TestClient(app) as client:
+        admin_token = client.post(
+            "/api/auth/login",
+            json={"email": "admin@test.local", "password": "Admin12345!"},
+        ).json()["access_token"]
+        agent_id = client.post(
+            "/api/users",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "full_name": "Hedefli Operator",
+                "email": "hedef@test.local",
+                "password": "Operator123!",
+                "role": "agent",
+                "daily_target": 10,
+            },
+        ).json()["id"]
+        call_list_id = client.post(
+            "/api/lists/import",
+            headers={
+                "Authorization": f"Bearer {admin_token}",
+                "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "X-File-Name": "takip.xlsx",
+                "X-List-Name": "Takip Listesi",
+            },
+            content=workbook,
+        ).json()["id"]
+        client.post(
+            f"/api/lists/{call_list_id}/assign-evenly",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"user_ids": [agent_id], "mode": "all"},
+        )
+
+        record_id = client.get(
+            f"/api/records?call_list_id={call_list_id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        ).json()["items"][0]["id"]
+        callback_at = "2026-04-26T09:00"
+        updated = client.patch(
+            f"/api/records/{record_id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"call_status": "CALLBACK", "result_status": "PENDING", "callback_at": callback_at},
+        )
+        assert updated.status_code == 200
+        assert updated.json()["callback_at"].startswith("2026-04-26T09:00")
+
+        due_records = client.get(
+            f"/api/records?call_list_id={call_list_id}&due_callbacks=true",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert due_records.status_code == 200
+        assert due_records.json()["total"] == 1
+
+        summary = client.get(
+            f"/api/operation-summary?call_list_id={call_list_id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert summary.status_code == 200
+        assert summary.json()["due_callback_count"] == 1
+        assert summary.json()["total_daily_target"] == 10
+
+        stats = client.get(
+            f"/api/operator-stats?call_list_id={call_list_id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert stats.status_code == 200
+        operator_stat = next(item for item in stats.json() if item["user_id"] == agent_id)
+        assert operator_stat["daily_target"] == 10
+        assert operator_stat["callback_count"] == 1
+
+    db_path.unlink(missing_ok=True)
+
+
 def test_agent_export_only_returns_assigned_rows(monkeypatch) -> None:
     db_path = make_test_db_path()
     monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
@@ -1104,7 +1191,7 @@ def test_startup_creates_schema_migration_state(monkeypatch) -> None:
             row[0]
             for row in connection.execute("SELECT version FROM schema_migrations ORDER BY version").fetchall()
         }
-        assert applied_versions == {1, 2, 3, 4, 5}
+        assert applied_versions == {1, 2, 3, 4, 5, 6}
         login_attempts_table = connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'login_attempts'"
         ).fetchone()
