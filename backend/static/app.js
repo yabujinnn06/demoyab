@@ -2245,18 +2245,28 @@ function appMarkup() {
               <p>Atama, takip ve çalışan performansını yöneten operasyon yüzeyi.</p>
             </div>
           </div>
+          <div class="brand-status-board" aria-hidden="true">
+            <span>OPS ONLINE</span>
+            <span>ASSIGN</span>
+            <span>TRACK</span>
+          </div>
           <div class="brand-telemetry" aria-hidden="true">
             <span></span>
             <span></span>
             <span></span>
           </div>
           <div class="selection-summary">
-            <div class="selection-summary-label">Seçili Liste</div>
-            <div class="selection-summary-name">${currentList ? escapeHtml(currentList.name) : "Hazır bekliyor"}</div>
+            <div class="selection-summary-head">
+              <div>
+                <div class="selection-summary-label">Seçili Liste</div>
+                <div class="selection-summary-name">${currentList ? escapeHtml(currentList.name) : "Hazır bekliyor"}</div>
+              </div>
+              <span class="selection-state ${currentList?.is_active ? "active" : ""}">${currentList ? (currentList.is_active ? "aktif" : "pasif") : "bekleme"}</span>
+            </div>
             <div class="selection-summary-meta">
-              <span>${currentList ? currentList.summary.total : 0} kayıt</span>
-              <span>${currentList ? currentList.summary.assigned : 0} atanmış</span>
-              <span>${currentList ? (currentList.is_active ? "aktif" : "pasif") : "beklemede"}</span>
+              <span><strong>${currentList ? currentList.summary.total : 0}</strong> kayıt</span>
+              <span><strong>${currentList ? currentList.summary.assigned : 0}</strong> atanmış</span>
+              <span><strong>${currentList ? currentList.summary.positive : 0}</strong> olumlu</span>
             </div>
           </div>
         </section>
