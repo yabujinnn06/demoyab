@@ -869,6 +869,56 @@ function agentTaskDeskMarkup() {
   `;
 }
 
+function sessionHeaderMarkup(currentList) {
+  const summary = state.operationSummary || {};
+  const syncAgeSeconds = state.lastSyncAt ? Math.max(0, Math.floor((Date.now() - state.lastSyncAt) / 1000)) : null;
+  const role = roleLabel(state.me?.role || "");
+  const userName = state.me?.full_name || state.me?.email || "";
+  return `
+    <header class="topbar session-overview" data-window-title="Oturum Durumu">
+      <div class="session-main">
+        <div class="session-title-block">
+          <p class="section-kicker">Rainwater Saha Operasyonu</p>
+          <h2>${state.me?.role === "admin" ? "Yönetim Ekranı" : "Operatör Ekranı"}</h2>
+          <p class="helper">${currentList ? escapeHtml(currentList.name) : "Liste seçilmedi"}</p>
+        </div>
+        <div class="session-stat-grid">
+          <article>
+            <span>Liste</span>
+            <strong>${currentList ? (currentList.is_active ? "Aktif" : "Pasif") : "Beklemede"}</strong>
+          </article>
+          <article>
+            <span>Son yenileme</span>
+            <strong>${escapeHtml(formatClock(state.lastSyncAt))}</strong>
+          </article>
+          <article>
+            <span>Canlılık</span>
+            <strong>${syncAgeSeconds === null ? "-" : `${syncAgeSeconds} sn`}</strong>
+          </article>
+          <article>
+            <span>${state.me?.role === "admin" ? "Aktif operatör" : "Rol"}</span>
+            <strong>${state.me?.role === "admin" ? summary.active_operator_count || 0 : escapeHtml(role)}</strong>
+          </article>
+        </div>
+      </div>
+      <div class="session-side">
+        ${state.me?.role === "admin" ? liveMonitorMarkup() : `
+          <div class="manual-refresh-group">
+            <span class="topbar-chip">Canlı yenileme kapalı</span>
+            <button class="btn btn-soft" type="button" id="manual-refresh-button">Yenile</button>
+          </div>
+        `}
+        <div class="user-strip">
+          ${canOpenOfferTool() ? `<a class="btn btn-soft" href="/teklif/" target="_blank" rel="noreferrer">Teklif Modülü</a>` : ""}
+          <span class="badge active">${escapeHtml(role)}</span>
+          <span>${escapeHtml(userName)}</span>
+          <button class="btn btn-soft" type="button" id="logout-button">Çıkış</button>
+        </div>
+      </div>
+    </header>
+  `;
+}
+
 function totalPages() {
   return Math.max(1, Math.ceil(state.pagination.total / state.pagination.limit));
 }
@@ -2190,31 +2240,7 @@ function appMarkup() {
       </aside>
 
       <main class="main">
-        <header class="topbar window-shell" data-window-title="Oturum Durumu">
-          <div class="topbar-copy">
-            <p class="section-kicker">Rainwater Saha Operasyonu</p>
-            <h2>${state.me?.role === "admin" ? "Yönetim Ekranı" : "Operatör Ekranı"}</h2>
-            <p class="helper">${currentList ? escapeHtml(currentList.name) : "Liste seçilmedi"}</p>
-          </div>
-          <div class="topbar-meta">
-            ${
-              state.me?.role === "admin"
-                ? liveMonitorMarkup()
-                : `
-                  <div class="manual-refresh-group">
-                    <span class="topbar-chip">Canlı yenileme kapalı</span>
-                    <button class="btn btn-soft" type="button" id="manual-refresh-button">Yenile</button>
-                  </div>
-                `
-            }
-            <div class="user-strip">
-              ${canOpenOfferTool() ? `<a class="btn btn-soft" href="/teklif/" target="_blank" rel="noreferrer">Teklif Modülü</a>` : ""}
-              <span class="badge active">${escapeHtml(roleLabel(state.me?.role || ""))}</span>
-              <span>${escapeHtml(state.me?.full_name || state.me?.email || "")}</span>
-              <button class="btn btn-soft" type="button" id="logout-button">Çıkış</button>
-            </div>
-          </div>
-        </header>
+        ${sessionHeaderMarkup(currentList)}
 
         ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
         ${statsMarkup()}
