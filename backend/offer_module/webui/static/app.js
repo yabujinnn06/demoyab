@@ -474,8 +474,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const applyCheckboxes = Array.from(document.querySelectorAll("[data-apply-checkbox]"));
   const selectedCountLabels = Array.from(document.querySelectorAll("[data-selected-count]"));
   const waitingCountLabels = Array.from(document.querySelectorAll("[data-waiting-count]"));
+  const ignoredCountLabels = Array.from(document.querySelectorAll("[data-ignored-count]"));
   const applySubmitButtons = Array.from(document.querySelectorAll("[data-apply-submit]"));
   const decisionCards = Array.from(document.querySelectorAll("[data-decision-card]"));
+  const decisionSearchInput = document.querySelector("[data-decision-search]");
+  const decisionFilterButtons = Array.from(document.querySelectorAll("[data-decision-filter]"));
+  const decisionFilterCount = document.querySelector("[data-decision-filter-count]");
+  let activeDecisionFilter = "all";
 
   const getDecisionState = () => {
     const selectedCards = decisionCards.filter((card) => {
@@ -489,7 +494,47 @@ document.addEventListener("DOMContentLoaded", () => {
       return card.dataset.decisionStatus !== "ONAY" && !ignore?.checked && checkbox?.disabled && select && !select.value;
     });
     const approvedCards = decisionCards.filter((card) => card.dataset.decisionStatus === "ONAY");
-    return { selectedCards, waitingCards, approvedCards };
+    const ignoredCards = decisionCards.filter((card) => card.querySelector("[data-ignore-row]")?.checked);
+    return { selectedCards, waitingCards, approvedCards, ignoredCards };
+  };
+
+  const cardMatchesDecisionFilter = (card, filterName) => {
+    const checkbox = card.querySelector("[data-apply-checkbox]");
+    const ignore = card.querySelector("[data-ignore-row]");
+    const select = card.querySelector("[data-manual-match]");
+    if (filterName === "selected") {
+      return Boolean(checkbox?.checked && !checkbox.disabled);
+    }
+    if (filterName === "waiting") {
+      return card.dataset.decisionStatus !== "ONAY" && !ignore?.checked && checkbox?.disabled && select && !select.value;
+    }
+    if (filterName === "ignored") {
+      return Boolean(ignore?.checked);
+    }
+    if (filterName === "approved") {
+      return card.dataset.decisionStatus === "ONAY";
+    }
+    return true;
+  };
+
+  const renderDecisionFilters = () => {
+    const query = (decisionSearchInput?.value || "").trim().toLocaleLowerCase("tr-TR");
+    let visibleCount = 0;
+    decisionCards.forEach((card) => {
+      const textMatch = !query || card.textContent.toLocaleLowerCase("tr-TR").includes(query);
+      const filterMatch = cardMatchesDecisionFilter(card, activeDecisionFilter);
+      const visible = textMatch && filterMatch;
+      card.hidden = !visible;
+      if (visible) {
+        visibleCount += 1;
+      }
+    });
+    decisionFilterButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.decisionFilter === activeDecisionFilter);
+    });
+    if (decisionFilterCount) {
+      decisionFilterCount.textContent = `${visibleCount} satır`;
+    }
   };
 
   const focusDecisionCard = (card) => {
@@ -529,7 +574,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const updateCorrectionSelectionState = () => {
-    const { selectedCards, waitingCards } = getDecisionState();
+    const { selectedCards, waitingCards, ignoredCards } = getDecisionState();
     const selectedCount = selectedCards.length;
     selectedCountLabels.forEach((label) => {
       label.textContent = String(selectedCount);
@@ -537,12 +582,16 @@ document.addEventListener("DOMContentLoaded", () => {
     waitingCountLabels.forEach((label) => {
       label.textContent = `${waitingCards.length} satır`;
     });
+    ignoredCountLabels.forEach((label) => {
+      label.textContent = String(ignoredCards.length);
+    });
     applySubmitButtons.forEach((button) => {
       button.disabled = selectedCount === 0;
       button.textContent = selectedCount === 0
         ? "Önce düzeltilecek satır seç"
         : `Seçili düzeltmeleri hazırla (${selectedCount})`;
     });
+    renderDecisionFilters();
   };
 
   applyCheckboxes.forEach((checkbox) => {
@@ -663,6 +712,20 @@ document.addEventListener("DOMContentLoaded", () => {
           ? approvedCards[0]
           : selectedCards[0];
       focusDecisionCard(targetCard);
+    });
+  });
+  decisionSearchInput?.addEventListener("input", renderDecisionFilters);
+  decisionFilterButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      activeDecisionFilter = button.dataset.decisionFilter || "all";
+      renderDecisionFilters();
+    });
+  });
+  document.querySelectorAll("[data-decision-filter-shortcut]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeDecisionFilter = button.dataset.decisionFilterShortcut || "all";
+      showWorkspace("apply");
+      renderDecisionFilters();
     });
   });
   updateCorrectionSelectionState();

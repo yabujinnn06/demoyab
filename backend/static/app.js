@@ -932,6 +932,79 @@ function agentTaskDeskMarkup() {
   `;
 }
 
+function operationFocusRailMarkup(currentList) {
+  if (state.me?.role !== "admin") return "";
+  const summary = state.operationSummary || {};
+  const listSummary = currentList?.summary || {};
+  const unassigned = Math.max(0, (listSummary.total || 0) - (listSummary.assigned || 0));
+  const dueCallbacks = summary.due_callback_count || 0;
+  const idleOperators = summary.idle_operator_count || 0;
+  const todayProcessed = summary.today_processed_count || 0;
+  const dailyTarget = summary.total_daily_target || 0;
+  const targetPercent = summary.target_percent || percentValue(todayProcessed, dailyTarget);
+  const focusItems = [
+    {
+      tone: unassigned ? "warn" : "ok",
+      label: "Atanmamış",
+      value: unassigned,
+      copy: unassigned ? "dağıtım bekliyor" : "dağıtım tamam",
+      action: "assign",
+      button: "Dağıt",
+    },
+    {
+      tone: idleOperators ? "danger" : "ok",
+      label: "Boşta",
+      value: idleOperators,
+      copy: idleOperators ? "operatör işlem girmedi" : "ekip aktif",
+      action: "operators",
+      button: "Ekip",
+    },
+    {
+      tone: dueCallbacks ? "danger" : "ok",
+      label: "Takip",
+      value: dueCallbacks,
+      copy: dueCallbacks ? "zamanı geçti" : "gecikme yok",
+      action: "due",
+      button: "Filtrele",
+    },
+    {
+      tone: targetPercent >= 80 ? "ok" : targetPercent >= 45 ? "warn" : "info",
+      label: "Hedef",
+      value: `%${targetPercent}`,
+      copy: `${todayProcessed}/${dailyTarget || 0} işlem`,
+      action: "operators",
+      button: "Detay",
+    },
+  ];
+  return `
+    <section class="ops-focus-rail window-shell" data-window-title="Günlük Kontrol">
+      <div class="ops-focus-head">
+        <div>
+          <p class="section-kicker">Aksiyon Sırası</p>
+          <h2>Bugünün operasyon odağı</h2>
+        </div>
+        <span>${currentList ? escapeHtml(currentList.name) : "Liste seçilmedi"}</span>
+      </div>
+      <div class="ops-focus-grid">
+        ${focusItems
+          .map(
+            (item) => `
+              <article class="ops-focus-card ${item.tone}">
+                <div>
+                  <span>${item.label}</span>
+                  <strong>${item.value}</strong>
+                  <small>${item.copy}</small>
+                </div>
+                <button class="btn btn-soft mini-button" type="button" data-focus-action="${item.action}">${item.button}</button>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function sessionHeaderMarkup(currentList) {
   const summary = state.operationSummary || {};
   const syncAgeSeconds = state.lastSyncAt ? Math.max(0, Math.floor((Date.now() - state.lastSyncAt) / 1000)) : null;
@@ -2321,6 +2394,7 @@ function appMarkup() {
         ${sessionHeaderMarkup(currentList)}
 
         ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
+        ${operationFocusRailMarkup(currentList)}
         ${statsMarkup()}
         ${managementDashboardMarkup()}
         ${agentTaskDeskMarkup()}
@@ -2827,6 +2901,29 @@ async function applyFilters() {
   }
 }
 
+async function handleFocusAction(action) {
+  if (action === "assign") {
+    document.querySelector("#assign-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (action === "operators") {
+    await openOperatorControlModal();
+    return;
+  }
+  if (action === "due") {
+    state.filters.due_callbacks = true;
+    state.filters.call_status = "CALLBACK";
+    state.pagination.offset = 0;
+    try {
+      await loadRecords();
+      render();
+      setFlash("success", `Takip filtresi açıldı: ${state.pagination.total} kayıt.`);
+    } catch (error) {
+      setFlash("error", error.message);
+    }
+  }
+}
+
 async function resetFilters() {
   state.filters = { ...DEFAULT_FILTERS };
   state.pagination.offset = 0;
@@ -2934,6 +3031,11 @@ function bindEvents() {
   document.querySelector("#export-button")?.addEventListener("click", handleExport);
   document.querySelector("#filters-apply")?.addEventListener("click", applyFilters);
   document.querySelector("#filters-reset")?.addEventListener("click", resetFilters);
+  document.querySelectorAll("[data-focus-action]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      await handleFocusAction(node.getAttribute("data-focus-action"));
+    });
+  });
   document.querySelector("#contact-pool-apply")?.addEventListener("click", applyContactPoolFilters);
   document.querySelector("#contact-pool-reset")?.addEventListener("click", resetContactPoolFilters);
   document.querySelector("#contact-pool-export")?.addEventListener("click", handleContactPoolExport);

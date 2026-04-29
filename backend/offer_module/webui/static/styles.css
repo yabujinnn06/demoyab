@@ -1459,6 +1459,71 @@ section.app-card::before {
   white-space: normal;
 }
 
+.decision-filter-bar {
+  position: sticky;
+  top: 5.45rem;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(13rem, 0.82fr) minmax(0, 1.25fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid rgba(24, 83, 143, 0.12);
+  border-radius: 0.95rem;
+  background: rgba(250, 253, 255, 0.95);
+  box-shadow: 0 12px 24px rgba(17, 62, 110, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.decision-search {
+  min-width: 0;
+}
+
+.decision-search .form-control {
+  min-height: 2.35rem;
+  border-radius: 0.75rem;
+  background: #ffffff;
+}
+
+.decision-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.decision-filter-tabs button {
+  min-height: 2.25rem;
+  padding: 0.42rem 0.7rem;
+  border: 1px solid rgba(24, 83, 143, 0.14);
+  border-radius: 999px;
+  background: rgba(240, 247, 253, 0.82);
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.decision-filter-tabs button:hover,
+.decision-filter-tabs button:focus-visible,
+.decision-filter-tabs button.active {
+  border-color: rgba(11, 134, 200, 0.34);
+  color: var(--app-accent-strong);
+  background: #ffffff;
+  outline: 0;
+}
+
+.decision-filter-count {
+  justify-self: end;
+  min-width: max-content;
+  padding: 0.46rem 0.72rem;
+  border: 1px solid rgba(24, 83, 143, 0.12);
+  border-radius: 999px;
+  background: rgba(227, 243, 255, 0.74);
+  color: var(--app-info);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .result-action-strip {
   display: flex;
   align-items: center;
@@ -2587,6 +2652,16 @@ section.app-card::before {
 
   .smart-command-actions {
     justify-content: flex-start;
+  }
+
+  .decision-filter-bar {
+    position: static;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .decision-filter-count {
+    justify-self: start;
   }
 
   .automation-insight,

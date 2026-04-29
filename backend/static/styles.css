@@ -3642,6 +3642,107 @@ tbody tr:hover td,
   font-size: 11px;
 }
 
+.ops-focus-rail {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #bfd0df;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fbfdff 0%, #edf5fb 100%);
+  box-shadow: 0 10px 22px rgba(35, 70, 105, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.ops-focus-rail.window-shell::before {
+  min-height: 24px;
+  margin: -10px -10px 10px;
+  padding: 5px 9px;
+  border-bottom: 1px solid rgba(32, 92, 155, 0.2);
+  border-radius: 7px 7px 0 0;
+  background: linear-gradient(180deg, #f7fbff 0%, #dceaf7 100%);
+  color: #34546f;
+  text-shadow: none;
+}
+
+.ops-focus-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ops-focus-head h2 {
+  margin: 2px 0 0;
+  color: #112f49;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.ops-focus-head > span {
+  max-width: 42%;
+  overflow: hidden;
+  padding: 4px 7px;
+  border: 1px solid #d1dfeb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #55718b;
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-focus-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ops-focus-card {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #d0ddea;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.ops-focus-card span,
+.ops-focus-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ops-focus-card strong {
+  display: block;
+  margin: 3px 0;
+  color: #132f49;
+  font: 700 22px/1 var(--mono);
+}
+
+.ops-focus-card.ok {
+  border-color: #bedfc8;
+  background: linear-gradient(180deg, #ffffff 0%, #edf8f1 100%);
+}
+
+.ops-focus-card.warn {
+  border-color: #ead8ad;
+  background: linear-gradient(180deg, #ffffff 0%, #fff7e6 100%);
+}
+
+.ops-focus-card.danger {
+  border-color: #e7c2c7;
+  background: linear-gradient(180deg, #ffffff 0%, #fff0f2 100%);
+}
+
+.ops-focus-card.info {
+  border-color: #bdd6ed;
+  background: linear-gradient(180deg, #ffffff 0%, #eef7ff 100%);
+}
+
 @media (max-width: 760px) {
   .brand-lockup {
     grid-template-columns: 50px minmax(0, 1fr);
@@ -3653,5 +3754,23 @@ tbody tr:hover td,
 
   .selection-summary-meta {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ops-focus-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .ops-focus-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-focus-head {
+    flex-direction: column;
+  }
+
+  .ops-focus-head > span {
+    max-width: 100%;
   }
 }

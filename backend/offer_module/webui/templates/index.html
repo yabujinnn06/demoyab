@@ -521,9 +521,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Teklif Ofisi</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260427-ignore-noncatalog">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260429-decision-filter">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260427-ignore-noncatalog"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260429-decision-filter"></script>
 </head>
 <body
   class="app-body"
@@ -1236,6 +1236,10 @@
                       <span>Onaylı</span>
                       <strong>{{ metrics.get('ONAY', 0) }} satır</strong>
                     </button>
+                    <button class="queue-chip" type="button" data-decision-filter-shortcut="ignored">
+                      <span>Atlanan</span>
+                      <strong><span data-ignored-count>0</span> satır</strong>
+                    </button>
                   </div>
 
                   <div class="decision-toolbar">
@@ -1253,6 +1257,27 @@
                         <strong class="metric-value">{{ review_needed_count }}</strong>
                       </article>
                     </div>
+                  </div>
+
+                  <div class="decision-filter-bar" data-decision-filter-bar>
+                    <div class="decision-search">
+                      <label class="visually-hidden" for="decision-search-input">Karar panosunda ara</label>
+                      <input
+                        class="form-control"
+                        id="decision-search-input"
+                        type="search"
+                        placeholder="Satır, ürün veya durum ara"
+                        data-decision-search
+                      >
+                    </div>
+                    <div class="decision-filter-tabs" aria-label="Karar panosu filtreleri">
+                      <button class="active" type="button" data-decision-filter="all">Tümü</button>
+                      <button type="button" data-decision-filter="selected">PDF'e yazılacak</button>
+                      <button type="button" data-decision-filter="waiting">Ürün bekleyen</button>
+                      <button type="button" data-decision-filter="ignored">Atlanan</button>
+                      <button type="button" data-decision-filter="approved">Onaylı</button>
+                    </div>
+                    <span class="decision-filter-count" data-decision-filter-count>{{ results|length }} satır</span>
                   </div>
 
                   <div class="decision-card-grid">
