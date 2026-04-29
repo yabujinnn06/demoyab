@@ -452,6 +452,29 @@ function compactSummary(summary) {
   };
 }
 
+function activeRecordFilterLabels() {
+  const labels = [];
+  const query = String(state.filters.q || "").trim();
+  if (query) labels.push(`arama: ${query}`);
+  if (state.filters.call_status) labels.push(callStatusLabel(state.filters.call_status));
+  if (state.filters.result_status) labels.push(resultStatusLabel(state.filters.result_status));
+  if (state.me?.role === "admin" && state.filters.assigned_user_id) {
+    const user = state.users.find((item) => item.id === state.filters.assigned_user_id);
+    labels.push(user ? `operatör: ${user.full_name || user.email}` : "operatör filtresi");
+  }
+  if (state.filters.unassigned) labels.push("atanmamış");
+  if (state.filters.has_email) labels.push("e-posta var");
+  if (state.filters.has_phone) labels.push("telefon var");
+  if (state.filters.has_address) labels.push("adres var");
+  if (state.filters.has_website) labels.push("web var");
+  if (state.filters.due_callbacks) labels.push("takip zamanı gelenler");
+  return labels;
+}
+
+function hasActiveRecordFilters() {
+  return activeRecordFilterLabels().length > 0;
+}
+
 function latestActivity() {
   return state.activity[0] ?? null;
 }
@@ -822,26 +845,34 @@ async function handleManualRefresh() {
 
 function statsMarkup() {
   const list = selectedList();
-  const summary = state.filteredSummary ?? list?.summary ?? {
-    total: state.records.length,
-    assigned: 0,
-    calling: 0,
-    positive: 0,
-  };
+  const filtersActive = hasActiveRecordFilters();
+  const listSummary = list?.summary ?? null;
+  const summary = filtersActive
+    ? (state.filteredSummary ?? summarizeRecords(state.records))
+    : (listSummary ?? state.filteredSummary ?? {
+      total: state.records.length,
+      assigned: 0,
+      calling: 0,
+      positive: 0,
+    });
+  const listTotal = listSummary?.total ?? 0;
+  const listAssigned = listSummary?.assigned ?? 0;
   return `
-    <section class="stats-band">
-      <article class="stat">
-        <span>Toplam kayıt</span>
-        <strong>${summary.total ?? 0}</strong>
-      </article>
-      <article class="stat">
-        <span>Atanan</span>
-        <strong>${summary.assigned ?? 0}</strong>
-      </article>
-      <article class="stat">
-        <span>Görüşülen</span>
-        <strong>${summary.calling ?? 0}</strong>
-      </article>
+      <section class="stats-band ${filtersActive ? "is-filtered" : ""}">
+        <article class="stat">
+          <span>${filtersActive ? "Filtre sonucu" : "Toplam kayıt"}</span>
+          <strong>${summary.total ?? 0}</strong>
+          ${filtersActive ? `<small>Liste toplamı ${listTotal}</small>` : ""}
+        </article>
+        <article class="stat">
+          <span>${filtersActive ? "Filtrede atanan" : "Atanan"}</span>
+          <strong>${summary.assigned ?? 0}</strong>
+          ${filtersActive ? `<small>Listede ${listAssigned} atanmış</small>` : ""}
+        </article>
+        <article class="stat">
+          <span>Görüşülen</span>
+          <strong>${summary.calling ?? 0}</strong>
+        </article>
       <article class="stat">
         <span>Olumlu</span>
         <strong>${summary.positive ?? 0}</strong>
@@ -2077,26 +2108,32 @@ function operatorControlModalMarkup() {
 }
 
 function filtersMarkup() {
-  const activePresence = [];
-  if (state.filters.has_email) activePresence.push("e-posta");
-  if (state.filters.has_phone) activePresence.push("telefon");
-  if (state.filters.has_address) activePresence.push("adres");
-  if (state.filters.has_website) activePresence.push("web");
-  if (state.filters.due_callbacks) activePresence.push("takip zamanı");
+  const activeFilters = activeRecordFilterLabels();
   return `
-    <section class="panel filter-panel window-shell" data-window-title="Kayıt Filtresi">
-      <div class="panel-head">
-        <div>
-          <p class="section-kicker">Filtreleme</p>
+      <section class="panel filter-panel window-shell" data-window-title="Kayıt Filtresi">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">Filtreleme</p>
           <h2>Kayıt Filtresi</h2>
           <p>Firma, durum, operatör ve atama bazında havuzu daralt.</p>
+          </div>
+          <div class="filter-state">
+            <span class="badge ${activeFilters.length ? "warning" : "active"}">Aktif görünüm: ${
+              activeFilters.length ? escapeHtml(activeFilters.join(" + ")) : "genel liste"
+            }</span>
+          </div>
         </div>
-        <div class="filter-state">
-          <span class="badge active">Aktif görünüm: ${activePresence.length ? escapeHtml(activePresence.join(" + ")) : "genel liste"}</span>
-        </div>
-      </div>
-      <div class="toolbar">
-        <input class="field" id="filter-q" placeholder="Firma, telefon, adres veya email ara" value="${escapeHtml(state.filters.q)}" />
+        ${
+          activeFilters.length
+            ? `<div class="filter-explain">
+                <strong>Filtre açık.</strong>
+                <span>Tablo sadece ${escapeHtml(activeFilters.join(" + "))} koşuluna uyan kayıtları gösteriyor.</span>
+                <button class="btn btn-soft mini-button" type="button" data-clear-record-filters>Filtreleri temizle</button>
+              </div>`
+            : ""
+        }
+        <div class="toolbar">
+          <input class="field" id="filter-q" placeholder="Firma, telefon, adres veya email ara" value="${escapeHtml(state.filters.q)}" />
         <select class="select" id="filter-call-status">
           <option value="">Tüm arama durumları</option>
           ${CALL_STATUS_OPTIONS
@@ -2179,17 +2216,35 @@ function ownerCellMarkup(record) {
 
 function recordsTableMarkup() {
   const shownCount = state.records.length;
+  const list = selectedList();
+  const filtersActive = hasActiveRecordFilters();
+  const activeFilters = activeRecordFilterLabels();
+  const listTotal = list?.summary?.total ?? 0;
   return `
-    <section class="panel stack window-shell" data-window-title="Operasyon Kayıtları">
-      <div class="panel-head">
-        <div>
-          <p class="section-kicker">Operasyon</p>
-          <h2>Operasyon Kayıtları</h2>
-          <p>${shownCount} satır gösteriliyor / toplam ${state.pagination.total} kayıt.</p>
+      <section class="panel stack window-shell" data-window-title="Operasyon Kayıtları">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">Operasyon</p>
+            <h2>Operasyon Kayıtları</h2>
+            <p>${shownCount} satır gösteriliyor / ${filtersActive ? "filtre sonucu" : "toplam"} ${state.pagination.total} kayıt.</p>
+          </div>
+          ${
+            filtersActive
+              ? `<div class="filter-state"><span class="badge warning">Filtre: ${escapeHtml(activeFilters.join(" + "))}</span></div>`
+              : ""
+          }
         </div>
-      </div>
-      <div class="table-wrap">
-        <table class="records-table">
+        ${
+          filtersActive && shownCount === 0 && listTotal > 0
+            ? `<div class="record-filter-empty">
+                <strong>Liste boş değil, aktif filtre kayıtları gizliyor.</strong>
+                <span>Seçili listede ${listTotal} kayıt var. Şu anki filtre sonucu 0 kayıt döndürüyor.</span>
+                <button class="btn btn-primary mini-button" type="button" data-clear-record-filters>Filtreleri temizle ve listeyi göster</button>
+              </div>`
+            : ""
+        }
+        <div class="table-wrap">
+          <table class="records-table">
           <colgroup>
             <col class="col-row" />
             <col class="col-company" />
@@ -2223,8 +2278,9 @@ function recordsTableMarkup() {
             </tr>
           </thead>
           <tbody>
-            ${state.records
-              .map((record, index) => {
+            ${
+              state.records.length
+                ? state.records.map((record, index) => {
                 const current = recordDraft(record);
                 const rowClass =
                   current.result_status === "POSITIVE"
@@ -2293,7 +2349,25 @@ function recordsTableMarkup() {
                   </tr>
                 `;
               })
-              .join("")}
+              .join("")
+                : `<tr class="empty-record-row">
+                    <td colspan="13">
+                      <div class="table-empty-state">
+                        <strong>${filtersActive ? "Filtreye uyan kayıt yok." : "Bu görünümde kayıt yok."}</strong>
+                        <span>${
+                          filtersActive
+                            ? `Filtreleri temizlersen seçili listedeki ${listTotal} kaydı tekrar görürsün.`
+                            : "Liste seçimi veya veri yükleme durumunu kontrol et."
+                        }</span>
+                        ${
+                          filtersActive
+                            ? `<button class="btn btn-soft mini-button" type="button" data-clear-record-filters>Filtreleri temizle</button>`
+                            : ""
+                        }
+                      </div>
+                    </td>
+                  </tr>`
+            }
           </tbody>
         </table>
       </div>
@@ -3031,6 +3105,9 @@ function bindEvents() {
   document.querySelector("#export-button")?.addEventListener("click", handleExport);
   document.querySelector("#filters-apply")?.addEventListener("click", applyFilters);
   document.querySelector("#filters-reset")?.addEventListener("click", resetFilters);
+  document.querySelectorAll("[data-clear-record-filters]").forEach((node) => {
+    node.addEventListener("click", resetFilters);
+  });
   document.querySelectorAll("[data-focus-action]").forEach((node) => {
     node.addEventListener("click", async () => {
       await handleFocusAction(node.getAttribute("data-focus-action"));

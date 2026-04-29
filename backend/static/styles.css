@@ -521,6 +521,12 @@ a {
   color: #295f97;
 }
 
+.badge.warning {
+  border-color: #e1c47f;
+  background: #fff7df;
+  color: #7a5b16;
+}
+
 .badge.inactive {
   color: var(--muted);
 }
@@ -549,6 +555,60 @@ a {
   display: block;
   font-size: 24px;
   line-height: 1;
+}
+
+.stat small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.stats-band.is-filtered .stat:first-child {
+  border-color: #e1c47f;
+  background: linear-gradient(180deg, #ffffff 0%, #fff8e8 100%);
+}
+
+.filter-explain,
+.record-filter-empty,
+.table-empty-state {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid #e1c47f;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #fffdf6 0%, #fff4d8 100%);
+  color: #31475e;
+}
+
+.filter-explain strong,
+.record-filter-empty strong,
+.table-empty-state strong {
+  color: #173b5a;
+}
+
+.filter-explain span,
+.record-filter-empty span,
+.table-empty-state span {
+  color: #5b6f82;
+}
+
+.record-filter-empty {
+  justify-content: space-between;
+}
+
+.empty-record-row td {
+  padding: 12px;
+  background: #fffdf6;
+}
+
+.table-empty-state {
+  justify-content: center;
+  text-align: center;
 }
 
 .toolbar {
