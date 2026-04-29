@@ -1006,16 +1006,16 @@ function operationFocusRailMarkup(currentList) {
       action: "operators",
       button: "Detay",
     },
-  ];
-  return `
-    <section class="ops-focus-rail window-shell" data-window-title="Günlük Kontrol">
-      <div class="ops-focus-head">
-        <div>
-          <p class="section-kicker">Aksiyon Sırası</p>
-          <h2>Bugünün operasyon odağı</h2>
+    ];
+    return `
+      <section class="ops-focus-rail">
+        <div class="ops-focus-head">
+          <div>
+            <p class="section-kicker">Aksiyon Sırası</p>
+            <h2>Bugünün operasyon odağı</h2>
+          </div>
+          <span>${currentList ? escapeHtml(currentList.name) : "Liste seçilmedi"}</span>
         </div>
-        <span>${currentList ? escapeHtml(currentList.name) : "Liste seçilmedi"}</span>
-      </div>
       <div class="ops-focus-grid">
         ${focusItems
           .map(
@@ -1041,33 +1041,35 @@ function sessionHeaderMarkup(currentList) {
   const syncAgeSeconds = state.lastSyncAt ? Math.max(0, Math.floor((Date.now() - state.lastSyncAt) / 1000)) : null;
   const role = roleLabel(state.me?.role || "");
   const userName = state.me?.full_name || state.me?.email || "";
+  const listSummary = currentList?.summary || {};
+  const unassigned = Math.max(0, (listSummary.total || 0) - (listSummary.assigned || 0));
   return `
-    <header class="topbar session-overview" data-window-title="Oturum Durumu">
-      <div class="session-main">
-        <div class="session-title-block">
-          <p class="section-kicker">Rainwater Saha Operasyonu</p>
-          <h2>${state.me?.role === "admin" ? "Yönetim Ekranı" : "Operatör Ekranı"}</h2>
-          <p class="helper">${currentList ? escapeHtml(currentList.name) : "Liste seçilmedi"}</p>
+      <header class="topbar session-overview ops-home-hero" data-window-title="Oturum Durumu">
+        <div class="session-main">
+          <div class="session-title-block">
+            <p class="section-kicker">Rainwater Saha Operasyonu</p>
+            <h2>${currentList ? escapeHtml(currentList.name) : state.me?.role === "admin" ? "Yönetim Ekranı" : "Operatör Ekranı"}</h2>
+            <p class="helper">${state.me?.role === "admin" ? "Atama, takip ve çalışan performansı" : "Atanmış kayıt ve takip listesi"}</p>
+          </div>
+          <div class="session-stat-grid">
+            <article>
+              <span>Toplam</span>
+              <strong>${listSummary.total || 0}</strong>
+            </article>
+            <article>
+              <span>Atanan</span>
+              <strong>${listSummary.assigned || 0}</strong>
+            </article>
+            <article>
+              <span>Atanmayan</span>
+              <strong>${unassigned}</strong>
+            </article>
+            <article>
+              <span>Canlılık</span>
+              <strong>${syncAgeSeconds === null ? "-" : `${syncAgeSeconds} sn`}</strong>
+            </article>
+          </div>
         </div>
-        <div class="session-stat-grid">
-          <article>
-            <span>Liste</span>
-            <strong>${currentList ? (currentList.is_active ? "Aktif" : "Pasif") : "Beklemede"}</strong>
-          </article>
-          <article>
-            <span>Son yenileme</span>
-            <strong>${escapeHtml(formatClock(state.lastSyncAt))}</strong>
-          </article>
-          <article>
-            <span>Canlılık</span>
-            <strong>${syncAgeSeconds === null ? "-" : `${syncAgeSeconds} sn`}</strong>
-          </article>
-          <article>
-            <span>${state.me?.role === "admin" ? "Aktif operatör" : "Rol"}</span>
-            <strong>${state.me?.role === "admin" ? summary.active_operator_count || 0 : escapeHtml(role)}</strong>
-          </article>
-        </div>
-      </div>
       <div class="session-side">
         ${state.me?.role === "admin" ? liveMonitorMarkup() : `
           <div class="manual-refresh-group">
@@ -2469,7 +2471,6 @@ function appMarkup() {
 
         ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
         ${operationFocusRailMarkup(currentList)}
-        ${statsMarkup()}
         ${managementDashboardMarkup()}
         ${agentTaskDeskMarkup()}
         ${filtersMarkup()}
