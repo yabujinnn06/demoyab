@@ -1226,16 +1226,30 @@ function loginMarkup() {
 
 function bootMarkup() {
   return `
-    <section class="login-screen">
-      <div class="boot-window window-shell" data-window-title="Oturum Doğrulanıyor">
-        ${brandMark()}
-        <div>
-          <p class="brand-kicker">Rainwater Arama Operasyonu</p>
-          <h1>Rainwater Kontrol Merkezi</h1>
-          <p>Oturum ve operasyon verileri yükleniyor.</p>
+    <section class="boot-screen">
+      <div class="boot-orb" aria-hidden="true"></div>
+      <div class="boot-card">
+        <div class="boot-brand-row">
+          ${brandMark()}
+          <div>
+            <p class="brand-kicker">Rainwater Arama Operasyonu</p>
+            <h1>Rainwater Kontrol Merkezi</h1>
+          </div>
         </div>
-        <div class="boot-progress" aria-hidden="true">
+        <div class="boot-copy">
+          <strong>Operasyon yüzeyi hazırlanıyor</strong>
+          <span>Oturum, liste, ekip ve takip verileri senkronize ediliyor.</span>
+        </div>
+        <div class="boot-loader" aria-hidden="true">
           <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div class="boot-status-grid" aria-hidden="true">
+          <span>Oturum</span>
+          <span>Listeler</span>
+          <span>Ekip</span>
+          <span>Havuz</span>
         </div>
       </div>
     </section>
@@ -2436,7 +2450,7 @@ function appMarkup() {
   return `
     <div class="app-shell">
       <aside class="sidebar">
-        <section class="brand-block window-shell" data-window-title="Merkez Panel">
+        <section class="brand-block">
           <div class="brand-lockup">
             ${brandMark()}
             <div>

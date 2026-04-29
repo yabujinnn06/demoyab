@@ -4654,3 +4654,319 @@ body.app-body {
     padding-inline: 10px;
   }
 }
+
+/* Rainwater cockpit header and modern boot screen */
+.sidebar {
+  position: sticky;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.82) 0 19%, rgba(255, 255, 255, 0.34) 48%, rgba(255, 255, 255, 0.06) 100%),
+    radial-gradient(circle at 84% 14%, rgba(150, 226, 244, 0.52), transparent 26rem),
+    linear-gradient(135deg, #effaff 0%, #c9eefa 42%, #378bb0 100%);
+  box-shadow: inset 0 -1px 0 rgba(18, 83, 114, 0.14);
+}
+
+.sidebar::before {
+  content: "rainwater";
+  position: absolute;
+  top: -0.18em;
+  right: 22px;
+  z-index: 0;
+  color: rgba(10, 76, 110, 0.2);
+  font-size: clamp(5.8rem, 13vw, 12rem);
+  font-weight: 900;
+  line-height: 0.82;
+  letter-spacing: -0.05em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.42);
+  white-space: nowrap;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.sidebar::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 0;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, rgba(8, 54, 77, 0.16));
+  pointer-events: none;
+}
+
+.sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar .window-shell,
+.sidebar .panel,
+.sidebar .brand-block,
+.sidebar .selection-summary {
+  border-color: rgba(12, 82, 117, 0.16);
+  background: rgba(255, 255, 255, 0.34);
+  color: #102f42;
+  backdrop-filter: blur(14px);
+}
+
+.sidebar .brand-block {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 14px 28px rgba(30, 97, 132, 0.12);
+}
+
+.sidebar .brand-block::before,
+.sidebar .brand-block::after {
+  content: none !important;
+}
+
+.sidebar .brand-lockup {
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar .brand-lockup::after {
+  content: "rainwater";
+  display: block;
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-52%);
+  color: rgba(23, 104, 139, 0.16);
+  font-size: clamp(1.3rem, 2.4vw, 2.5rem);
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  text-transform: lowercase;
+  pointer-events: none;
+}
+
+.sidebar .brand-lockup h1,
+.sidebar .panel-head h2,
+.sidebar-section .panel-head h2,
+.sidebar .selection-summary-name {
+  color: #102f42;
+}
+
+.sidebar .brand-kicker,
+.selection-summary-label,
+.selection-summary-meta span,
+.sidebar .record-meta,
+.sidebar .mini-meta,
+.sidebar .panel-head p {
+  color: rgba(16, 47, 66, 0.7);
+}
+
+.sidebar .selection-summary,
+.sidebar .selection-summary-meta span,
+.sidebar .field,
+.sidebar .select,
+.sidebar .file-display,
+.sidebar .btn,
+.sidebar .btn-primary,
+.sidebar .btn-soft {
+  border-color: rgba(16, 84, 121, 0.2);
+  background: rgba(255, 255, 255, 0.62);
+  color: #102f42;
+}
+
+.sidebar .field::placeholder {
+  color: rgba(16, 47, 66, 0.56);
+}
+
+.sidebar .brand-mark {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 10px 22px rgba(23, 95, 130, 0.16);
+}
+
+.selection-state,
+.selection-state:not(.active) {
+  border-color: rgba(16, 84, 121, 0.18);
+  background: rgba(255, 255, 255, 0.66);
+  color: #176181;
+}
+
+.selection-summary-meta strong {
+  color: #102f42;
+}
+
+.boot-screen {
+  min-height: 100vh;
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(84, 189, 225, 0.26), transparent 30rem),
+    radial-gradient(circle at 82% 24%, rgba(135, 221, 170, 0.22), transparent 25rem),
+    linear-gradient(135deg, #edf8ff 0%, #dff0f8 44%, #f8fbfd 100%);
+}
+
+.boot-screen::before {
+  content: "rainwater";
+  position: absolute;
+  top: 4vh;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(16, 95, 132, 0.08);
+  font-size: clamp(4.5rem, 18vw, 15rem);
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  line-height: 0.8;
+  white-space: nowrap;
+}
+
+.boot-orb {
+  position: absolute;
+  width: min(46vw, 520px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(39, 126, 170, 0.14);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.95), transparent 18%),
+    radial-gradient(circle, rgba(79, 184, 222, 0.18), transparent 64%);
+  animation: boot-orb-drift 7s ease-in-out infinite;
+}
+
+.boot-card {
+  position: relative;
+  z-index: 1;
+  width: min(560px, calc(100vw - 32px));
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid rgba(30, 114, 154, 0.14);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 30px 70px rgba(22, 79, 111, 0.18);
+  backdrop-filter: blur(22px);
+  overflow: hidden;
+}
+
+.boot-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #2a83c5, #6fd1e7, #7ad9a8);
+}
+
+.boot-brand-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.boot-brand-row .brand-mark,
+.boot-brand-row .brand-logo {
+  width: 54px;
+  height: 54px;
+}
+
+.boot-brand-row h1 {
+  margin: 3px 0 0;
+  color: #102f42;
+  font-size: clamp(1.65rem, 4vw, 2.3rem);
+  line-height: 1.02;
+}
+
+.boot-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.boot-copy strong {
+  color: #102f42;
+  font-size: 1.05rem;
+}
+
+.boot-copy span {
+  color: #587489;
+  line-height: 1.55;
+}
+
+.boot-loader {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.boot-loader span {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1f7fc7, #6cc6e5);
+  animation: boot-pulse 1.05s ease-in-out infinite;
+}
+
+.boot-loader span:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.boot-loader span:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+.boot-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.boot-status-grid span {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(30, 114, 154, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.62);
+  color: #587489;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+@keyframes boot-pulse {
+  0%,
+  100% {
+    opacity: 0.36;
+    transform: scaleX(0.72);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes boot-orb-drift {
+  0%,
+  100% {
+    transform: translate3d(-8%, -4%, 0) scale(0.96);
+  }
+
+  50% {
+    transform: translate3d(8%, 4%, 0) scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-orb,
+  .boot-loader span {
+    animation: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .boot-card {
+    padding: 18px;
+  }
+
+  .boot-brand-row,
+  .boot-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
