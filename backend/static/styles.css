@@ -5516,3 +5516,114 @@ body.app-body {
     grid-template-columns: 7px minmax(0, 1fr);
   }
 }
+
+/* Decouple the header surface from the launcher sizing */
+.sidebar {
+  height: 66px;
+  min-height: 66px;
+  padding: 8px 14px;
+  overflow: visible;
+}
+
+.sidebar::before {
+  top: 50%;
+  right: 18px;
+  transform: translateY(-50%);
+  color: rgba(7, 78, 112, 0.18);
+  font-size: clamp(3.8rem, 7.2vw, 6.9rem);
+  line-height: 0.86;
+}
+
+.sidebar::after {
+  inset: 0;
+  height: auto;
+}
+
+.sidebar-nav {
+  width: 100%;
+  height: 50px;
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.sidebar-nav-item {
+  flex: 1 1 0;
+  min-width: 170px;
+  max-width: 320px;
+  min-height: 42px;
+  height: 42px;
+  grid-template-columns: 5px minmax(0, 1fr) minmax(54px, auto);
+  padding: 6px 8px;
+}
+
+.sidebar-nav-icon,
+.sidebar-nav-item[data-tone="team"] .sidebar-nav-icon,
+.sidebar-nav-item[data-tone="lists"] .sidebar-nav-icon,
+.sidebar-nav-item[data-tone="pool"] .sidebar-nav-icon,
+.sidebar-nav-item[data-tone="operators"] .sidebar-nav-icon {
+  width: 5px;
+  height: 24px;
+}
+
+.sidebar-nav-copy strong {
+  font-size: 12px;
+}
+
+.sidebar-nav-copy small,
+.sidebar-nav-detail {
+  font-size: 9.5px;
+}
+
+.sidebar-nav-detail {
+  max-width: 8.5rem;
+}
+
+.sidebar-flyout {
+  top: 58px;
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    height: 62px;
+    min-height: 62px;
+    padding: 7px 10px;
+  }
+
+  .sidebar::before {
+    right: 10px;
+    font-size: clamp(3.2rem, 16vw, 4.7rem);
+  }
+
+  .sidebar-nav {
+    height: 48px;
+    grid-template-columns: none;
+    display: flex;
+  }
+
+  .sidebar-nav-item {
+    flex: 0 0 min(320px, calc(100vw - 28px));
+    min-width: min(320px, calc(100vw - 28px));
+    min-height: 40px;
+    height: 40px;
+    grid-template-columns: 5px minmax(0, 1fr) minmax(42px, auto);
+  }
+
+  .sidebar-nav-detail {
+    grid-column: auto;
+    justify-self: end;
+    max-width: 7rem;
+  }
+
+  .sidebar-flyout {
+    position: absolute;
+    top: 58px;
+    left: 10px;
+    width: min(420px, calc(100vw - 20px));
+    margin-top: 0;
+  }
+}
