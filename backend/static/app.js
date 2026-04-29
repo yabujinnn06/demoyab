@@ -2450,29 +2450,6 @@ function appMarkup() {
   return `
     <div class="app-shell">
       <aside class="sidebar">
-        <section class="brand-block">
-          <div class="brand-lockup">
-            ${brandMark()}
-            <div>
-              <span class="brand-kicker">Rainwater Arama Operasyonu</span>
-              <h1>Rainwater Kontrol Merkezi</h1>
-            </div>
-          </div>
-          <div class="selection-summary">
-            <div class="selection-summary-head">
-              <div>
-                <div class="selection-summary-label">Seçili Liste</div>
-                <div class="selection-summary-name">${currentList ? escapeHtml(currentList.name) : "Hazır bekliyor"}</div>
-              </div>
-              <span class="selection-state ${currentList?.is_active ? "active" : ""}">${currentList ? (currentList.is_active ? "aktif" : "pasif") : "bekleme"}</span>
-            </div>
-            <div class="selection-summary-meta">
-              <span><strong>${currentList ? currentList.summary.total : 0}</strong> kayıt</span>
-              <span><strong>${currentList ? currentList.summary.assigned : 0}</strong> atanmış</span>
-              <span><strong>${currentList ? currentList.summary.positive : 0}</strong> olumlu</span>
-            </div>
-          </div>
-        </section>
         ${uploadSectionMarkup()}
         ${usersSectionMarkup()}
         ${listsSectionMarkup()}

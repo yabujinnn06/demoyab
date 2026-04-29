@@ -4970,3 +4970,249 @@ body.app-body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Header cleanup: remove redundant brand tile, compact the operation status surface */
+.sidebar {
+  grid-template-columns: repeat(5, minmax(168px, 1fr));
+  align-items: start;
+  min-height: 0;
+  gap: 10px;
+  padding: 10px 14px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.88) 0 15%, rgba(255, 255, 255, 0.38) 48%, rgba(255, 255, 255, 0.08) 100%),
+    radial-gradient(circle at 76% -18%, rgba(99, 198, 232, 0.62), transparent 22rem),
+    linear-gradient(135deg, #f1fbff 0%, #caedf8 44%, #2b86ad 100%);
+}
+
+.sidebar::before {
+  top: -0.25em;
+  right: 26px;
+  color: rgba(8, 87, 124, 0.3);
+  font-size: clamp(6.5rem, 14vw, 13.5rem);
+  line-height: 0.9;
+  opacity: 1;
+  mix-blend-mode: multiply;
+}
+
+.sidebar::after {
+  height: 58%;
+  background:
+    linear-gradient(180deg, transparent 0%, rgba(12, 80, 111, 0.13) 100%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.18) 0 1px, transparent 1px 32px);
+}
+
+.sidebar .brand-block {
+  display: none !important;
+}
+
+.sidebar .window-shell,
+.sidebar .panel,
+.sidebar .selection-summary {
+  width: 100%;
+  min-height: 0;
+  border-color: rgba(20, 94, 130, 0.2);
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 10px 22px rgba(30, 97, 132, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.76);
+}
+
+.sidebar-section.window-shell {
+  padding: 10px;
+}
+
+.sidebar-section .panel-head {
+  min-height: 40px;
+  margin-bottom: 7px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(35, 105, 140, 0.18);
+}
+
+.sidebar-section .panel-head h2 {
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.sidebar .stack {
+  gap: 6px;
+}
+
+.sidebar .file-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, auto);
+  gap: 6px;
+}
+
+.sidebar .field,
+.sidebar .select,
+.sidebar .file-display,
+.sidebar .btn,
+.sidebar .btn-primary,
+.sidebar .btn-soft {
+  min-height: 31px;
+  border-color: rgba(20, 94, 130, 0.22);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.sidebar .mini-meta {
+  min-height: 20px;
+  font-size: 10px;
+}
+
+.topbar.session-overview.ops-home-hero {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  min-height: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(42, 120, 157, 0.17);
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.92), rgba(235, 248, 253, 0.88)),
+    linear-gradient(135deg, rgba(42, 131, 197, 0.1), rgba(122, 217, 168, 0.08));
+  color: #102f42;
+  box-shadow: 0 12px 28px rgba(35, 89, 122, 0.1);
+}
+
+.topbar.session-overview.ops-home-hero .session-main {
+  grid-template-columns: minmax(240px, 0.52fr) minmax(390px, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar.session-overview.ops-home-hero .session-title-block,
+.topbar.session-overview.ops-home-hero .session-stat-grid article,
+.topbar.session-overview.ops-home-hero .live-monitor {
+  border-color: rgba(35, 105, 140, 0.16);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.66);
+  color: #102f42;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.topbar.session-overview.ops-home-hero .session-title-block {
+  padding: 10px 12px;
+}
+
+.topbar.session-overview.ops-home-hero .section-kicker,
+.topbar.session-overview.ops-home-hero .helper,
+.topbar.session-overview.ops-home-hero .live-monitor-cell span,
+.topbar.session-overview.ops-home-hero .session-stat-grid span,
+.topbar.session-overview.ops-home-hero .live-monitor-head strong,
+.topbar.session-overview.ops-home-hero .user-strip,
+.topbar.session-overview.ops-home-hero .user-strip span {
+  color: rgba(16, 47, 66, 0.72);
+}
+
+.topbar.session-overview.ops-home-hero .helper {
+  display: none;
+}
+
+.topbar.session-overview.ops-home-hero .session-title-block h2 {
+  margin: 3px 0 0;
+  color: #102f42;
+  font-size: clamp(19px, 1.7vw, 25px);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.topbar.session-overview.ops-home-hero .session-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.topbar.session-overview.ops-home-hero .session-stat-grid article {
+  min-height: 70px;
+  padding: 9px 10px;
+}
+
+.topbar.session-overview.ops-home-hero .session-stat-grid strong {
+  color: #102f42;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.topbar.session-overview.ops-home-hero .session-side {
+  min-width: 260px;
+  gap: 7px;
+}
+
+.topbar.session-overview.ops-home-hero .live-monitor {
+  padding: 8px 10px;
+}
+
+.topbar.session-overview.ops-home-hero .live-monitor-grid {
+  display: none;
+}
+
+.topbar.session-overview.ops-home-hero .badge.active,
+.topbar.session-overview.ops-home-hero .topbar-chip,
+.topbar.session-overview.ops-home-hero .btn {
+  border-color: rgba(31, 127, 199, 0.24);
+  background: rgba(255, 255, 255, 0.72);
+  color: #102f42;
+}
+
+.topbar.session-overview.ops-home-hero .user-strip {
+  justify-content: flex-end;
+}
+
+.modal-titlebar .window-close,
+.window-close {
+  min-width: 30px;
+  min-height: 26px;
+  border: 1px solid #9f2424 !important;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ff6b6b 0%, #d92f2f 54%, #b71f1f 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px rgba(183, 31, 31, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.36) !important;
+  font-weight: 900;
+}
+
+.modal-titlebar .window-close:hover,
+.window-close:hover {
+  background: linear-gradient(180deg, #ff8585 0%, #e34040 54%, #c52525 100%) !important;
+}
+
+@media (max-width: 1320px) {
+  .sidebar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .topbar.session-overview.ops-home-hero,
+  .topbar.session-overview.ops-home-hero .session-main {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar.session-overview.ops-home-hero .session-side {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  .sidebar,
+  .topbar.session-overview.ops-home-hero .session-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-panel,
+  .filter-panel * {
+    min-width: 0;
+  }
+
+  .filter-panel .panel-head,
+  .filter-panel .toolbar,
+  .filter-panel .filter-presence {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .filter-panel .filter-state {
+    justify-self: start;
+  }
+
+  .filter-panel .toolbar > *,
+  .filter-panel .filter-presence > * {
+    width: 100%;
+    max-width: 100%;
+  }
+}
