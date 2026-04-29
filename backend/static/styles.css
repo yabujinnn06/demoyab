@@ -5216,3 +5216,211 @@ body.app-body {
     max-width: 100%;
   }
 }
+
+/* Sidebar launcher navigation */
+.sidebar {
+  display: block;
+  overflow: visible;
+  min-height: 86px;
+  padding: 12px 16px 14px;
+}
+
+.sidebar::before {
+  top: -0.44em;
+  right: 12px;
+  color: rgba(5, 79, 115, 0.34);
+  font-size: clamp(7rem, 16vw, 15.5rem);
+}
+
+.sidebar::after {
+  height: 100%;
+}
+
+.sidebar-nav {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.sidebar-nav-item {
+  min-width: 0;
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) minmax(88px, auto);
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid rgba(24, 96, 130, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.48);
+  color: #102f42;
+  box-shadow: 0 10px 22px rgba(22, 82, 112, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.sidebar-nav-item:hover,
+.sidebar-nav-item.active {
+  transform: translateY(-1px);
+  border-color: rgba(31, 127, 199, 0.34);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 14px 28px rgba(22, 82, 112, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.sidebar-nav-icon {
+  width: 10px;
+  height: 34px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #2a83c5, #6fd1e7);
+  box-shadow: 0 0 0 4px rgba(42, 131, 197, 0.08);
+}
+
+.sidebar-nav-item[data-tone="team"] .sidebar-nav-icon {
+  background: linear-gradient(180deg, #36a6d8, #7ad9a8);
+}
+
+.sidebar-nav-item[data-tone="lists"] .sidebar-nav-icon {
+  background: linear-gradient(180deg, #6cc6e5, #2a83c5);
+}
+
+.sidebar-nav-item[data-tone="pool"] .sidebar-nav-icon {
+  background: linear-gradient(180deg, #7ad9a8, #36a6d8);
+}
+
+.sidebar-nav-item[data-tone="operators"] .sidebar-nav-icon {
+  background: linear-gradient(180deg, #2787bc, #135b7e);
+}
+
+.sidebar-nav-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.sidebar-nav-copy strong {
+  overflow: hidden;
+  color: #102f42;
+  font-size: 14px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-nav-copy small,
+.sidebar-nav-detail {
+  overflow: hidden;
+  color: rgba(16, 47, 66, 0.66);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-nav-detail {
+  justify-self: end;
+  max-width: 14rem;
+  padding: 5px 7px;
+  border: 1px solid rgba(31, 127, 199, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.sidebar-flyout {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 16px;
+  z-index: 70;
+  width: min(420px, calc(100vw - 32px));
+  padding: 10px;
+  border: 1px solid rgba(22, 94, 130, 0.2);
+  border-radius: 16px;
+  background: rgba(247, 252, 255, 0.94);
+  box-shadow: 0 24px 60px rgba(15, 64, 92, 0.22);
+  backdrop-filter: blur(18px);
+}
+
+.sidebar-flyout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.sidebar-flyout-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.sidebar-flyout-head span {
+  color: rgba(16, 47, 66, 0.6);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sidebar-flyout-head strong {
+  color: #102f42;
+}
+
+.sidebar-flyout .sidebar-section.window-shell {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.sidebar-flyout .sidebar-section .panel-head {
+  display: none;
+}
+
+.sidebar-flyout .stack {
+  gap: 8px;
+}
+
+.sidebar-flyout .field,
+.sidebar-flyout .btn {
+  min-height: 38px;
+}
+
+@media (max-width: 1180px) {
+  .sidebar-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    min-height: 0;
+    padding: 10px;
+  }
+
+  .sidebar-nav {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .sidebar-nav-item {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+
+  .sidebar-nav-detail {
+    grid-column: 2;
+    justify-self: start;
+    max-width: 100%;
+  }
+
+  .sidebar-flyout {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 100%;
+    margin-top: 8px;
+  }
+}

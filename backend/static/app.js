@@ -73,6 +73,7 @@ const state = {
   selectedListId: "",
   uploadFile: null,
   uploadListName: "",
+  sidebarPanel: "",
   recordDrafts: {},
   pagination: {
     offset: 0,
@@ -1280,6 +1281,97 @@ function uploadSectionMarkup() {
   `;
 }
 
+function sidebarNavMarkup() {
+  const activeList = state.lists.filter((list) => list.is_active).length;
+  const inactiveList = Math.max(0, state.lists.length - activeList);
+  const selected = selectedList();
+  const agentCount = state.users.filter((user) => user.role === "agent").length;
+  const adminCount = state.users.filter((user) => user.role === "admin").length;
+  const offerAccessCount = state.users.filter((user) => canOpenOfferTool(user)).length;
+  const poolTotal = state.contactPoolPagination.total || 0;
+  const activeOperators = state.operatorStats.filter((item) => (item.assigned_count || 0) > 0).length;
+  const remaining = state.operatorStats.reduce((sum, item) => sum + (item.pending_count || 0), 0);
+  const items = [];
+
+  if (state.me?.role === "admin") {
+    items.push({
+      id: "toggle-upload-flyout",
+      tone: "upload",
+      title: "Veri Yükleme",
+      meta: "Excel kaynağı içe aktar",
+      detail: state.uploadFile?.name || "Dosya bekliyor",
+      active: state.sidebarPanel === "upload",
+    });
+    items.push({
+      id: "open-team-modal",
+      tone: "team",
+      title: "Ekip",
+      meta: `${adminCount} yönetici · ${agentCount} operatör`,
+      detail: `${offerAccessCount} teklif erişimi`,
+    });
+  }
+
+  items.push({
+    id: "open-lists-modal",
+    tone: "lists",
+    title: "Listeler",
+    meta: `${activeList} aktif · ${inactiveList} pasif`,
+    detail: selected ? selected.name : "Liste seçilmedi",
+  });
+
+  if (state.me?.role === "admin") {
+    items.push({
+      id: "open-contact-pool-modal",
+      tone: "pool",
+      title: "İşlem Havuzu",
+      meta: `${poolTotal} havuz kaydı`,
+      detail: "Ulaşıldı / ulaşılamadı",
+    });
+    items.push({
+      id: "open-operator-control-modal",
+      tone: "operators",
+      title: "Operatör",
+      meta: `${activeOperators} aktif operatör`,
+      detail: `${remaining} kalan işlem`,
+    });
+  }
+
+  return `
+    <div class="sidebar-nav" aria-label="Operasyon menüsü">
+      ${items
+        .map(
+          (item) => `
+            <button class="sidebar-nav-item ${item.active ? "active" : ""}" type="button" id="${item.id}" data-tone="${item.tone}">
+              <span class="sidebar-nav-icon" aria-hidden="true"></span>
+              <span class="sidebar-nav-copy">
+                <strong>${escapeHtml(item.title)}</strong>
+                <small>${escapeHtml(item.meta)}</small>
+              </span>
+              <span class="sidebar-nav-detail">${escapeHtml(item.detail)}</span>
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function sidebarFlyoutMarkup() {
+  if (state.me?.role !== "admin" || state.sidebarPanel !== "upload") return "";
+  return `
+    <div class="sidebar-flyout" role="dialog" aria-label="Veri yükleme">
+      <div class="sidebar-flyout-head">
+        <div>
+          <span>Bağlı işlem</span>
+          <strong>Veri Yükleme</strong>
+        </div>
+        <button class="window-close sidebar-flyout-close" type="button" id="close-sidebar-panel" aria-label="Kapat">X</button>
+      </div>
+      ${uploadSectionMarkup()}
+    </div>
+  `;
+}
+
 function usersSectionMarkup() {
   if (state.me?.role !== "admin") return "";
   const agentCount = state.users.filter((user) => user.role === "agent").length;
@@ -2450,11 +2542,8 @@ function appMarkup() {
   return `
     <div class="app-shell">
       <aside class="sidebar">
-        ${uploadSectionMarkup()}
-        ${usersSectionMarkup()}
-        ${listsSectionMarkup()}
-        ${contactPoolSectionMarkup()}
-        ${operatorStatsPanelMarkup()}
+        ${sidebarNavMarkup(currentList)}
+        ${sidebarFlyoutMarkup()}
       </aside>
 
       <main class="main">
@@ -2559,6 +2648,7 @@ async function handleUserCreate(event) {
 }
 
 function openTeamModal() {
+  state.sidebarPanel = "";
   state.teamModalOpen = true;
   render();
 }
@@ -2569,6 +2659,7 @@ function closeTeamModal() {
 }
 
 function openListsModal() {
+  state.sidebarPanel = "";
   state.listsModalOpen = true;
   render();
 }
@@ -2579,6 +2670,7 @@ function closeListsModal() {
 }
 
 async function openContactPoolModal() {
+  state.sidebarPanel = "";
   state.contactPoolModalOpen = true;
   state.contactPoolPagination.offset = 0;
   try {
@@ -2596,6 +2688,7 @@ function closeContactPoolModal() {
 }
 
 async function openOperatorControlModal() {
+  state.sidebarPanel = "";
   state.operatorControlModalOpen = true;
   if (!state.operatorDetailUserId && state.operatorStats.length) {
     state.operatorDetailUserId = state.operatorStats.find((item) => item.is_active)?.user_id || state.operatorStats[0].user_id;
@@ -3029,6 +3122,14 @@ function bindEvents() {
   document.querySelector("#close-contact-pool-modal")?.addEventListener("click", closeContactPoolModal);
   document.querySelector("#open-operator-control-modal")?.addEventListener("click", openOperatorControlModal);
   document.querySelector("#close-operator-control-modal")?.addEventListener("click", closeOperatorControlModal);
+  document.querySelector("#toggle-upload-flyout")?.addEventListener("click", () => {
+    state.sidebarPanel = state.sidebarPanel === "upload" ? "" : "upload";
+    render();
+  });
+  document.querySelector("#close-sidebar-panel")?.addEventListener("click", () => {
+    state.sidebarPanel = "";
+    render();
+  });
   document.querySelector("#team-modal-backdrop")?.addEventListener("click", (event) => {
     if (event.target.id === "team-modal-backdrop") {
       closeTeamModal();
