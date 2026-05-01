@@ -37,6 +37,8 @@ from .teklif_kontrol import (
     FinancialReview,
     MatchResult,
     OfferSelection,
+    OfferItem,
+    PriceRow,
     apply_approved_corrections_to_pdf,
     build_match_result,
     build_corrected_pdf_path,
@@ -1225,6 +1227,138 @@ def describe_result_action(result: MatchResult, *, can_apply: bool, suggestions:
     }
 
 
+def describe_price_difference(result: MatchResult) -> dict:
+    if result.difference is None or result.reference_unit_price is None:
+        return {
+            "tone": "neutral",
+            "label": "Fark net değil",
+            "text": "Liste fiyatı veya güvenilir ürün eşleşmesi olmadığı için fiyat farkı hesaplanamadı.",
+        }
+
+    absolute_difference = abs(result.difference)
+    if absolute_difference <= 1:
+        return {
+            "tone": "even",
+            "label": "Fiyat uyumlu",
+            "text": "Teklif fiyatı seçilen liste fiyatıyla uyumlu görünüyor.",
+        }
+    if result.difference > 0:
+        return {
+            "tone": "high",
+            "label": "Teklif pahalı",
+            "text": f"Teklifteki birim fiyat liste fiyatından {format_money(absolute_difference)} yüksek.",
+        }
+    return {
+        "tone": "low",
+        "label": "Teklif ucuz",
+        "text": f"Teklifteki birim fiyat liste fiyatından {format_money(absolute_difference)} düşük.",
+    }
+
+
+def describe_match_state(result: MatchResult, *, suggestions: list[dict]) -> dict:
+    if result.status == "ESLESMEDI":
+        if suggestions:
+            return {
+                "tone": "warn",
+                "label": "Ürün eşleşmedi",
+                "text": f"Sistem bu satırı kesin eşleştiremedi; en yakın aday {suggestions[0]['label']} olarak görünüyor.",
+            }
+        return {
+            "tone": "warn",
+            "label": "Ürün eşleşmedi",
+            "text": "Excel fiyat listesinde güvenilir bir ürün karşılığı bulunamadı.",
+        }
+    if result.bundle_components:
+        return {
+            "tone": "info",
+            "label": "Birleşik ürün",
+            "text": f"Satır {len(result.bundle_components)} bileşen üzerinden değerlendirildi; bileşen eşleşmelerini kontrol etmek gerekir.",
+        }
+    if "düşük" in result.note.lower() or "dusuk" in result.note.lower():
+        return {
+            "tone": "warn",
+            "label": "Eşleşme düşük güvenli",
+            "text": "Ürün adı benziyor ama otomatik onay için güven seviyesi düşük kaldı.",
+        }
+    if result.note.startswith("Ürün elle seçildi."):
+        return {
+            "tone": "info",
+            "label": "Elle seçildi",
+            "text": "Karşılaştırma, kullanıcının elle seçtiği Excel ürünüyle yeniden yapıldı.",
+        }
+    if result.matched_row is not None:
+        return {
+            "tone": "ok",
+            "label": "Ürün eşleşti",
+            "text": f"PDF satırı Excel'deki '{result.matched_row.product_name}' ürünüyle eşleştirildi.",
+        }
+    return {
+        "tone": "warn",
+        "label": "Eşleşme belirsiz",
+        "text": "Ürün karşılığı netleşmediği için manuel kontrol gerekir.",
+    }
+
+
+def describe_reference_context(result: MatchResult) -> str:
+    if "KDV haric referans fiyat brut listeden hesaplandi" in result.note:
+        return "Referans fiyat KDV dahil listeden nete çevrilerek hesaplandı."
+    if "KDV dahil referans fiyat net listeden hesaplandi" in result.note:
+        return "Referans fiyat KDV hariç listeden brüte çevrilerek hesaplandı."
+    if "KDV haric bilesen fiyati brut listeden hesaplandi" in result.note:
+        return "Bileşen fiyatları KDV dahil listeden nete çevrilerek hesaplandı."
+    if "KDV dahil bilesen fiyati net listeden hesaplandi" in result.note:
+        return "Bileşen fiyatları KDV hariç listeden brüte çevrilerek hesaplandı."
+    return f"Karşılaştırma '{result.selected_column}' fiyat tipiyle yapıldı."
+
+
+def build_result_explanation(
+    result: MatchResult,
+    *,
+    can_apply: bool,
+    suggestions: list[dict],
+) -> dict:
+    price_state = describe_price_difference(result)
+    match_state = describe_match_state(result, suggestions=suggestions)
+    reference_context = describe_reference_context(result)
+
+    if can_apply:
+        title = "Liste fiyatı uyuşmuyor, düzeltme hazır."
+        next_step = "Bu satırı PDF düzeltme kuyruğuna alıp önerilen liste fiyatını yazdır."
+        cta = "PDF düzeltmesine al"
+        tone = "danger"
+    elif result.status == "ESLESMEDI":
+        title = "Ürün bulunamadığı için fiyat kararı verilemiyor."
+        next_step = "Excel listesinden doğru ürünü seç; sistem fiyatı tekrar hesaplasın."
+        cta = "Ürün seç"
+        tone = "warn"
+    elif result.status == "INCELE":
+        title = "Otomatik karar için güven yeterli değil."
+        next_step = "Ürün eşleşmesini ve KDV/fiyat tipini kontrol ettikten sonra karar ver."
+        cta = "İncele"
+        tone = "warn"
+    elif result.status == "ONAY":
+        title = "Bu kalemde fiyat ve eşleşme uyumlu."
+        next_step = "Ek işlem gerekmez; sadece raporda saklanır."
+        cta = "Tamam"
+        tone = "ok"
+    else:
+        title = "Bu kalem için sistem notunu kontrol et."
+        next_step = result.note
+        cta = "Kontrol et"
+        tone = "info"
+
+    return {
+        "tone": tone,
+        "title": title,
+        "spoken": f"{match_state['text']} {price_state['text']} {next_step}",
+        "match": match_state,
+        "price": price_state,
+        "reference": reference_context,
+        "next_step": next_step,
+        "cta": cta,
+    }
+
+
 def result_view_model(
     result: MatchResult,
     index: int,
@@ -1265,6 +1399,7 @@ def result_view_model(
     )
     apply_hint = describe_result_next_step(result, can_apply=can_apply, manual_selected=manual_selected)
     action = describe_result_action(result, can_apply=can_apply, suggestions=suggestions)
+    explanation = build_result_explanation(result, can_apply=can_apply, suggestions=suggestions)
     return {
         "index": index,
         "status": result.status,
@@ -1288,6 +1423,7 @@ def result_view_model(
         "selected_column": result.selected_column,
         "apply_hint": apply_hint,
         "action": action,
+        "explanation": explanation,
         "suggestions": suggestions,
         "suggestion_count": len(suggestions),
         "can_apply": can_apply,
@@ -1452,6 +1588,33 @@ def format_rate_label(value: float) -> str:
     return f"%{value:.2f}".replace(".", ",")
 
 
+def build_financial_explanation(check: FinancialCheck) -> dict:
+    if check.status == "ONAY":
+        return {
+            "tone": "ok",
+            "title": f"{check.label} uyumlu.",
+            "text": check.note,
+            "next_step": "Finansal tarafta ek işlem gerekmiyor.",
+        }
+    if check.status == "DUZELT":
+        difference_text = ""
+        if check.difference is not None:
+            direction = "yüksek" if check.difference > 0 else "düşük"
+            difference_text = f" PDF değeri hesaplanan değerden {format_money(abs(check.difference))} {direction}."
+        return {
+            "tone": "danger",
+            "title": f"{check.label} hesabı uyuşmuyor.",
+            "text": f"{check.note}{difference_text}",
+            "next_step": "PDF özetindeki toplam, KDV veya kalem toplamlarını yeniden kontrol et.",
+        }
+    return {
+        "tone": "warn",
+        "title": f"{check.label} için manuel kontrol gerekli.",
+        "text": check.note,
+        "next_step": "PDF'te ilgili alan okunamadıysa teklif şablonundaki yazımı netleştir.",
+    }
+
+
 def financial_check_view_model(check: FinancialCheck) -> dict:
     return {
         "label": check.label,
@@ -1461,6 +1624,7 @@ def financial_check_view_model(check: FinancialCheck) -> dict:
         "calculated_value": format_money(check.calculated_value),
         "difference": format_money(check.difference),
         "note": check.note,
+        "explanation": build_financial_explanation(check),
     }
 
 
@@ -1476,6 +1640,89 @@ def relative_display_path(path: Path | None) -> str:
 def result_metrics(results: list[MatchResult]) -> dict[str, int]:
     counts = Counter(result.status for result in results)
     return {status: int(counts.get(status, 0)) for status in STATUS_CLASS}
+
+
+def build_ai_action_board(
+    result_rows: list[dict],
+    financial_checks: list[dict],
+    metrics: dict[str, int],
+    *,
+    financial_overall_status: str,
+) -> dict:
+    problem_rows = [row for row in result_rows if row["status"] != "ONAY"]
+    financial_problems = [check for check in financial_checks if check["status"] != "ONAY"]
+    action_rows = [row for row in result_rows if row["can_apply"]]
+    waiting_rows = [row for row in result_rows if row["status"] in {"INCELE", "ESLESMEDI"}]
+
+    if not problem_rows and not financial_problems and result_rows:
+        headline = "Teklif temiz görünüyor."
+        summary = (
+            f"{metrics.get('ONAY', 0)} kalem liste fiyatıyla uyumlu. "
+            "Finansal özet de sorun üretmediği için teklif onaya hazır."
+        )
+        tone = "ok"
+        next_focus = "Raporu arşivle veya teklif sürecini kapat."
+    elif action_rows:
+        first = action_rows[0]
+        headline = "Düzeltmeye hazır fiyat farkı var."
+        summary = (
+            f"Öncelik Kalem {first['index'] + 1}: {first['explanation']['price']['text']} "
+            f"Sistem önerisi: {first['suggested_price']}."
+        )
+        tone = "danger"
+        next_focus = "Hazır aksiyonları Karar Merkezi'nde onaylayıp yeni PDF üret."
+    elif waiting_rows:
+        first = waiting_rows[0]
+        headline = "Önce ürün eşleşmesi netleşmeli."
+        summary = (
+            f"Kalem {first['index'] + 1} için otomatik karar güvenli değil. "
+            f"{first['explanation']['match']['text']}"
+        )
+        tone = "warn"
+        next_focus = "Doğru Excel ürününü seç; sistem fiyatı yeniden açıklasın."
+    elif financial_problems:
+        first_check = financial_problems[0]
+        headline = "Kalemler temiz olsa bile finansal özet uyarıyor."
+        summary = first_check["explanation"]["text"]
+        tone = first_check["explanation"]["tone"]
+        next_focus = first_check["explanation"]["next_step"]
+    else:
+        headline = "Teklifte kontrol edilmesi gereken alan var."
+        summary = "Sistem net bir otomatik karar üretemedi; sonuç kartlarını sırayla kontrol et."
+        tone = "info"
+        next_focus = "Problemli satırları açıp ürün ve fiyat tipini doğrula."
+
+    cards: list[dict] = []
+    for row in problem_rows[:3]:
+        cards.append(
+            {
+                "kind": "Kalem",
+                "title": f"Kalem {row['index'] + 1}: {row['explanation']['title']}",
+                "body": row["explanation"]["spoken"],
+                "tone": row["explanation"]["tone"],
+                "target": row["index"],
+            }
+        )
+    for check in financial_problems[:2]:
+        cards.append(
+            {
+                "kind": "Finans",
+                "title": check["explanation"]["title"],
+                "body": check["explanation"]["text"],
+                "tone": check["explanation"]["tone"],
+                "target": "",
+            }
+        )
+
+    return {
+        "tone": tone,
+        "headline": headline,
+        "summary": summary,
+        "next_focus": next_focus,
+        "cards": cards[:4],
+        "has_actions": bool(cards),
+        "financial_status": financial_overall_status,
+    }
 
 
 def create_comparison_session(price_list_path: Path, offer_path: Path, price_mode: str) -> ComparisonSession:
@@ -1504,6 +1751,128 @@ def create_comparison_session(price_list_path: Path, offer_path: Path, price_mod
     )
     SESSIONS[session.token] = session
     return session
+
+
+def create_demo_comparison_session() -> ComparisonSession:
+    selected_column = PRICE_MODE_TO_HEADER["kurumsal_nakit"]
+    price_list_path = resolve_price_file_path(default_price_file())
+    offer_path = OFFERS_DIR / "AI_ORNEK_TEKLIF.pdf"
+    output_path = BASE_DIR / OUTPUT_ROOT_DIRNAME / REPORTS_DIRNAME / "AI_ORNEK_RAPOR.xlsx"
+    matched_filter = PriceRow(
+        row_number=2,
+        product_name="Rainwater Black Serisi 3 Aşama Filtre Seti",
+        prices={selected_column: 18500.0},
+    )
+    matched_softener = PriceRow(
+        row_number=3,
+        product_name="Rainwater Compact Yumuşatma Sistemi",
+        prices={selected_column: 42000.0},
+    )
+    results = [
+        MatchResult(
+            offer_item=OfferItem(
+                product_name="Rainwater Black Serisi 3 Aşama Filtre Seti",
+                quantity=1,
+                unit_price=21500.0,
+                discounted_price=21500.0,
+                total_price=21500.0,
+            ),
+            matched_row=matched_filter,
+            score=0.96,
+            status="DUZELT",
+            selected_column=selected_column,
+            reference_unit_price=18500.0,
+            reference_total_price=18500.0,
+            suggested_unit_price=18500.0,
+            suggested_total_price=18500.0,
+            difference=3000.0,
+            note="Teklif fiyatı seçilen liste fiyatından farklı.",
+        ),
+        MatchResult(
+            offer_item=OfferItem(
+                product_name="Rainwater Compact Yumuşatma Sistemi",
+                quantity=1,
+                unit_price=42000.0,
+                discounted_price=42000.0,
+                total_price=42000.0,
+            ),
+            matched_row=matched_softener,
+            score=0.94,
+            status="ONAY",
+            selected_column=selected_column,
+            reference_unit_price=42000.0,
+            reference_total_price=42000.0,
+            suggested_unit_price=None,
+            suggested_total_price=None,
+            difference=0.0,
+            note="Teklif fiyatı liste ile uyumlu.",
+        ),
+        MatchResult(
+            offer_item=OfferItem(
+                product_name="Rainwater Premium Pompalı Arıtmalı Sistem",
+                quantity=1,
+                unit_price=28500.0,
+                discounted_price=28500.0,
+                total_price=28500.0,
+            ),
+            matched_row=None,
+            score=0.42,
+            status="ESLESMEDI",
+            selected_column=selected_column,
+            reference_unit_price=None,
+            reference_total_price=None,
+            suggested_unit_price=None,
+            suggested_total_price=None,
+            difference=None,
+            note="Excel listesinde güvenilir eşleşme bulunamadı.",
+        ),
+    ]
+    financial_review = FinancialReview(
+        vat_rate=20.0,
+        vat_rate_source="PDF",
+        vat_included=True,
+        item_gross_total=92000.0,
+        expected_net_total=76666.67,
+        expected_vat_total=15333.33,
+        expected_gross_total=92000.0,
+        expected_summary_total=92000.0,
+        checks=[
+            FinancialCheck(
+                label="Ürünlerin Toplam Tutarı",
+                status="ONAY",
+                offer_value=92000.0,
+                calculated_value=92000.0,
+                difference=0.0,
+                note="PDF'teki ürün toplam tutarları birim fiyat x adet hesabıyla uyumlu.",
+            ),
+            FinancialCheck(
+                label="KDV",
+                status="DUZELT",
+                offer_value=14750.0,
+                calculated_value=15333.33,
+                difference=-583.33,
+                note="KDV tutarı kalem toplamlarına göre farklı.",
+            ),
+            FinancialCheck(
+                label="Toplam Yatırım Maliyeti",
+                status="ONAY",
+                offer_value=92000.0,
+                calculated_value=92000.0,
+                difference=0.0,
+                note="Kalem toplamı ile uyumlu.",
+            ),
+        ],
+    )
+    return ComparisonSession(
+        token="demo",
+        price_list_path=price_list_path,
+        offer_path=offer_path,
+        output_path=output_path,
+        selected_column=selected_column,
+        price_mode="kurumsal_nakit",
+        results=results,
+        financial_review=financial_review,
+    )
 
 
 def batch_item_from_session(session: ComparisonSession) -> BatchComparisonItem:
@@ -1974,6 +2343,15 @@ def build_context(
     review_needed_count = 0
     result_effective_price_mode = ""
     activity_entries: list[dict] = []
+    ai_action_board = {
+        "tone": "info",
+        "headline": "Henüz kontrol sonucu yok.",
+        "summary": "Teklif kontrolü çalışınca sistem satır satır Türkçe açıklama üretir.",
+        "next_focus": "Önce teklif PDF'ini kontrol et.",
+        "cards": [],
+        "has_actions": False,
+        "financial_status": financial_overall_status,
+    }
 
     if session is not None:
         metrics = Counter(result.status for result in session.results)
@@ -2011,6 +2389,12 @@ def build_context(
             session.price_mode
             if session.price_mode != PRICE_MODE_AUTO
             else infer_price_mode_from_selected_column(session.selected_column)
+        )
+        ai_action_board = build_ai_action_board(
+            results,
+            financial_checks,
+            metrics,
+            financial_overall_status=financial_overall_status,
         )
 
     if offer_is_admin:
@@ -2070,6 +2454,7 @@ def build_context(
         "vat_rate_label": vat_rate_label,
         "vat_rate_source": vat_rate_source,
         "financial_overall_status": financial_overall_status,
+        "ai_action_board": ai_action_board,
         "token": token,
         "notice": notice,
         "error": error,
@@ -2100,6 +2485,22 @@ def build_context(
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("index.html", build_context(request))
+
+
+@app.get("/demo", response_class=HTMLResponse)
+async def demo(request: Request) -> HTMLResponse:
+    session = create_demo_comparison_session()
+    context = build_context(
+        request,
+        selected_price_file=session.price_list_path.name,
+        selected_offer_file=session.offer_path.name,
+        selected_mode=session.price_mode,
+        session=session,
+        notice="AI açıklamalı örnek teklif kontrolü hazırlandı.",
+        active_workspace="results",
+        play_result_sound=True,
+    )
+    return templates.TemplateResponse("index.html", context)
 
 
 @app.post("/admin/import-price-list", response_class=HTMLResponse)

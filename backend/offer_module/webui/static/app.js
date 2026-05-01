@@ -1,4 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
+  document.documentElement.classList.add("has-motion");
+
   const playResultSound = () => {
     const soundUrl = document.body.dataset.resultSoundUrl;
     const soundKey = document.body.dataset.resultSoundKey;
@@ -714,6 +716,143 @@ document.addEventListener("DOMContentLoaded", () => {
       focusDecisionCard(targetCard);
     });
   });
+
+  const initAiNarration = () => {
+    const panels = Array.from(document.querySelectorAll("[data-ai-narration]"));
+    const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    let cachedTurkishVoice = null;
+
+    const voiceScore = (voice) => {
+      const name = `${voice.name || ""} ${voice.voiceURI || ""}`.toLowerCase();
+      const lang = (voice.lang || "").toLowerCase();
+      let score = 0;
+      if (lang === "tr-tr") score += 100;
+      if (lang.startsWith("tr")) score += 80;
+      if (name.includes("turkish") || name.includes("türk") || name.includes("turk")) score += 40;
+      if (name.includes("google")) score += 18;
+      if (name.includes("microsoft")) score += 16;
+      if (name.includes("natural") || name.includes("neural") || name.includes("online")) score += 12;
+      if (name.includes("emel") || name.includes("ahmet") || name.includes("tolga")) score += 8;
+      if (voice.localService) score += 2;
+      return score;
+    };
+
+    const loadVoices = () => new Promise((resolve) => {
+      if (!("speechSynthesis" in window)) {
+        resolve([]);
+        return;
+      }
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length) {
+        resolve(voices);
+        return;
+      }
+      const handleVoices = () => {
+        window.speechSynthesis.removeEventListener("voiceschanged", handleVoices);
+        resolve(window.speechSynthesis.getVoices());
+      };
+      window.speechSynthesis.addEventListener("voiceschanged", handleVoices);
+      window.setTimeout(() => {
+        window.speechSynthesis.removeEventListener("voiceschanged", handleVoices);
+        resolve(window.speechSynthesis.getVoices());
+      }, 1200);
+    });
+
+    const bestTurkishVoice = async () => {
+      if (cachedTurkishVoice) {
+        return cachedTurkishVoice;
+      }
+      const voices = await loadVoices();
+      cachedTurkishVoice = voices
+        .filter((voice) => (voice.lang || "").toLowerCase().startsWith("tr") || /turkish|türk|turk/i.test(`${voice.name} ${voice.voiceURI}`))
+        .sort((left, right) => voiceScore(right) - voiceScore(left))[0] || null;
+      return cachedTurkishVoice;
+    };
+
+    const typeText = (target, text) => {
+      if (!target || prefersReducedMotion) {
+        if (target) {
+          target.textContent = text;
+        }
+        return;
+      }
+      target.classList.add("is-typing");
+      target.textContent = "";
+      let index = 0;
+      const tick = () => {
+        target.textContent = text.slice(0, index);
+        index += 1;
+        if (index <= text.length) {
+          window.setTimeout(tick, 14);
+          return;
+        }
+        target.classList.remove("is-typing");
+      };
+      tick();
+    };
+
+    panels.forEach((panel) => {
+      const button = panel.querySelector("[data-ai-speak]");
+      const target = panel.querySelector("[data-ai-type-line]");
+      const text = panel.dataset.aiText || target?.textContent || "";
+      button?.addEventListener("click", async () => {
+        typeText(target, text);
+        if (!("speechSynthesis" in window) || !text.trim()) {
+          return;
+        }
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        const voice = await bestTurkishVoice();
+        if (voice) {
+          utterance.voice = voice;
+        }
+        utterance.lang = "tr-TR";
+        utterance.rate = 0.92;
+        utterance.pitch = 1.02;
+        utterance.volume = 1;
+        const originalLabel = button.textContent;
+        button.textContent = voice ? "Türkçe sesle okunuyor" : "Dinleniyor";
+        button.disabled = true;
+        utterance.onend = () => {
+          button.textContent = originalLabel;
+          button.disabled = false;
+        };
+        utterance.onerror = () => {
+          button.textContent = originalLabel;
+          button.disabled = false;
+        };
+        window.speechSynthesis.speak(utterance);
+      });
+    });
+  };
+
+  const initResultReveal = () => {
+    const cards = Array.from(document.querySelectorAll("[data-result-card], [data-decision-card], .finance-review-card"));
+    if (!cards.length) {
+      return;
+    }
+    if (!("IntersectionObserver" in window)) {
+      cards.forEach((card) => card.classList.add("is-visible"));
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) {
+          return;
+        }
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.12 });
+    cards.forEach((card, index) => {
+      card.style.animationDelay = `${Math.min(index, 8) * 45}ms`;
+      observer.observe(card);
+    });
+  };
+
+  initAiNarration();
+  initResultReveal();
+
   decisionSearchInput?.addEventListener("input", renderDecisionFilters);
   decisionFilterButtons.forEach((button) => {
     button.addEventListener("click", () => {

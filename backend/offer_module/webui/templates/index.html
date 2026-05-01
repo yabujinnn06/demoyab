@@ -283,6 +283,22 @@
     </article>
   </div>
 
+  <div class="ai-explanation-card ai-tone-{{ row.explanation.tone }}" data-ai-narration data-ai-text="{{ row.explanation.spoken }}">
+    <div class="ai-explanation-head">
+      <div>
+        <span class="automation-eyebrow">Yapay zeka açıklaması</span>
+        <strong>{{ row.explanation.title }}</strong>
+      </div>
+      <button class="btn btn-sm btn-outline-primary ai-speak-button" type="button" data-ai-speak>Dinle</button>
+    </div>
+    <div class="ai-explanation-grid">
+      <p><span>{{ row.explanation.match.label }}</span>{{ row.explanation.match.text }}</p>
+      <p><span>{{ row.explanation.price.label }}</span>{{ row.explanation.price.text }}</p>
+      <p><span>Referans hesabı</span>{{ row.explanation.reference }}</p>
+    </div>
+    <p class="ai-type-line" data-ai-type-line>{{ row.explanation.next_step }}</p>
+  </div>
+
   <div class="automation-insight automation-insight-{{ row.action.tone }}">
     <div>
       <span class="automation-eyebrow">Akıllı öneri</span>
@@ -290,7 +306,7 @@
       <p>{{ row.action.body }}</p>
     </div>
     {% if row.status != 'ONAY' %}
-      <button class="btn btn-sm btn-outline-primary" type="button" data-open-workspace="apply" data-focus-decision="{{ row.index }}">Karar ver</button>
+        <button class="btn btn-sm btn-outline-primary" type="button" data-open-workspace="apply" data-focus-decision="{{ row.index }}">Kararı aç</button>
     {% endif %}
   </div>
 
@@ -337,6 +353,12 @@
   </div>
 
   <p class="finance-review-note mb-0">{{ check.note }}</p>
+  <div class="ai-finance-explanation ai-tone-{{ check.explanation.tone }}">
+    <span class="automation-eyebrow">Finans asistanı</span>
+    <strong>{{ check.explanation.title }}</strong>
+    <p>{{ check.explanation.text }}</p>
+    <small>{{ check.explanation.next_step }}</small>
+  </div>
 </article>
 {%- endmacro %}
 {% macro apply_decision_card(row, result_catalog_options) -%}
@@ -413,6 +435,22 @@
         <span>Fark</span>
         <strong>{{ row.difference }}</strong>
       </article>
+    </div>
+
+    <div class="ai-explanation-card ai-tone-{{ row.explanation.tone }}" data-ai-narration data-ai-text="{{ row.explanation.spoken }}">
+      <div class="ai-explanation-head">
+        <div>
+          <span class="automation-eyebrow">AI aksiyon açıklaması</span>
+          <strong>{{ row.explanation.title }}</strong>
+        </div>
+        <button class="btn btn-sm btn-outline-primary ai-speak-button" type="button" data-ai-speak>Dinle</button>
+      </div>
+      <div class="ai-explanation-grid">
+        <p><span>{{ row.explanation.match.label }}</span>{{ row.explanation.match.text }}</p>
+        <p><span>{{ row.explanation.price.label }}</span>{{ row.explanation.price.text }}</p>
+        <p><span>Sonraki hamle</span>{{ row.explanation.next_step }}</p>
+      </div>
+      <p class="ai-type-line" data-ai-type-line>{{ row.explanation.reference }}</p>
     </div>
 
     {% if row.can_apply or row.suggestions %}
@@ -1147,6 +1185,30 @@
                     </div>
                   </div>
                 </div>
+
+                <section class="ai-action-board ai-tone-{{ ai_action_board.tone }}" data-ai-action-board>
+                  <div class="ai-action-main">
+                    <span class="automation-eyebrow">AI karar asistanı</span>
+                    <h3>{{ ai_action_board.headline }}</h3>
+                    <p>{{ ai_action_board.summary }}</p>
+                    <div class="ai-action-next">
+                      <span>Önerilen aksiyon</span>
+                      <strong>{{ ai_action_board.next_focus }}</strong>
+                    </div>
+                  </div>
+                  {% if ai_action_board.cards %}
+                    <div class="ai-action-list">
+                      {% for card in ai_action_board.cards %}
+                        <article class="ai-action-item ai-tone-{{ card.tone }}" data-ai-narration data-ai-text="{{ card.body }}">
+                          <span>{{ card.kind }}</span>
+                          <strong>{{ card.title }}</strong>
+                          <p class="ai-type-line" data-ai-type-line>{{ card.body }}</p>
+                          <button class="btn btn-sm btn-outline-primary ai-speak-button" type="button" data-ai-speak>Dinle</button>
+                        </article>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </section>
 
                 <div class="operation-tabs">
                   <ul class="nav nav-pills operation-tab-nav mb-4" id="resultTabs" role="tablist">
