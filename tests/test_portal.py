@@ -1920,6 +1920,48 @@ def test_offer_parser_does_not_limit_layout_row_count(tmp_path) -> None:
     assert items[6].discounted_price == 15000.0
 
 
+def test_offer_parser_keeps_last_row_when_summary_label_is_joined(tmp_path) -> None:
+    import fitz
+
+    from backend.offer_module.teklif_kontrol import build_financial_review, parse_offer_items
+
+    offer_path = tmp_path / "joined_summary_label_offer.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=540, height=720)
+    page.insert_text((30, 330), "MALZEME", fontsize=10)
+    page.insert_text((268, 330), "MIKTAR", fontsize=10)
+    page.insert_text((330, 330), "BIRIM FIYAT", fontsize=10)
+    page.insert_text((472, 330), "TOPLAM", fontsize=10)
+
+    rows = [
+        (370, "RAINWATER RO-300 10'' + 20 LT TANK", "1 ADET 61.583 TL 46.583 TL 46.583 TL"),
+        (438, "RAINWATER RO-500 10'' + 80 LT TANK", "1 ADET 79.916 TL 59.916 TL 59.916 TL"),
+        (506, "RAINWATER RO-300 20'' + 80 LT TANK", "1 ADET 70.750 TL 54.916 TL 54.916 TL"),
+    ]
+    for y, product_name, price_line in rows:
+        page.insert_text((24, y), product_name, fontsize=9)
+        page.insert_text((24, y + 13), "YUKSEK KAPASITELI ICME SUYU ARITIM SISTEMI", fontsize=9)
+        page.insert_text((268, y + 13), price_line, fontsize=9)
+
+    page.insert_text((45, 570), "Fiyatlarimiza KDV (%20) dahil degildir.", fontsize=9)
+    page.insert_text((315, 586), "YATIRIMMALIYETI :", fontsize=10)
+    page.insert_text((458, 586), "161.415 TL", fontsize=10)
+    doc.save(offer_path)
+    doc.close()
+
+    items, offer_text = parse_offer_items(offer_path)
+    review = build_financial_review(items, offer_text)
+
+    assert len(items) == 3
+    assert round(sum(item.total_price for item in items), 2) == 161415.0
+    assert review.overall_status == "ONAY"
+    assert [check.label for check in review.checks] == [
+        "\u00dcr\u00fcnlerin Toplam Tutar\u0131",
+        "KDV Modu",
+        "Yat\u0131r\u0131m Maliyeti (KDV Hari\u00e7)",
+    ]
+
+
 def test_offer_pdf_correction_handles_bundle_row_index_mismatch(tmp_path) -> None:
     import fitz
 

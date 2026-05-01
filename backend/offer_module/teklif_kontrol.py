@@ -404,6 +404,28 @@ def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def compact_normalized_text(value: str) -> str:
+    return normalize_text(value).replace(" ", "")
+
+
+def _is_net_total_label(normalized: str) -> bool:
+    compact = normalized.replace(" ", "")
+    return normalized.startswith("YATIRIM MALIYETI") or compact.startswith("YATIRIMMALIYETI")
+
+
+def _is_vat_total_label(normalized: str) -> bool:
+    return normalized.startswith("KDV")
+
+
+def _is_gross_total_label(normalized: str) -> bool:
+    compact = normalized.replace(" ", "")
+    return normalized.startswith("TOPLAM YATIRIM MALIYETI") or compact.startswith("TOPLAMYATIRIMMALIYETI")
+
+
+def _is_financial_summary_label(normalized: str) -> bool:
+    return _is_net_total_label(normalized) or _is_vat_total_label(normalized) or _is_gross_total_label(normalized)
+
+
 def parse_money(value: str | int | float | None) -> float | None:
     if value is None:
         return None
@@ -677,11 +699,7 @@ def _extract_layout_financial_lines(pdf_path: Path) -> list[str]:
                 line_words = [candidate for candidate in words if abs(_word_center_y(candidate) - center_y) <= 4.0]
                 line_text = _words_to_line_text(line_words)
                 normalized = normalize_text(line_text)
-                if (
-                    normalized.startswith("YATIRIM MALIYETI")
-                    or normalized.startswith("KDV")
-                    or normalized.startswith("TOPLAM YATIRIM MALIYETI")
-                ) and MONEY_TL_PATTERN.search(line_text):
+                if _is_financial_summary_label(normalized) and MONEY_TL_PATTERN.search(line_text):
                     summary_lines.append(line_text)
                     seen_centers.add(rounded_center)
     finally:
@@ -777,10 +795,13 @@ def _layout_row_price_words(words: list[tuple], adet_word: tuple, *, top: float,
 
 def _layout_summary_stop_y(words: list[tuple], start_y: float, page_bottom: float) -> float:
     stop_candidates = [
-        _word_center_y(word)
+        float(word[1])
         for word in words
         if _word_center_y(word) > start_y
-        and normalize_text(str(word[4])) in {"YATIRIM", "ODEME", "KURUMSAL"}
+        and (
+            normalize_text(str(word[4])) in {"YATIRIM", "ODEME", "KURUMSAL"}
+            or compact_normalized_text(str(word[4])).startswith(("YATIRIM", "TOPLAMYATIRIM", "ODEME", "KURUMSAL"))
+        )
     ]
     return min(stop_candidates) if stop_candidates else page_bottom
 
@@ -938,7 +959,12 @@ def parse_offer_items(pdf_path: Path) -> tuple[list[OfferItem], str]:
 def _is_item_section_terminator(normalized_line: str) -> bool:
     if not normalized_line:
         return False
-    return "YATIRIM MALIYETI" in normalized_line or "KURUMSAL SATIS SORUMLUSU" in normalized_line
+    compact = normalized_line.replace(" ", "")
+    return (
+        "YATIRIM MALIYETI" in normalized_line
+        or "YATIRIMMALIYETI" in compact
+        or "KURUMSAL SATIS SORUMLUSU" in normalized_line
+    )
 
 
 def _is_possible_product_prefix(normalized_line: str) -> bool:
@@ -1172,9 +1198,9 @@ def parse_offer_financial_summary(offer_text: str) -> OfferFinancialSummary:
     lines = [line.strip() for line in offer_text.splitlines() if line.strip()]
     vat_rate, vat_rate_source = detect_vat_rate(offer_text)
     label_matchers = {
-        "net_total": lambda normalized: normalized.startswith("YATIRIM MALIYETI"),
-        "vat_total": lambda normalized: normalized.startswith("KDV"),
-        "gross_total": lambda normalized: normalized.startswith("TOPLAM YATIRIM MALIYETI"),
+        "net_total": _is_net_total_label,
+        "vat_total": _is_vat_total_label,
+        "gross_total": _is_gross_total_label,
     }
     label_indexes: dict[str, int] = {}
     for index in range(len(lines) - 1, -1, -1):
@@ -1290,12 +1316,12 @@ def _build_line_item_consistency_check(offer_items: list[OfferItem], *, toleranc
 
     if not mismatches:
         return FinancialCheck(
-            label="Kalem Toplam Tutarlılığı",
+            label="Ürünlerin Toplam Tutarı",
             status="ONAY",
             offer_value=declared_total,
             calculated_value=calculated_total,
             difference=round(declared_total - calculated_total, 2),
-            note="Kalem toplamları birim fiyat x adet hesabıyla uyumlu.",
+            note="PDF'teki ürün toplam tutarları birim fiyat x adet hesabıyla uyumlu.",
         )
 
     sample = ", ".join(mismatches[:3])
@@ -1303,12 +1329,12 @@ def _build_line_item_consistency_check(offer_items: list[OfferItem], *, toleranc
         sample = f"{sample} ve {len(mismatches) - 3} satir daha"
 
     return FinancialCheck(
-        label="Kalem Toplam Tutarlılığı",
+        label="Ürünlerin Toplam Tutarı",
         status="DUZELT",
         offer_value=declared_total,
         calculated_value=calculated_total,
         difference=round(declared_total - calculated_total, 2),
-        note=f"Bazi satirlarda birim fiyat x adet ile toplam tutar uyusmuyor: {sample}",
+        note=f"Bazi urun satirlarinda birim fiyat x adet ile toplam tutar uyusmuyor: {sample}",
     )
 
 
@@ -1426,27 +1452,33 @@ def build_financial_review(
                 mismatch_note="KDV hari\u00e7 yat\u0131r\u0131m maliyeti kalem toplam\u0131na g\u00f6re farkl\u0131.",
                 missing_note="PDF \u00f6zetinde KDV hari\u00e7 yat\u0131r\u0131m maliyeti alan\u0131 bulunamad\u0131.",
                 extra_note=vat_rate_note,
-            ),
-            _build_financial_check(
-                "KDV",
-                summary.vat_total,
-                expected_vat_total,
-                tolerance=tolerance,
-                success_note="KDV tutar\u0131 hesapla uyumlu.",
-                mismatch_note="KDV tutar\u0131 kalem toplamlar\u0131na g\u00f6re farkl\u0131.",
-                missing_note="PDF \u00f6zetinde KDV alan\u0131 bulunamad\u0131.",
-                extra_note=vat_rate_note,
-            ),
-            _build_financial_check(
-                "Toplam Yat\u0131r\u0131m Maliyeti (KDV Dahil)",
-                summary.gross_total,
-                expected_gross_total,
-                tolerance=tolerance,
-                success_note="KDV dahil genel toplam net tutar ve KDV ile uyumlu.",
-                mismatch_note="KDV dahil genel toplam net tutar ve KDV hesab\u0131na g\u00f6re farkl\u0131.",
-                missing_note="PDF \u00f6zetinde KDV dahil toplam yat\u0131r\u0131m maliyeti alan\u0131 bulunamad\u0131.",
-            ),
+            )
         ]
+        if summary.vat_total is not None:
+            checks.append(
+                _build_financial_check(
+                    "KDV",
+                    summary.vat_total,
+                    expected_vat_total,
+                    tolerance=tolerance,
+                    success_note="KDV tutar\u0131 hesapla uyumlu.",
+                    mismatch_note="KDV tutar\u0131 kalem toplamlar\u0131na g\u00f6re farkl\u0131.",
+                    missing_note="PDF \u00f6zetinde KDV alan\u0131 bulunamad\u0131.",
+                    extra_note=vat_rate_note,
+                )
+            )
+        if summary.gross_total is not None:
+            checks.append(
+                _build_financial_check(
+                    "Toplam Yat\u0131r\u0131m Maliyeti (KDV Dahil)",
+                    summary.gross_total,
+                    expected_gross_total,
+                    tolerance=tolerance,
+                    success_note="KDV dahil genel toplam net tutar ve KDV ile uyumlu.",
+                    mismatch_note="KDV dahil genel toplam net tutar ve KDV hesab\u0131na g\u00f6re farkl\u0131.",
+                    missing_note="PDF \u00f6zetinde KDV dahil toplam yat\u0131r\u0131m maliyeti alan\u0131 bulunamad\u0131.",
+                )
+            )
 
     return FinancialReview(
         vat_rate=summary.vat_rate,
