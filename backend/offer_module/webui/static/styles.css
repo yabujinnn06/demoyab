@@ -4109,3 +4109,1099 @@ section.app-card::before {
     animation: none;
   }
 }
+
+/* Rainwater Control Offer Studio UX layer */
+:root {
+  color-scheme: dark;
+  --bg: #07111f;
+  --bg-soft: #0b1728;
+  --surface: #0f1c2e;
+  --surface-elevated: #142338;
+  --border: rgba(148, 163, 184, 0.18);
+  --border-strong: rgba(125, 211, 252, 0.32);
+  --text: #edf6ff;
+  --muted: #9badbf;
+  --primary: #38bdf8;
+  --accent: #22d3ee;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #60a5fa;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --shadow-sm: 0 8px 18px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 16px 40px rgba(0, 0, 0, 0.26);
+  --shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.36);
+  --bs-body-font-family: "Segoe UI Variable", "Segoe UI", Inter, Arial, sans-serif;
+  --bs-body-color: var(--text);
+  --bs-body-bg: var(--bg);
+  --bs-border-color: var(--border);
+  --bs-primary: var(--primary);
+  --bs-primary-rgb: 56, 189, 248;
+  --bs-link-color: var(--primary);
+  --bs-link-hover-color: var(--accent);
+  --bs-border-radius: var(--radius-md);
+  --bs-border-radius-lg: var(--radius-lg);
+}
+
+body.app-body {
+  min-height: 100vh;
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.08) 0%, transparent 28%),
+    linear-gradient(180deg, #07111f 0%, #0b1728 58%, #08101c 100%);
+  color: var(--text);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+body.app-body::before {
+  opacity: 0.16;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  filter: none;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(56, 189, 248, 0.5);
+  outline-offset: 2px;
+}
+
+.hero-shell.offer-template-header {
+  margin: 0;
+  border-bottom: 1px solid var(--border) !important;
+  background:
+    linear-gradient(135deg, rgba(56, 189, 248, 0.16), transparent 42%),
+    linear-gradient(180deg, rgba(20, 35, 56, 0.98), rgba(7, 17, 31, 0.98));
+  box-shadow: var(--shadow-md);
+}
+
+.offer-template-banner {
+  max-height: 210px;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.22);
+  background: rgba(7, 17, 31, 0.7);
+}
+
+.offer-template-banner-image {
+  width: 100%;
+  min-height: 150px;
+  object-fit: cover;
+  opacity: 0.92;
+}
+
+.offer-header-action-row {
+  background: rgba(7, 17, 31, 0.52);
+}
+
+.hero-actions .btn,
+.btn {
+  min-height: 40px;
+  border-radius: var(--radius-md);
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.btn-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #0ea5e9, #22d3ee);
+  color: #04111f;
+  box-shadow: 0 12px 30px rgba(14, 165, 233, 0.22);
+}
+
+.btn-outline-secondary,
+.btn-outline-primary,
+.btn-outline-dark {
+  border-color: var(--border);
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.workspace-main,
+.sidebar-sticky,
+.workspace-sidebar {
+  display: grid;
+  gap: 1rem;
+}
+
+.workspace-sidebar {
+  position: sticky;
+  top: 1rem;
+}
+
+.app-card,
+.workspace-topbar,
+.smart-command-bar,
+.quote-builder-summary,
+.result-review-card,
+.decision-card,
+.finance-review-card,
+.batch-selection-panel,
+.batch-result-panel,
+.batch-command-panel,
+.form-section,
+.activity-log-modal .modal-content {
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-lg) !important;
+  background: linear-gradient(180deg, rgba(20, 35, 56, 0.95), rgba(13, 24, 40, 0.95)) !important;
+  color: var(--text);
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.workspace-brand-card {
+  background:
+    linear-gradient(135deg, rgba(56, 189, 248, 0.14), transparent 46%),
+    linear-gradient(180deg, rgba(20, 35, 56, 0.98), rgba(9, 18, 31, 0.98)) !important;
+}
+
+.workspace-brand-title,
+.workspace-topbar-title,
+.app-card h2,
+.app-card h3,
+.result-review-card h3,
+.decision-card h3,
+.finance-review-title {
+  color: var(--text);
+  font-weight: 780;
+  letter-spacing: 0;
+}
+
+.section-kicker,
+.automation-eyebrow,
+.product-label,
+.smart-command-eyebrow {
+  color: var(--primary);
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.section-copy,
+.helper-text,
+.workspace-brand-copy,
+.product-subtext,
+.finance-review-note,
+.batch-cell-muted,
+.batch-cell-note {
+  color: var(--muted) !important;
+}
+
+.workspace-nav-link {
+  min-height: 62px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: rgba(148, 163, 184, 0.06);
+  color: var(--text);
+}
+
+.workspace-nav-link:hover,
+.workspace-nav-link.active {
+  border-color: rgba(56, 189, 248, 0.34);
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--text);
+}
+
+.workspace-nav-link:disabled {
+  opacity: 0.46;
+}
+
+.workspace-nav-index {
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--primary);
+}
+
+.workspace-brand-active,
+.workspace-mini-item,
+.result-stat-card,
+.batch-metric-grid article,
+.decision-flow-step,
+.quote-summary-grid article,
+.quote-summary-meta div {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(7, 17, 31, 0.46);
+}
+
+.workspace-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.workspace-topbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.status-pill,
+.status-chip,
+.activity-action-pill,
+.suggestion-pill,
+.decision-badge {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.status-ok,
+.status-onay,
+.status-approved,
+.status-success {
+  border-color: rgba(34, 197, 94, 0.32);
+  background: rgba(34, 197, 94, 0.12);
+  color: #bbf7d0;
+}
+
+.status-info,
+.status-duzelt,
+.status-review {
+  border-color: rgba(56, 189, 248, 0.32);
+  background: rgba(56, 189, 248, 0.12);
+  color: #bae6fd;
+}
+
+.status-warning,
+.status-incele,
+.status-eslesmedi {
+  border-color: rgba(245, 158, 11, 0.32);
+  background: rgba(245, 158, 11, 0.12);
+  color: #fde68a;
+}
+
+.status-danger,
+.status-error,
+.status-failed {
+  border-color: rgba(239, 68, 68, 0.32);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fecaca;
+}
+
+.form-control,
+.form-select {
+  min-height: 42px;
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+  background-color: rgba(7, 17, 31, 0.64);
+  color: var(--text);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--primary);
+  background-color: rgba(7, 17, 31, 0.84);
+  color: var(--text);
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.13);
+}
+
+.form-control::placeholder {
+  color: rgba(155, 173, 191, 0.7);
+}
+
+.form-label {
+  color: #cbd5e1;
+  font-weight: 750;
+}
+
+.quote-builder-summary {
+  position: sticky;
+  bottom: 1rem;
+  z-index: 3;
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+
+.quote-summary-head {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.quote-summary-head strong {
+  color: var(--text);
+  font-size: 1.15rem;
+}
+
+.quote-summary-head small {
+  color: var(--muted);
+}
+
+.quote-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.quote-summary-grid article,
+.quote-summary-meta div {
+  padding: 0.8rem;
+}
+
+.quote-summary-grid span,
+.quote-summary-meta span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.quote-summary-grid strong,
+.quote-summary-meta strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text);
+}
+
+.quote-summary-grid strong {
+  font-size: 1.35rem;
+}
+
+.quote-summary-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.create-item-grid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.create-item-card,
+.product-showcase,
+.ai-explanation-card,
+.automation-insight,
+.decision-automation-panel,
+.batch-offer-option,
+.bundle-component {
+  border-color: var(--border);
+  background: rgba(7, 17, 31, 0.42);
+}
+
+.batch-result-table-wrap,
+.activity-log-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(7, 17, 31, 0.36);
+}
+
+.batch-result-table,
+.activity-log-table {
+  color: var(--text);
+}
+
+.batch-result-table thead th,
+.activity-log-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13, 24, 40, 0.98);
+  color: var(--muted);
+}
+
+.batch-result-table tbody td,
+.activity-log-table tbody td {
+  border-color: rgba(148, 163, 184, 0.11);
+}
+
+.app-alert,
+.alert {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.alert-success {
+  background: rgba(34, 197, 94, 0.13);
+  color: #dcfce7;
+}
+
+.alert-danger {
+  background: rgba(239, 68, 68, 0.13);
+  color: #fee2e2;
+}
+
+.offcanvas.app-offcanvas {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+.modal-content {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.accordion-item,
+.accordion-button {
+  border-color: var(--border);
+  background: rgba(7, 17, 31, 0.44);
+  color: var(--text);
+}
+
+.accordion-button:not(.collapsed) {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--text);
+}
+
+@media (min-width: 1200px) {
+  #workspace-pane-create form.vstack {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+    align-items: start;
+    gap: 1.25rem !important;
+  }
+
+  #workspace-pane-create form.vstack > .row,
+  #workspace-pane-create form.vstack > .form-section,
+  #workspace-pane-create form.vstack > .d-flex {
+    grid-column: 1;
+  }
+
+  #workspace-pane-create form.vstack > .quote-builder-summary {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    top: 1rem;
+    bottom: auto;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .workspace-topbar,
+  .smart-command-bar,
+  .batch-command-panel,
+  .batch-submit-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .workspace-topbar-meta {
+    justify-content: flex-start;
+  }
+
+  .quote-summary-grid,
+  .quote-summary-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 575.98px) {
+  body.app-body {
+    font-size: 13px;
+  }
+
+  .container-fluid {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .offer-template-banner-image {
+    min-height: 118px;
+  }
+
+  .hero-actions .btn,
+  .workspace-topbar-meta .btn {
+    width: 100%;
+  }
+
+  .quote-summary-grid,
+  .quote-summary-meta,
+  .batch-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-builder-summary {
+    position: static;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Rainwater Control readability and offer header cleanup */
+:root {
+  color-scheme: light;
+  --bg: #edf4fa;
+  --bg-soft: #f7fbff;
+  --surface: #ffffff;
+  --surface-elevated: #f8fbff;
+  --surface-strong: #e8f2fb;
+  --border: rgba(21, 57, 91, 0.14);
+  --border-strong: rgba(21, 57, 91, 0.24);
+  --text: #102033;
+  --muted: #60758a;
+  --primary: #0f7fc5;
+  --primary-strong: #075f98;
+  --accent: #0aa6c7;
+  --success: #14885f;
+  --warning: #b77913;
+  --danger: #c93a3a;
+  --info: #2679c6;
+  --app-bg: var(--bg);
+  --app-bg-soft: var(--bg-soft);
+  --app-surface: var(--surface);
+  --app-surface-elevated: var(--surface-elevated);
+  --app-border: var(--border);
+  --app-text: var(--text);
+  --app-muted: var(--muted);
+  --app-primary: var(--primary);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --shadow-sm: 0 1px 2px rgba(24, 54, 86, 0.08);
+  --shadow-md: 0 14px 34px rgba(24, 54, 86, 0.12);
+  --shadow-lg: 0 24px 60px rgba(24, 54, 86, 0.16);
+}
+
+body.app-body,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body.app-body::before {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(10, 166, 199, 0.14), transparent 32rem),
+    radial-gradient(circle at 88% 8%, rgba(15, 127, 197, 0.12), transparent 34rem),
+    linear-gradient(180deg, #f7fbff 0%, #edf4fa 52%, #e9f1f7 100%);
+  filter: none;
+}
+
+a {
+  color: var(--primary-strong);
+}
+
+.hero-shell.offer-template-header {
+  overflow: visible;
+  border-bottom: 1px solid var(--border) !important;
+  background: #f7fbff;
+  box-shadow: var(--shadow-sm);
+}
+
+.offer-template-banner.rainwater-brand-banner {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.8rem, 2vw, 1.4rem);
+  width: 100%;
+  min-height: clamp(106px, 12vw, 140px);
+  height: clamp(106px, 10vw, 140px);
+  max-height: none;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, #eaf6ff, #ffffff 58%, #edf8fb);
+}
+
+.offer-template-banner.rainwater-brand-banner .rainwater-logo-window {
+  flex: 0 0 min(560px, 54vw);
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #3594df;
+}
+
+.offer-template-banner.rainwater-brand-banner .offer-template-banner-image.rainwater-brand-source {
+  display: block;
+  width: auto;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  object-position: left center;
+  opacity: 1;
+}
+
+.rainwater-banner-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.22rem;
+}
+
+.rainwater-banner-copy span {
+  color: var(--primary-strong);
+  font-size: clamp(1.05rem, 1.7vw, 1.5rem);
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.rainwater-banner-copy strong {
+  color: var(--text);
+  font-size: clamp(0.84rem, 1vw, 1rem);
+  font-weight: 750;
+}
+
+.rainwater-banner-maker {
+  margin-left: auto;
+  padding: 0.42rem 0.72rem;
+  border: 1px solid rgba(15, 127, 197, 0.16);
+  border-radius: 999px;
+  background: rgba(15, 127, 197, 0.08);
+  color: var(--primary-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.offer-template-banner.rainwater-brand-banner .offer-header-log-zone {
+  position: static;
+  inset: auto;
+  flex: 0 1 320px;
+  width: auto;
+  margin-left: 0;
+  padding: 0 1.2rem 0 0;
+  background: transparent;
+}
+
+.offer-template-banner.rainwater-brand-banner .offer-header-log-card {
+  width: 100%;
+  border: 1px solid rgba(15, 127, 197, 0.18);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.offer-template-banner.rainwater-brand-banner .offer-header-log-card span,
+.offer-template-banner.rainwater-brand-banner .offer-header-log-card small {
+  color: var(--muted);
+}
+
+.offer-template-banner.rainwater-brand-banner .offer-header-log-card strong {
+  color: var(--text);
+}
+
+.offer-header-action-row {
+  border-top: 0;
+  background: #ffffff;
+}
+
+.app-card,
+.workspace-brand-card,
+.workspace-nav-card,
+.workspace-status-card,
+.workspace-detail-card,
+.workspace-main-card,
+.workspace-topbar,
+.smart-command-bar,
+.batch-command-panel,
+.decision-automation-panel,
+.automation-insight,
+.ai-explanation-card,
+.product-showcase,
+.create-item-card,
+.quote-builder-summary,
+.batch-result-table-wrap,
+.activity-log-table-wrap,
+.modal-content,
+.accordion-item,
+.accordion-button,
+.offcanvas.app-offcanvas {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.workspace-brand-card,
+.workspace-topbar,
+.quote-builder-summary {
+  background:
+    linear-gradient(135deg, rgba(15, 127, 197, 0.09), transparent 42%),
+    linear-gradient(180deg, #ffffff, #f7fbff);
+}
+
+.section-kicker,
+.workspace-brand-copy,
+.workspace-mini-item span,
+.workspace-detail-heading,
+.helper-text,
+.form-text,
+.text-muted,
+.quote-summary-head small,
+.quote-summary-grid span,
+.quote-summary-meta span,
+.batch-result-table thead th,
+.activity-log-table thead th,
+.status-pill,
+.status-chip,
+.activity-action-pill,
+.suggestion-pill,
+.decision-badge {
+  color: var(--muted) !important;
+}
+
+.workspace-brand-title,
+.workspace-nav-copy strong,
+.workspace-mini-item strong,
+.workspace-topbar h1,
+.workspace-topbar strong,
+.modal-title,
+.quote-summary-head strong,
+.quote-summary-grid strong,
+.quote-summary-meta strong,
+.product-name,
+.card-title,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--text);
+}
+
+.workspace-nav-link {
+  border-color: var(--border);
+  background: #f5fafe;
+  color: var(--text);
+}
+
+.workspace-nav-link.active,
+.workspace-nav-link:hover {
+  border-color: rgba(15, 127, 197, 0.28);
+  background: #e8f5fd;
+  color: var(--primary-strong);
+}
+
+.workspace-nav-index {
+  background: #dff0fb;
+  color: var(--primary-strong);
+}
+
+.form-control,
+.form-select,
+.form-check-input,
+input,
+select,
+textarea {
+  border-color: var(--border-strong);
+  background-color: #ffffff;
+  color: var(--text);
+}
+
+.form-control:focus,
+.form-select:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary);
+  background-color: #ffffff;
+  color: var(--text);
+  box-shadow: 0 0 0 4px rgba(15, 127, 197, 0.14);
+}
+
+.form-control::placeholder {
+  color: #7a8fa3;
+}
+
+.form-label {
+  color: #334b61;
+}
+
+.btn,
+.hero-actions .btn {
+  min-height: 40px;
+  border-radius: var(--radius-md);
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.btn-primary,
+.hero-actions .btn-primary {
+  border-color: var(--primary) !important;
+  background: linear-gradient(135deg, var(--primary), #1199ba) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(15, 127, 197, 0.22);
+}
+
+.btn-outline-secondary,
+.btn-outline-primary,
+.btn-outline-dark,
+.btn-light,
+.btn-secondary {
+  border-color: var(--border) !important;
+  background: #f5fafe !important;
+  color: var(--text) !important;
+}
+
+.btn-danger,
+.btn-outline-danger {
+  border-color: rgba(201, 58, 58, 0.24) !important;
+  background: #fff1f1 !important;
+  color: #a82121 !important;
+}
+
+.batch-result-table,
+.activity-log-table,
+.table {
+  color: var(--text);
+}
+
+.batch-result-table thead th,
+.activity-log-table thead th,
+.table thead th {
+  background: #f1f7fc;
+  color: #486176 !important;
+}
+
+.batch-result-table tbody td,
+.activity-log-table tbody td,
+.table td {
+  border-color: rgba(21, 57, 91, 0.1);
+}
+
+.batch-result-table tbody tr,
+.activity-log-table tbody tr,
+.table tbody tr {
+  background: #ffffff;
+}
+
+.batch-result-table tbody tr:hover,
+.activity-log-table tbody tr:hover,
+.table tbody tr:hover {
+  background: #f3faff;
+}
+
+.status-pill,
+.status-chip,
+.activity-action-pill,
+.suggestion-pill,
+.decision-badge {
+  border: 1px solid var(--border);
+  background: #f3f7fb;
+}
+
+.status-ok,
+.status-onay,
+.status-approved,
+.status-success,
+.badge.bg-success {
+  border-color: rgba(20, 136, 95, 0.24);
+  background: #eaf8f1 !important;
+  color: #0d6f4b !important;
+}
+
+.status-info,
+.status-duzelt,
+.status-review,
+.badge.bg-info,
+.badge.bg-primary {
+  border-color: rgba(38, 121, 198, 0.24);
+  background: #eaf4ff !important;
+  color: #0b5d98 !important;
+}
+
+.status-warning,
+.status-incele,
+.status-eslesmedi,
+.badge.bg-warning {
+  border-color: rgba(183, 121, 19, 0.28);
+  background: #fff6df !important;
+  color: #84560b !important;
+}
+
+.status-danger,
+.status-error,
+.status-failed,
+.badge.bg-danger {
+  border-color: rgba(201, 58, 58, 0.24);
+  background: #fff1f1 !important;
+  color: #a82121 !important;
+}
+
+.alert-success {
+  background: #eaf8f1;
+  color: #0d6f4b;
+}
+
+.alert-danger {
+  background: #fff1f1;
+  color: #a82121;
+}
+
+.alert-warning {
+  background: #fff6df;
+  color: #84560b;
+}
+
+.modal-header,
+.modal-footer,
+.accordion-button:not(.collapsed) {
+  border-color: var(--border);
+  background: #f8fbff;
+  color: var(--text);
+}
+
+.btn-close {
+  filter: none;
+}
+
+@media (max-width: 991.98px) {
+  .offer-template-banner.rainwater-brand-banner {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-bottom: 0.9rem;
+  }
+
+  .offer-template-banner.rainwater-brand-banner .rainwater-logo-window {
+    flex-basis: 100%;
+    height: 86px;
+    min-height: 86px;
+    display: flex;
+    align-items: center;
+  }
+
+  .offer-template-banner.rainwater-brand-banner .offer-template-banner-image.rainwater-brand-source {
+    display: none;
+  }
+
+  .offer-template-banner.rainwater-brand-banner .rainwater-logo-window::before {
+    content: "rainwater";
+    padding-left: 1.25rem;
+    color: #ffffff;
+    font-size: clamp(2.1rem, 11vw, 3.2rem);
+    font-weight: 950;
+    letter-spacing: 0;
+    line-height: 1;
+  }
+
+  .rainwater-banner-copy {
+    padding-left: 1rem;
+  }
+
+  .rainwater-banner-maker {
+    margin-left: 1rem;
+  }
+
+  .offer-template-banner.rainwater-brand-banner .offer-header-log-zone,
+  .offer-template-banner.rainwater-brand-banner .offer-header-log-zone.has-log {
+    flex-basis: 100%;
+    padding: 0 1rem;
+  }
+}
+
+/* Final contrast clamp for old dark offer workspace sections */
+body.app-body .app-card,
+body.app-body .card.app-card,
+body.app-body .workspace-brand-card,
+body.app-body .workspace-nav-card,
+body.app-body .workspace-status-card,
+body.app-body .workspace-detail-card,
+body.app-body .workspace-main .card,
+body.app-body .workspace-main .app-card,
+body.app-body .workspace-topbar,
+body.app-body .smart-command-bar,
+body.app-body .form-section,
+body.app-body .batch-command-panel,
+body.app-body .decision-automation-panel,
+body.app-body .automation-insight,
+body.app-body .product-showcase,
+body.app-body .ai-explanation-card,
+body.app-body .create-item-card,
+body.app-body .quote-builder-summary,
+body.app-body .accordion-item,
+body.app-body .accordion-button {
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+body.app-body .workspace-brand-card,
+body.app-body .workspace-topbar,
+body.app-body .quote-builder-summary {
+  background:
+    linear-gradient(135deg, rgba(15, 127, 197, 0.09), transparent 42%),
+    linear-gradient(180deg, #ffffff, #f7fbff) !important;
+}
+
+body.app-body .workspace-brand-active,
+body.app-body .workspace-mini-item,
+body.app-body .workspace-detail li,
+body.app-body .result-stat-card,
+body.app-body .quote-summary-grid article,
+body.app-body .quote-summary-meta div,
+body.app-body .batch-metric-card,
+body.app-body .finance-review-card {
+  background: #f5fafe !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body.app-body .workspace-main,
+body.app-body .sidebar-sticky,
+body.app-body .workspace-sidebar {
+  color: var(--text) !important;
+}
+
+body.app-body .workspace-main h1,
+body.app-body .workspace-main h2,
+body.app-body .workspace-main h3,
+body.app-body .workspace-main h4,
+body.app-body .workspace-main h5,
+body.app-body .workspace-main h6,
+body.app-body .workspace-main strong,
+body.app-body .workspace-sidebar strong,
+body.app-body .workspace-brand-title,
+body.app-body .product-name {
+  color: var(--text) !important;
+}
+
+body.app-body .workspace-main p,
+body.app-body .workspace-main small,
+body.app-body .workspace-main label,
+body.app-body .workspace-main .helper-text,
+body.app-body .workspace-main .section-kicker,
+body.app-body .workspace-sidebar small,
+body.app-body .workspace-sidebar span,
+body.app-body .product-label,
+body.app-body .product-subtext {
+  color: var(--muted) !important;
+}
+
+body.app-body .workspace-nav-link {
+  background: #f5fafe !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body.app-body .workspace-nav-link.active,
+body.app-body .workspace-nav-link:hover {
+  background: #e8f5fd !important;
+  color: var(--primary-strong) !important;
+  border-color: rgba(15, 127, 197, 0.28) !important;
+}
+
+body.app-body .workspace-nav-link.active *,
+body.app-body .workspace-nav-link:hover * {
+  color: inherit !important;
+}
+
+body.app-body .workspace-nav-index {
+  background: #dff0fb !important;
+  color: var(--primary-strong) !important;
+}
+
+body.app-body .btn-primary,
+body.app-body .hero-actions .btn-primary {
+  color: #ffffff !important;
+}

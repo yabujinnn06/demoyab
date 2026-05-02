@@ -140,6 +140,15 @@ function bindGlobalActivityListeners() {
   ["pointerdown", "keydown", "focusin", "input", "change"].forEach((eventName) => {
     document.addEventListener(eventName, handler, true);
   });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!(state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen)) return;
+    state.teamModalOpen = false;
+    state.listsModalOpen = false;
+    state.contactPoolModalOpen = false;
+    state.operatorControlModalOpen = false;
+    render();
+  });
 }
 
 function cancelDeferredRender() {
@@ -207,8 +216,23 @@ function brandMark() {
   return `
     <span class="brand-mark" aria-hidden="true">
       <img class="brand-logo" src="/static/yabujin-mark.svg" alt="" />
-      <span class="brand-logo-fallback">RW</span>
+      <span class="brand-logo-fallback">RC</span>
     </span>
+  `;
+}
+
+function rainwaterBrandBannerMarkup() {
+  return `
+    <section class="rainwater-brand-banner" aria-label="Rainwater Control">
+      <div class="rainwater-logo-window" aria-hidden="true">
+        <span class="rainwater-logo-text">rainwater</span>
+      </div>
+      <div class="rainwater-banner-copy">
+        <span>Rainwater Control</span>
+        <strong>Call Operations & Offer Management Platform</strong>
+      </div>
+      <span class="rainwater-banner-maker">Yabujin altyapısı</span>
+    </section>
   `;
 }
 
@@ -644,7 +668,9 @@ async function loadSession() {
       stopPolling();
     }
   } catch (error) {
-    console.error(error);
+    if (hadStoredToken) {
+      console.error(error);
+    }
     state.booting = false;
     resetSessionState(hadStoredToken ? error.message : "");
     if (hadStoredToken) {
@@ -848,6 +874,7 @@ function statsMarkup() {
   const list = selectedList();
   const filtersActive = hasActiveRecordFilters();
   const listSummary = list?.summary ?? null;
+  const operational = state.operationSummary || {};
   const summary = filtersActive
     ? (state.filteredSummary ?? summarizeRecords(state.records))
     : (listSummary ?? state.filteredSummary ?? {
@@ -858,26 +885,84 @@ function statsMarkup() {
     });
   const listTotal = listSummary?.total ?? 0;
   const listAssigned = listSummary?.assigned ?? 0;
+  const callbackCount = state.records.filter((record) => record.call_status === "CALLBACK").length;
+  const unreachableCount = state.records.filter((record) => record.call_status === "UNREACHABLE").length;
+  const pendingCount = Math.max(0, (summary.total ?? 0) - (summary.calling ?? 0));
+  const kpis = [
+    {
+      tone: "info",
+      label: filtersActive ? "Filtre sonucu" : "Toplam kayıt",
+      value: summary.total ?? 0,
+      hint: filtersActive ? `Liste toplamı ${listTotal}` : "aktif operasyon hacmi",
+    },
+    {
+      tone: "primary",
+      label: filtersActive ? "Filtrede atanan" : "Atanan kayıt",
+      value: summary.assigned ?? 0,
+      hint: filtersActive ? `Listede ${listAssigned} atanmış` : "operatörlere dağıtıldı",
+    },
+    {
+      tone: "muted",
+      label: "Bekleyen kayıt",
+      value: pendingCount,
+      hint: "işlem veya takip bekliyor",
+    },
+    {
+      tone: "accent",
+      label: "Bugün aranan",
+      value: operational.today_processed_count ?? summary.calling ?? 0,
+      hint: `${operational.total_daily_target || 0} günlük hedef`,
+    },
+    {
+      tone: "success",
+      label: "Ulaşıldı",
+      value: operational.reached_count ?? summary.calling ?? 0,
+      hint: "temas kurulmuş kayıtlar",
+    },
+    {
+      tone: "success",
+      label: "Olumlu",
+      value: summary.positive ?? 0,
+      hint: "teklif potansiyeli",
+    },
+    {
+      tone: "warning",
+      label: "Callback",
+      value: operational.due_callback_count ?? callbackCount,
+      hint: "takip sırası gelenler",
+    },
+    {
+      tone: "danger",
+      label: "Ulaşılamadı",
+      value: unreachableCount,
+      hint: "tekrar ayrıştırılmalı",
+    },
+    {
+      tone: "primary",
+      label: "Oluşturulan teklifler",
+      value: "-",
+      hint: "teklif modülünde izlenir",
+    },
+    {
+      tone: "success",
+      label: "Onaylanan teklifler",
+      value: "-",
+      hint: "teklif modülünde izlenir",
+    },
+  ];
   return `
-      <section class="stats-band ${filtersActive ? "is-filtered" : ""}">
-        <article class="stat">
-          <span>${filtersActive ? "Filtre sonucu" : "Toplam kayıt"}</span>
-          <strong>${summary.total ?? 0}</strong>
-          ${filtersActive ? `<small>Liste toplamı ${listTotal}</small>` : ""}
-        </article>
-        <article class="stat">
-          <span>${filtersActive ? "Filtrede atanan" : "Atanan"}</span>
-          <strong>${summary.assigned ?? 0}</strong>
-          ${filtersActive ? `<small>Listede ${listAssigned} atanmış</small>` : ""}
-        </article>
-        <article class="stat">
-          <span>Görüşülen</span>
-          <strong>${summary.calling ?? 0}</strong>
-        </article>
-      <article class="stat">
-        <span>Olumlu</span>
-        <strong>${summary.positive ?? 0}</strong>
-      </article>
+      <section class="stats-band ${filtersActive ? "is-filtered" : ""}" aria-label="Operasyon KPI kartları">
+        ${kpis
+          .map(
+            (item) => `
+              <article class="stat stat-${item.tone}">
+                <span>${escapeHtml(item.label)}</span>
+                <strong>${escapeHtml(item.value)}</strong>
+                <small>${escapeHtml(item.hint)}</small>
+              </article>
+            `,
+          )
+          .join("")}
     </section>
   `;
 }
@@ -892,14 +977,14 @@ function managementDashboardMarkup() {
     <section class="ops-command-center">
       <div class="ops-command-head">
         <div>
-          <p class="section-kicker">Rainwater Operasyon Kontrolü</p>
-          <h2>İş dağıtımı ve çalışan denetimi</h2>
-          <p>Program arama yapmaz; atanmış işi, günlük hedefi, sonuç girişini ve takip disiplinini yönetir.</p>
+          <p class="section-kicker">Admin Dashboard</p>
+          <h2>Call Operations & Offer Pipeline</h2>
+          <p>Arama operasyonunu, ekip kapasitesini, callback risklerini ve teklif geçişlerini tek yönetim ekranında izle.</p>
           <div class="ops-live-strip" aria-hidden="true">
-            <span>Atama</span>
-            <span>Takip</span>
-            <span>Performans</span>
-            <span>Rapor</span>
+            <span>Lead</span>
+            <span>Call</span>
+            <span>Offer</span>
+            <span>Export</span>
           </div>
         </div>
         <div class="target-ring ${percentBucketClass("target-pct", targetPercent)}">
@@ -950,9 +1035,9 @@ function agentTaskDeskMarkup() {
   return `
     <section class="agent-task-desk">
       <div class="agent-task-copy">
-        <p class="section-kicker">Çalışan Görev Ekranı</p>
-        <h2>Bugünkü iş listem</h2>
-        <p>Atanmış kayıtları sırayla güncelle; arama dışarıdan yapılsa da sonuç ve takip buradan kapatılır.</p>
+        <p class="section-kicker">Operatör Desk</p>
+        <h2>Bugünkü görevlerim</h2>
+        <p>Öncelikli aramaları hızlıca işle, sonucu seç, notunu yaz ve callback zamanını kapat.</p>
       </div>
       <div class="agent-task-grid">
         <article><span>Atanan</span><strong>${summary.total || 0}</strong></article>
@@ -1045,12 +1130,17 @@ function sessionHeaderMarkup(currentList) {
   const listSummary = currentList?.summary || {};
   const unassigned = Math.max(0, (listSummary.total || 0) - (listSummary.assigned || 0));
   return `
-      <header class="topbar session-overview ops-home-hero" data-window-title="Oturum Durumu">
+      <header class="topbar session-overview ops-home-hero" data-window-title="Rainwater Control">
         <div class="session-main">
           <div class="session-title-block">
-            <p class="section-kicker">Rainwater Saha Operasyonu</p>
-            <h2>${currentList ? escapeHtml(currentList.name) : state.me?.role === "admin" ? "Yönetim Ekranı" : "Operatör Ekranı"}</h2>
-            <p class="helper">${state.me?.role === "admin" ? "Atama, takip ve çalışan performansı" : "Atanmış kayıt ve takip listesi"}</p>
+            <div class="product-lockup">
+              ${brandMark()}
+              <div>
+                <p class="section-kicker">Rainwater Control</p>
+                <h2>${currentList ? escapeHtml(currentList.name) : state.me?.role === "admin" ? "Call Operations Dashboard" : "Operatör Görev Ekranı"}</h2>
+                <p class="helper">Call Operations & Offer Management Platform</p>
+              </div>
+            </div>
           </div>
           <div class="session-stat-grid">
             <article>
@@ -1074,12 +1164,12 @@ function sessionHeaderMarkup(currentList) {
       <div class="session-side">
         ${state.me?.role === "admin" ? liveMonitorMarkup() : `
           <div class="manual-refresh-group">
-            <span class="topbar-chip">Canlı yenileme kapalı</span>
+            <span class="topbar-chip">Manuel senkron</span>
             <button class="btn btn-soft" type="button" id="manual-refresh-button">Yenile</button>
           </div>
         `}
         <div class="user-strip">
-          ${canOpenOfferTool() ? `<a class="btn btn-soft" href="/teklif/" target="_blank" rel="noreferrer">Teklif Modülü</a>` : ""}
+          ${canOpenOfferTool() ? `<a class="btn btn-soft" href="/teklif/" target="_blank" rel="noreferrer">Offer Studio</a>` : ""}
           <span class="badge active">${escapeHtml(role)}</span>
           <span>${escapeHtml(userName)}</span>
           <button class="btn btn-soft" type="button" id="logout-button">Çıkış</button>
@@ -1118,68 +1208,45 @@ function selectedOperatorStat() {
 }
 
 function loginConsoleMarkup() {
-  const lines = [
-    "Microsoft Windows XP [Version 5.1.2600]",
-    "(C) Copyright 1985-2001 Microsoft Corp.",
-    "",
-    "C:\\YABUJIN> set PROMPT=$P$G",
-    "C:\\YABUJIN> call boot_ops.bat /tr /segment:izmir",
-    "[OK] excel_bridge ............ loaded",
-    "[OK] queue_cache ............. ready",
-    "[OK] operator_index .......... ready",
-    "[OK] company_routes .......... locked",
-    "[OK] session_guard ........... active",
-    "",
-    "C:\\YABUJIN> dir /b inbound\\izmir",
-    "ALSANCAK_CAFE.XLSX",
-    "ALSANCAK_PUB.XLSX",
-    "BAYRAKLI_HASTANE.XLSX",
-    "BAYRAKLI_KLINIK.XLSX",
-    "dispatch_queue........ standby",
-    "",
-    "C:\\YABUJIN> call sync_watch.bat /manual",
-    "sync_mode............. manual",
-    "status................ ready",
-    "records............... 0144",
-    "operators............. 0006",
-    "",
-    "C:\\YABUJIN> _",
-  ];
-
-  const markup = [...lines, ...lines, ...lines]
-    .map((line, index) => {
-      const isPrompt = line.startsWith("C:\\YABUJIN>");
-      const hasCursor = index === lines.length - 1;
-      return `
-        <div class="console-line ${isPrompt ? "console-line-prompt" : ""}">
-          <span>${escapeHtml(line.replace(/_$/, ""))}</span>${hasCursor ? `<span class="console-cursor"></span>` : ""}
-        </div>
-      `;
-    })
-    .join("");
-
   return `
-    <section class="login-console" aria-hidden="true">
-      <div class="login-console-xpbar">
-        <div class="login-console-title">
-          <span class="login-console-icon"></span>
-          <strong>C:\\WINDOWS\\system32\\cmd.exe</strong>
-        </div>
-        <div class="login-console-buttons">
-          <span>_</span>
-          <span>&#9633;</span>
-          <span>X</span>
-        </div>
+    <section class="login-console product-preview" aria-hidden="true">
+      <div class="preview-topline">
+        <span class="live-dot"></span>
+        <strong>Live operations preview</strong>
+        <em>Yabujin infrastructure</em>
       </div>
-      <div class="login-console-viewport">
-        <div class="login-console-scanlines"></div>
-        <div class="login-console-statusline">
-          <span>C:\\WINDOWS\\system32</span>
+      <div class="preview-grid">
+        <article>
+          <span>Bugün aranan</span>
+          <strong>128</strong>
+          <small>+18 son 60 dk</small>
+        </article>
+        <article>
+          <span>Callback</span>
+          <strong>24</strong>
+          <small>7 kritik takip</small>
+        </article>
+        <article>
+          <span>Teklif pipeline</span>
+          <strong>₺418K</strong>
+          <small>12 aktif teklif</small>
+        </article>
+      </div>
+      <div class="preview-board">
+        <div class="preview-row is-success">
+          <span>Olumlu lead</span>
+          <strong>Metro Endüstri</strong>
+          <small>Offer Studio'ya hazır</small>
         </div>
-        <div class="login-console-shell">
-          <div class="login-console-stream">
-            ${markup}
-          </div>
+        <div class="preview-row is-warning">
+          <span>Callback</span>
+          <strong>Atlas Klinik</strong>
+          <small>14:30 takip zamanı</small>
+        </div>
+        <div class="preview-row is-info">
+          <span>Operatör</span>
+          <strong>Ayşe K.</strong>
+          <small>42/60 günlük hedef</small>
         </div>
       </div>
     </section>
@@ -1190,35 +1257,43 @@ function loginMarkup() {
   return `
     <section class="login-screen">
       <div class="login-stage">
-        <section class="login-hero window-shell" data-window-title="Yabujin Scrap Controller">
+        <section class="login-hero window-shell" data-window-title="Rainwater Control">
           <div class="hero-grid" aria-hidden="true"></div>
-          <div class="login-watermark" aria-hidden="true">
-            <span>YABUJIN</span>
-            <span>Yabujin</span>
-            <span>yabujin</span>
-            <span>YABUJIN</span>
-          </div>
           <div class="hero-lockup">
             ${brandMark()}
             <div>
-              <p class="brand-kicker">Rainwater Arama Operasyonu</p>
-              <h1>Rainwater Kontrol Merkezi</h1>
+              <p class="brand-kicker">Call Operations & Offer Management Platform</p>
+              <h1>Rainwater Control</h1>
+              <p class="login-hero-copy">Lead takibi, arama operasyonu ve teklif hazırlama süreçlerini tek panelde yönetin.</p>
             </div>
+          </div>
+          <div class="login-feature-grid">
+            <article><span></span><strong>Canlı arama takibi</strong><small>Durum, sonuç ve callback akışı.</small></article>
+            <article><span></span><strong>Operatör performansı</strong><small>Hedef, kalan iş ve ekip görünürlüğü.</small></article>
+            <article><span></span><strong>Teklif yönetimi</strong><small>Olumlu leadlerden Offer Studio'ya geçiş.</small></article>
           </div>
           ${loginConsoleMarkup()}
         </section>
 
-        <section class="login-card window-shell" data-window-title="Güvenli Erişim">
+        <section class="login-card window-shell" data-window-title="Secure Workspace">
           <div class="login-card-head">
             <p class="section-kicker">Güvenli erişim</p>
-            <h2>Oturum Aç</h2>
+            <h2>Rainwater Control'a giriş</h2>
+            <p>Operasyon, lead havuzu ve teklif ekranlarına rol bazlı erişim.</p>
           </div>
           ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
           <form id="login-form" class="stack">
-            <input class="field" type="email" name="email" placeholder="Email" required />
-            <input class="field" type="password" name="password" placeholder="Şifre" required />
-            <button class="btn btn-primary" type="submit">Oturum Aç</button>
+            <label class="form-field">
+              <span>Kullanıcı e-postası</span>
+              <input class="field" type="email" name="email" placeholder="name@company.com" autocomplete="username" required />
+            </label>
+            <label class="form-field">
+              <span>Şifre</span>
+              <input class="field" type="password" name="password" placeholder="••••••••••" autocomplete="current-password" required />
+            </label>
+            <button class="btn btn-primary" type="submit">Giriş yap</button>
           </form>
+          <p class="login-meta">Yabujin tarafından sağlanan operasyon altyapısı.</p>
         </section>
       </div>
     </section>
@@ -1233,13 +1308,13 @@ function bootMarkup() {
         <div class="boot-brand-row">
           ${brandMark()}
           <div>
-            <p class="brand-kicker">Rainwater Arama Operasyonu</p>
-            <h1>Rainwater Kontrol Merkezi</h1>
+            <p class="brand-kicker">Call Operations & Offer Management Platform</p>
+            <h1>Rainwater Control</h1>
           </div>
         </div>
         <div class="boot-copy">
-          <strong>Operasyon yüzeyi hazırlanıyor</strong>
-          <span>Oturum, liste, ekip ve takip verileri senkronize ediliyor.</span>
+          <strong>Operasyon çalışma alanı hazırlanıyor</strong>
+          <span>Oturum, liste, ekip, lead havuzu ve teklif bağlantıları senkronize ediliyor.</span>
         </div>
         <div class="boot-loader" aria-hidden="true">
           <span></span>
@@ -1260,11 +1335,11 @@ function bootMarkup() {
 function uploadSectionMarkup() {
   if (state.me?.role !== "admin") return "";
   return `
-    <section class="sidebar-section panel window-shell" data-window-title="Veri Yükleme">
+    <section class="sidebar-section panel window-shell upload-dropzone" data-window-title="Excel Import">
       <div class="panel-head">
         <div>
-          <h2>Veri Yükleme</h2>
-          <p>Yeni Excel kaynaklarını kontrol yüzeyine aktar.</p>
+          <h2>Excel liste yükle</h2>
+          <p>Yeni lead listesini mevcut import akışıyla operasyon havuzuna al.</p>
         </div>
       </div>
       <form id="upload-form" class="stack">
@@ -1274,7 +1349,7 @@ function uploadSectionMarkup() {
           <input class="field file-display" type="text" readonly value="${escapeHtml(state.uploadFile?.name || "Dosya seçilmedi")}" />
           <button class="btn btn-soft file-picker-button" type="button" id="open-file-picker">Dosya Seç</button>
         </div>
-        <button class="btn btn-primary" type="submit">Listeyi İçe Al</button>
+        <button class="btn btn-primary" type="submit">Import başlat</button>
         <p class="file-note">Dosya doğrudan yüklenir, veri anında veri tabanına işlenir.</p>
       </form>
     </section>
@@ -1295,61 +1370,144 @@ function sidebarNavMarkup() {
 
   if (state.me?.role === "admin") {
     items.push({
+      tone: "dashboard",
+      title: "Dashboard",
+      meta: "KPI ve canlı operasyon",
+      detail: "Yönetim",
+      action: "dashboard",
+      active: true,
+    });
+    items.push({
+      tone: "records",
+      title: "Arama Kayıtları",
+      meta: `${state.pagination.total || 0} kayıt`,
+      detail: selected ? selected.name : "Genel liste",
+      action: "records",
+    });
+    items.push({
       id: "toggle-upload-flyout",
       tone: "upload",
-      title: "Veri Yükleme",
-      meta: "Excel kaynağı içe aktar",
+      title: "Listeler",
+      meta: "Excel import",
       detail: state.uploadFile?.name || "Dosya bekliyor",
       active: state.sidebarPanel === "upload",
     });
     items.push({
       id: "open-team-modal",
       tone: "team",
-      title: "Ekip",
+      title: "Operatörler",
       meta: `${adminCount} yönetici · ${agentCount} operatör`,
       detail: `${offerAccessCount} teklif erişimi`,
     });
-  }
-
-  items.push({
-    id: "open-lists-modal",
-    tone: "lists",
-    title: "Listeler",
-    meta: `${activeList} aktif · ${inactiveList} pasif`,
-    detail: selected ? selected.name : "Liste seçilmedi",
-  });
-
-  if (state.me?.role === "admin") {
+    items.push({
+      id: "open-lists-modal",
+      tone: "lists",
+      title: "Liste Yönetimi",
+      meta: `${activeList} aktif · ${inactiveList} pasif`,
+      detail: selected ? selected.name : "Liste seçilmedi",
+    });
     items.push({
       id: "open-contact-pool-modal",
       tone: "pool",
-      title: "İşlem Havuzu",
+      title: "Contact Pool",
       meta: `${poolTotal} havuz kaydı`,
-      detail: "Ulaşıldı / ulaşılamadı",
+      detail: "Lead ayrıştırma",
     });
     items.push({
       id: "open-operator-control-modal",
       tone: "operators",
-      title: "Operatör",
+      title: "Ekip Performansı",
       meta: `${activeOperators} aktif operatör`,
       detail: `${remaining} kalan işlem`,
     });
+    if (canOpenOfferTool()) {
+      items.push({
+        tone: "offer",
+        title: "Teklifler",
+        meta: "Offer Studio",
+        detail: "Liste ve kontrol",
+        href: "/teklif/",
+      });
+      items.push({
+        tone: "new-offer",
+        title: "Yeni Teklif",
+        meta: "Quote Builder",
+        detail: "Teklif oluştur",
+        href: "/teklif/",
+      });
+    }
+    items.push({
+      tone: "export",
+      title: "Raporlar / Export",
+      meta: "CSV çıktı",
+      detail: "Kayıt export",
+      action: "export",
+    });
+    items.push({
+      tone: "settings",
+      title: "Ayarlar",
+      meta: "Rol ve listeler",
+      detail: "Modal yönetim",
+      action: "team",
+    });
+  } else {
+    items.push({
+      tone: "tasks",
+      title: "Görevlerim",
+      meta: `${state.pagination.total || 0} atanmış kayıt`,
+      detail: "Bugünkü sıra",
+      action: "records",
+      active: true,
+    });
+    items.push({
+      tone: "callback",
+      title: "Callback",
+      meta: "Zamanı gelenler",
+      detail: "Takip",
+      action: "due",
+    });
+    items.push({
+      tone: "completed",
+      title: "Tamamlananlar",
+      meta: "Kapanan işler",
+      detail: "Filtrele",
+      action: "completed",
+    });
+    if (canOpenOfferTool()) {
+      items.push({
+        tone: "offer",
+        title: "Teklifler",
+        meta: "Offer Studio",
+        detail: "Yeni teklif",
+        href: "/teklif/",
+      });
+    }
   }
 
   return `
     <div class="sidebar-nav" aria-label="Operasyon menüsü">
       ${items
         .map(
-          (item) => `
-            <button class="sidebar-nav-item ${item.active ? "active" : ""}" type="button" id="${item.id}" data-tone="${item.tone}">
+          (item) => {
+            const attrs = [
+              item.id ? `id="${item.id}"` : "",
+              item.action ? `data-focus-action="${item.action}"` : "",
+              `data-tone="${item.tone}"`,
+            ]
+              .filter(Boolean)
+              .join(" ");
+            const inner = `
               <span class="sidebar-nav-icon" aria-hidden="true"></span>
               <span class="sidebar-nav-copy">
                 <strong>${escapeHtml(item.title)}</strong>
                 <small>${escapeHtml(item.meta)}</small>
               </span>
               <span class="sidebar-nav-detail">${escapeHtml(item.detail)}</span>
-            </button>
-          `,
+            `;
+            return item.href
+              ? `<a class="sidebar-nav-item ${item.active ? "active" : ""}" href="${item.href}" target="_blank" rel="noreferrer" ${attrs}>${inner}</a>`
+              : `<button class="sidebar-nav-item ${item.active ? "active" : ""}" type="button" ${attrs}>${inner}</button>`;
+          },
         )
         .join("")}
     </div>
@@ -1405,7 +1563,7 @@ function teamModalMarkup() {
       <section class="modal-window" id="team-modal" role="dialog" aria-modal="true" aria-labelledby="team-modal-title">
         <header class="modal-titlebar">
           <strong id="team-modal-title">Ekip Yetkilendirme</strong>
-          <button class="window-close" type="button" id="close-team-modal" aria-label="Kapat">X</button>
+          <button class="window-close" type="button" id="close-team-modal" aria-label="Kapat">×</button>
         </header>
         <div class="modal-body">
           <section class="panel stack modal-panel">
@@ -1539,7 +1697,7 @@ function listsModalMarkup() {
       <section class="modal-window" id="lists-modal" role="dialog" aria-modal="true" aria-labelledby="lists-modal-title">
         <header class="modal-titlebar">
           <strong id="lists-modal-title">Liste Havuzu</strong>
-          <button class="window-close" type="button" id="close-lists-modal" aria-label="Kapat">X</button>
+          <button class="window-close" type="button" id="close-lists-modal" aria-label="Kapat">×</button>
         </header>
         <div class="modal-body single-column">
           <section class="panel stack modal-panel">
@@ -1621,7 +1779,7 @@ function contactPoolModalMarkup() {
       <section class="modal-window wide-modal" id="contact-pool-modal" role="dialog" aria-modal="true" aria-labelledby="contact-pool-modal-title">
         <header class="modal-titlebar">
           <strong id="contact-pool-modal-title">İşlem Havuzu</strong>
-          <button class="window-close" type="button" id="close-contact-pool-modal" aria-label="Kapat">X</button>
+          <button class="window-close" type="button" id="close-contact-pool-modal" aria-label="Kapat">×</button>
         </header>
         <div class="modal-body single-column contact-pool-modal-body">
           <section class="panel stack modal-panel contact-pool-panel">
@@ -1733,7 +1891,14 @@ function contactPoolModalMarkup() {
                                 <div class="record-meta">${escapeHtml(formatDate(current.last_record_updated_at))}</div>
                               </td>
                               <td>
-                                <button class="btn btn-soft table-action" type="button" data-pool-save="${entry.id}">Kaydet</button>
+                                <div class="record-actions compact">
+                                  ${
+                                    canOpenOfferTool() && current.result_status === "POSITIVE"
+                                      ? `<a class="btn btn-primary table-action" href="/teklif/" target="_blank" rel="noreferrer">Teklif Oluştur</a>`
+                                      : ""
+                                  }
+                                  <button class="btn btn-soft table-action" type="button" data-pool-save="${entry.id}">Kaydet</button>
+                                </div>
                               </td>
                             </tr>
                           `;
@@ -2205,7 +2370,7 @@ function operatorControlModalMarkup() {
       <section class="modal-window wide-modal" id="operator-control-modal" role="dialog" aria-modal="true" aria-labelledby="operator-control-modal-title">
         <header class="modal-titlebar">
           <strong id="operator-control-modal-title">Operatör Kontrol Merkezi</strong>
-          <button class="window-close" type="button" id="close-operator-control-modal" aria-label="Kapat">X</button>
+          <button class="window-close" type="button" id="close-operator-control-modal" aria-label="Kapat">×</button>
         </header>
         <div class="modal-body single-column operator-control-modal-body">
           ${operatorControlContentMarkup()}
@@ -2233,9 +2398,10 @@ function filtersMarkup() {
         </div>
         ${
           activeFilters.length
-            ? `<div class="filter-explain">
-                <strong>Filtre açık.</strong>
-                <span>Tablo sadece ${escapeHtml(activeFilters.join(" + "))} koşuluna uyan kayıtları gösteriyor.</span>
+            ? `<div class="filter-explain active-filter-strip">
+                <div class="filter-chip-row" aria-label="Aktif filtreler">
+                  ${activeFilters.map((label) => `<span class="filter-chip">${escapeHtml(label)} <button type="button" data-clear-record-filters aria-label="Filtreleri temizle">×</button></span>`).join("")}
+                </div>
                 <button class="btn btn-soft mini-button" type="button" data-clear-record-filters>Filtreleri temizle</button>
               </div>`
             : ""
@@ -2424,14 +2590,14 @@ function recordsTableMarkup() {
                       ${ownerCellMarkup(current)}
                     </td>
                     <td>
-                      <select class="select table-select" data-record-call-status="${current.id}">
+                      <select class="select table-select status-control call-${String(current.call_status || "").toLowerCase()}" data-record-call-status="${current.id}">
                         ${CALL_STATUS_OPTIONS
                           .map(([value, label]) => `<option value="${value}" ${current.call_status === value ? "selected" : ""}>${label}</option>`)
                           .join("")}
                       </select>
                     </td>
                     <td>
-                      <select class="select table-select" data-record-result-status="${current.id}">
+                      <select class="select table-select status-control result-${String(current.result_status || "").toLowerCase()}" data-record-result-status="${current.id}">
                         ${RESULT_STATUS_OPTIONS
                           .map(([value, label]) => `<option value="${value}" ${current.result_status === value ? "selected" : ""}>${label}</option>`)
                           .join("")}
@@ -2451,6 +2617,11 @@ function recordsTableMarkup() {
                     </td>
                     <td>
                       <div class="record-actions compact">
+                        ${
+                          canOpenOfferTool() && current.result_status === "POSITIVE"
+                            ? `<a class="btn btn-primary table-action" href="/teklif/" target="_blank" rel="noreferrer">Teklif Oluştur</a>`
+                            : ""
+                        }
                         <button class="btn btn-soft table-action" type="button" data-save-record="${current.id}">Kaydet</button>
                       </div>
                     </td>
@@ -2547,9 +2718,11 @@ function appMarkup() {
       </aside>
 
       <main class="main">
+        ${rainwaterBrandBannerMarkup()}
         ${sessionHeaderMarkup(currentList)}
 
         ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
+        ${statsMarkup()}
         ${operationFocusRailMarkup(currentList)}
         ${managementDashboardMarkup()}
         ${agentTaskDeskMarkup()}
@@ -2595,6 +2768,7 @@ async function handleLogin(event) {
     localStorage.removeItem("callPortalToken");
     await loadSession();
     render();
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   } catch (error) {
     setFlash("error", error.message);
   }
@@ -3061,8 +3235,37 @@ async function applyFilters() {
 }
 
 async function handleFocusAction(action) {
+  if (action === "dashboard") {
+    document.querySelector(".session-overview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  if (action === "records") {
+    document.querySelector(".records-table")?.closest("section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  if (action === "team") {
+    openTeamModal();
+    return;
+  }
   if (action === "assign") {
     document.querySelector("#assign-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (action === "export") {
+    await handleExport();
+    return;
+  }
+  if (action === "completed") {
+    state.filters.call_status = "COMPLETED";
+    state.filters.due_callbacks = false;
+    state.pagination.offset = 0;
+    try {
+      await loadRecords();
+      render();
+      setFlash("success", `Tamamlanan kayıt filtresi açıldı: ${state.pagination.total} kayıt.`);
+    } catch (error) {
+      setFlash("error", error.message);
+    }
     return;
   }
   if (action === "operators") {

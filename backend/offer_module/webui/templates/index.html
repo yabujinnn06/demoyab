@@ -2,9 +2,9 @@
 <div class="workspace-sidebar">
   <section class="card app-card workspace-brand-card shadow-sm border-0">
     <div class="card-body">
-      <p class="section-kicker mb-2">Rainwater Teklif Ofisi</p>
-      <h2 class="workspace-brand-title mb-2">Çalışma alanları</h2>
-      <p class="workspace-brand-copy mb-3">Uzun tek sayfa yerine her iş adımını ayrık bir operasyon yüzeyi olarak aç.</p>
+      <p class="section-kicker mb-2">Rainwater Control</p>
+      <h2 class="workspace-brand-title mb-2">Offer Studio</h2>
+      <p class="workspace-brand-copy mb-3">Teklif kontrolü, karar akışı ve PDF üretimini aynı premium çalışma alanında yönet.</p>
       <div class="workspace-brand-active">
         <span>Aktif alan</span>
         <strong data-workspace-current>
@@ -557,11 +557,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rainwater Teklif Ofisi</title>
+  <title>Rainwater Control | Offer Studio</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260429-decision-filter">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260502-rainwater-control-ux2">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260429-decision-filter"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260502-rainwater-control-ux2"></script>
 </head>
 <body
   class="app-body"
@@ -572,8 +572,8 @@
   <div class="offcanvas offcanvas-start app-offcanvas" tabindex="-1" id="workspaceDrawer" aria-labelledby="workspaceDrawerLabel">
     <div class="offcanvas-header border-bottom">
       <div>
-        <p class="section-kicker mb-1">Rainwater Teklif Ofisi</p>
-        <h2 class="h5 mb-0" id="workspaceDrawerLabel">Çalışma Alanları</h2>
+        <p class="section-kicker mb-1">Rainwater Control</p>
+        <h2 class="h5 mb-0" id="workspaceDrawerLabel">Offer Studio</h2>
       </div>
       <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Kapat"></button>
     </div>
@@ -681,15 +681,24 @@
   {% endif %}
 
   <header class="hero-shell offer-template-header border-bottom">
-    <div class="offer-template-banner">
-      <img
-        class="offer-template-banner-image"
-        src="{{ request.url_for('offer-tool:offer_assets', path='offer_header_banner.png') }}"
-        alt="Rainwater fiyat teklifi başlığı"
-      >
+    <div class="offer-template-banner rainwater-brand-banner">
+      <div class="rainwater-logo-window" aria-hidden="true">
+        <img
+          class="offer-template-banner-image rainwater-brand-source"
+          src="{{ request.url_for('offer-tool:offer_assets', path='offer_header_banner.png') }}"
+          alt=""
+        >
+      </div>
+      <div class="rainwater-banner-copy">
+        <span>Rainwater Control</span>
+        <strong>Offer Studio</strong>
+      </div>
+      <span class="rainwater-banner-maker">Yabujin altyapısı</span>
       <div class="visually-hidden">
+        <p>Rainwater Control</p>
         <p>Rainwater Teklif Ofisi</p>
-        <h1>Teklif akışlarını tek merkezden yönet</h1>
+        <h1>Offer Studio</h1>
+        <p>Teklif akışlarını tek merkezden yönet</p>
         <p>
           Fiyat listesi, teklif PDF, şablon ve çıktı klasörlerini aynı akışta yönet. Kontrol et, fiyatları karşılaştır,
           düzeltmeleri uygula ve yeni teklifleri tek ekrandan üret.

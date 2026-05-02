@@ -722,18 +722,55 @@ document.addEventListener("DOMContentLoaded", () => {
     const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     let cachedTurkishVoice = null;
 
+    const voiceName = (voice) => `${voice.name || ""} ${voice.voiceURI || ""}`.toLowerCase();
+    const premiumFemaleVoiceNames = [
+      "tr-tr-emelneural",
+      "microsoft emel online",
+      "microsoft emel",
+      "emel",
+      "seda",
+      "selin",
+      "ipek",
+      "filiz",
+      "yelda",
+      "sibel",
+      "nova",
+      "shimmer",
+      "ava",
+      "emma",
+    ];
+    const maleVoiceNames = ["ahmet", "tolga", "male", "erkek"];
+    const isGoogleVoice = (voice) => voiceName(voice).includes("google");
+    const isLikelyFemaleVoice = (voice) => {
+      const name = voiceName(voice);
+      return premiumFemaleVoiceNames.some((candidate) => name.includes(candidate));
+    };
+    const isLikelyMaleVoice = (voice) => {
+      const name = voiceName(voice);
+      return maleVoiceNames.some((candidate) => name.includes(candidate));
+    };
+    const isTurkishVoice = (voice) => {
+      const name = voiceName(voice);
+      const lang = (voice.lang || "").toLowerCase();
+      return lang.startsWith("tr") || name.includes("turkish") || name.includes("türk") || name.includes("turk");
+    };
+
     const voiceScore = (voice) => {
+      if (isGoogleVoice(voice)) return -999;
       const name = `${voice.name || ""} ${voice.voiceURI || ""}`.toLowerCase();
       const lang = (voice.lang || "").toLowerCase();
       let score = 0;
       if (lang === "tr-tr") score += 100;
       if (lang.startsWith("tr")) score += 80;
       if (name.includes("turkish") || name.includes("türk") || name.includes("turk")) score += 40;
-      if (name.includes("google")) score += 18;
-      if (name.includes("microsoft")) score += 16;
-      if (name.includes("natural") || name.includes("neural") || name.includes("online")) score += 12;
-      if (name.includes("emel") || name.includes("ahmet") || name.includes("tolga")) score += 8;
-      if (voice.localService) score += 2;
+      if (name.includes("tr-tr-emelneural")) score += 140;
+      if (name.includes("emel")) score += 120;
+      if (isLikelyFemaleVoice(voice)) score += 70;
+      if (name.includes("microsoft")) score += 48;
+      if (name.includes("online")) score += 38;
+      if (name.includes("natural") || name.includes("neural")) score += 34;
+      if (isLikelyMaleVoice(voice)) score -= 220;
+      if (!voice.localService) score += 6;
       return score;
     };
 
@@ -763,9 +800,12 @@ document.addEventListener("DOMContentLoaded", () => {
         return cachedTurkishVoice;
       }
       const voices = await loadVoices();
-      cachedTurkishVoice = voices
-        .filter((voice) => (voice.lang || "").toLowerCase().startsWith("tr") || /turkish|türk|turk/i.test(`${voice.name} ${voice.voiceURI}`))
-        .sort((left, right) => voiceScore(right) - voiceScore(left))[0] || null;
+      const preferredVoices = voices
+        .filter((voice) => isTurkishVoice(voice) && !isGoogleVoice(voice))
+        .sort((left, right) => voiceScore(right) - voiceScore(left));
+      cachedTurkishVoice = preferredVoices.find((voice) => isLikelyFemaleVoice(voice) && !isLikelyMaleVoice(voice))
+        || preferredVoices.find((voice) => !isLikelyMaleVoice(voice))
+        || null;
       return cachedTurkishVoice;
     };
 
@@ -796,22 +836,29 @@ document.addEventListener("DOMContentLoaded", () => {
       const target = panel.querySelector("[data-ai-type-line]");
       const text = panel.dataset.aiText || target?.textContent || "";
       button?.addEventListener("click", async () => {
+        const originalLabel = button.textContent;
         typeText(target, text);
         if (!("speechSynthesis" in window) || !text.trim()) {
           return;
         }
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
         const voice = await bestTurkishVoice();
-        if (voice) {
-          utterance.voice = voice;
+        if (!voice) {
+          button.textContent = "Kurumsal kadın Türkçe sesi bulunamadı";
+          button.disabled = true;
+          window.setTimeout(() => {
+            button.textContent = originalLabel;
+            button.disabled = false;
+          }, 1800);
+          return;
         }
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.voice = voice;
         utterance.lang = "tr-TR";
-        utterance.rate = 0.92;
-        utterance.pitch = 1.02;
+        utterance.rate = 0.88;
+        utterance.pitch = 1.06;
         utterance.volume = 1;
-        const originalLabel = button.textContent;
-        button.textContent = voice ? "Türkçe sesle okunuyor" : "Dinleniyor";
+        button.textContent = "Emel kurumsal sesle okunuyor";
         button.disabled = true;
         utterance.onend = () => {
           button.textContent = originalLabel;
@@ -850,6 +897,87 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
+  const initQuoteBuilderSummary = () => {
+    const createPane = document.querySelector("#workspace-pane-create");
+    const form = createPane?.querySelector("form.vstack");
+    if (!form || form.querySelector("[data-quote-builder-summary]")) {
+      return;
+    }
+
+    const summary = document.createElement("aside");
+    summary.className = "quote-builder-summary";
+    summary.dataset.quoteBuilderSummary = "true";
+    summary.innerHTML = `
+      <div class="quote-summary-head">
+        <span class="section-kicker">Canlı özet</span>
+        <strong>Teklif özeti</strong>
+        <small>Bu panel sadece mevcut form alanlarından hesaplanır; kayıt akışını değiştirmez.</small>
+      </div>
+      <div class="quote-summary-grid">
+        <article><span>Kalem</span><strong data-quote-count>0</strong></article>
+        <article><span>Ara toplam</span><strong data-quote-subtotal>-</strong></article>
+        <article><span>İskonto</span><strong data-quote-discount>-</strong></article>
+        <article><span>Net toplam</span><strong data-quote-total>-</strong></article>
+      </div>
+      <div class="quote-summary-meta">
+        <div><span>Firma</span><strong data-quote-company>-</strong></div>
+        <div><span>Geçerlilik</span><strong data-quote-validity>-</strong></div>
+        <div><span>Teklif no</span><strong data-quote-number>-</strong></div>
+      </div>
+    `;
+
+    const submitRow = form.querySelector(".d-flex.flex-column.flex-lg-row.align-items-lg-center.gap-3");
+    form.insertBefore(summary, submitRow || null);
+
+    const parseMoney = (value) => {
+      const normalized = String(value || "")
+        .replace(/\s/g, "")
+        .replace(/\./g, "")
+        .replace(",", ".")
+        .replace(/[^\d.-]/g, "");
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const formatMoney = (value) =>
+      value > 0
+        ? new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(value)
+        : "-";
+
+    const renderSummary = () => {
+      const rows = Array.from(form.querySelectorAll(".create-item-row"));
+      let subtotal = 0;
+      let discount = 0;
+
+      rows.forEach((row) => {
+        const quantity = parseMoney(row.querySelector("[name='quantities']")?.value) || 1;
+        const manualPrice = parseMoney(row.querySelector("[name='manual_prices']")?.value);
+        const discountValue = parseMoney(row.querySelector("[name='discount_values']")?.value);
+        const discountType = row.querySelector("[name='discount_types']")?.value || "none";
+        const lineSubtotal = Math.max(0, quantity * manualPrice);
+        subtotal += lineSubtotal;
+        if (discountType === "percent") {
+          discount += lineSubtotal * Math.min(discountValue, 100) / 100;
+        } else if (discountType === "amount") {
+          discount += Math.min(discountValue, lineSubtotal);
+        }
+      });
+
+      summary.querySelector("[data-quote-count]").textContent = String(rows.length);
+      summary.querySelector("[data-quote-subtotal]").textContent = formatMoney(subtotal);
+      summary.querySelector("[data-quote-discount]").textContent = formatMoney(discount);
+      summary.querySelector("[data-quote-total]").textContent = formatMoney(Math.max(0, subtotal - discount));
+      summary.querySelector("[data-quote-company]").textContent = form.querySelector("#create-company-name")?.value?.trim() || "-";
+      summary.querySelector("[data-quote-validity]").textContent = form.querySelector("#create-valid-until")?.value || "-";
+      summary.querySelector("[data-quote-number]").textContent = form.querySelector("#create-offer-number")?.value?.trim() || "-";
+    };
+
+    form.addEventListener("input", renderSummary);
+    form.addEventListener("change", renderSummary);
+    form.querySelector("[data-add-item-row]")?.addEventListener("click", () => window.setTimeout(renderSummary, 0));
+    renderSummary();
+  };
+
+  initQuoteBuilderSummary();
   initAiNarration();
   initResultReveal();
 
