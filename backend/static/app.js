@@ -231,7 +231,6 @@ function rainwaterBrandBannerMarkup() {
         <span>Rainwater Control</span>
         <strong>Call Operations & Offer Management Platform</strong>
       </div>
-      <span class="rainwater-banner-maker">Yabujin altyapısı</span>
     </section>
   `;
 }
@@ -1213,7 +1212,6 @@ function loginConsoleMarkup() {
       <div class="preview-topline">
         <span class="live-dot"></span>
         <strong>Live operations preview</strong>
-        <em>Yabujin infrastructure</em>
       </div>
       <div class="preview-grid">
         <article>
@@ -1257,25 +1255,7 @@ function loginMarkup() {
   return `
     <section class="login-screen">
       <div class="login-stage">
-        <section class="login-hero window-shell" data-window-title="Rainwater Control">
-          <div class="hero-grid" aria-hidden="true"></div>
-          <div class="hero-lockup">
-            ${brandMark()}
-            <div>
-              <p class="brand-kicker">Call Operations & Offer Management Platform</p>
-              <h1>Rainwater Control</h1>
-              <p class="login-hero-copy">Lead takibi, arama operasyonu ve teklif hazırlama süreçlerini tek panelde yönetin.</p>
-            </div>
-          </div>
-          <div class="login-feature-grid">
-            <article><span></span><strong>Canlı arama takibi</strong><small>Durum, sonuç ve callback akışı.</small></article>
-            <article><span></span><strong>Operatör performansı</strong><small>Hedef, kalan iş ve ekip görünürlüğü.</small></article>
-            <article><span></span><strong>Teklif yönetimi</strong><small>Olumlu leadlerden Offer Studio'ya geçiş.</small></article>
-          </div>
-          ${loginConsoleMarkup()}
-        </section>
-
-        <section class="login-card window-shell" data-window-title="Secure Workspace">
+        <section class="login-card login-access-panel window-shell" data-window-title="Secure Workspace">
           <div class="login-card-head">
             <p class="section-kicker">Güvenli erişim</p>
             <h2>Rainwater Control'a giriş</h2>
@@ -1293,7 +1273,17 @@ function loginMarkup() {
             </label>
             <button class="btn btn-primary" type="submit">Giriş yap</button>
           </form>
-          <p class="login-meta">Yabujin tarafından sağlanan operasyon altyapısı.</p>
+          <p class="login-meta">Operasyon altyapısı.</p>
+        </section>
+
+        <section class="login-brand-panel window-shell" aria-label="Rainwater Control">
+          <div class="login-rainwater-header" aria-hidden="true">
+            <span>rainwater</span>
+          </div>
+          <div class="login-brand-copy">
+            <span>Rainwater Control</span>
+            <strong>Call Operations & Offer Management Platform</strong>
+          </div>
         </section>
       </div>
     </section>

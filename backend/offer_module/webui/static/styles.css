@@ -5205,3 +5205,433 @@ body.app-body .btn-primary,
 body.app-body .hero-actions .btn-primary {
   color: #ffffff !important;
 }
+
+/* Offer module derivative views: overflow, contrast and motion stabilization */
+body.app-body *,
+body.app-body *::before,
+body.app-body *::after {
+  box-sizing: border-box;
+}
+
+body.app-body .container-fluid,
+body.app-body .workspace-main,
+body.app-body .workspace-sidebar,
+body.app-body .sidebar-sticky,
+body.app-body .workspace-pane-stack,
+body.app-body .tab-content,
+body.app-body .tab-pane,
+body.app-body .card,
+body.app-body .card-body,
+body.app-body .row,
+body.app-body .row > *,
+body.app-body .form-section,
+body.app-body .batch-selection-board,
+body.app-body .batch-selection-panel,
+body.app-body .batch-control-grid,
+body.app-body .batch-result-panel,
+body.app-body .decision-card,
+body.app-body .decision-content,
+body.app-body .decision-card-grid,
+body.app-body .finance-review-grid,
+body.app-body .create-item-grid,
+body.app-body .create-item-card,
+body.app-body .quote-builder-summary,
+body.app-body .activity-log-body,
+body.app-body .modal-content,
+body.app-body .accordion-body {
+  min-width: 0;
+}
+
+body.app-body .workspace-pane-stack,
+body.app-body .tab-content,
+body.app-body .tab-pane {
+  max-width: 100%;
+}
+
+body.app-body .card-body,
+body.app-body .form-section,
+body.app-body .accordion-body {
+  overflow: visible;
+}
+
+body.app-body .workspace-main .app-card,
+body.app-body .form-section,
+body.app-body .batch-selection-panel,
+body.app-body .batch-command-panel,
+body.app-body .batch-basket,
+body.app-body .decision-card,
+body.app-body .finance-review-card,
+body.app-body .result-review-card,
+body.app-body .create-item-card,
+body.app-body .product-showcase,
+body.app-body .automation-insight,
+body.app-body .decision-automation-panel,
+body.app-body .ai-explanation-card,
+body.app-body .activity-log-modal .modal-content,
+body.app-body .accordion-item {
+  border: 1px solid var(--border) !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+body.app-body .workspace-main .app-card *,
+body.app-body .form-section *,
+body.app-body .batch-selection-panel *,
+body.app-body .decision-card *,
+body.app-body .finance-review-card *,
+body.app-body .result-review-card *,
+body.app-body .create-item-card *,
+body.app-body .accordion-item * {
+  max-width: 100%;
+}
+
+body.app-body .workspace-main p,
+body.app-body .workspace-main span,
+body.app-body .workspace-main strong,
+body.app-body .workspace-main small,
+body.app-body .workspace-main label,
+body.app-body .workspace-main h1,
+body.app-body .workspace-main h2,
+body.app-body .workspace-main h3,
+body.app-body .workspace-main h4,
+body.app-body .workspace-main h5,
+body.app-body .workspace-main h6,
+body.app-body .batch-cell-main,
+body.app-body .batch-cell-muted,
+body.app-body .batch-cell-note,
+body.app-body .product-name,
+body.app-body .product-subtext,
+body.app-body .decision-card p,
+body.app-body .finance-review-note {
+  overflow-wrap: anywhere;
+}
+
+body.app-body .form-control,
+body.app-body .form-select,
+body.app-body .form-check-input,
+body.app-body textarea,
+body.app-body input,
+body.app-body select,
+body.app-body .btn {
+  max-width: 100%;
+}
+
+body.app-body .form-control,
+body.app-body .form-select,
+body.app-body textarea,
+body.app-body input:not([type="checkbox"]):not([type="radio"]) {
+  background-color: #ffffff !important;
+  color: var(--text) !important;
+  border-color: var(--border-strong) !important;
+}
+
+body.app-body .form-control::placeholder {
+  color: #7a8fa3 !important;
+}
+
+body.app-body .btn {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease !important;
+}
+
+body.app-body .btn:hover,
+body.app-body .workspace-nav-link:hover,
+body.app-body .decision-card:hover,
+body.app-body .finance-review-card:hover,
+body.app-body .create-item-card:hover,
+body.app-body .batch-selection-panel:hover {
+  transform: none !important;
+}
+
+body.app-body .btn-primary {
+  color: #ffffff !important;
+}
+
+body.app-body .btn-outline-primary,
+body.app-body .btn-outline-secondary,
+body.app-body .btn-outline-dark,
+body.app-body .btn-light,
+body.app-body .btn-secondary {
+  background: #f5fafe !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body.app-body .batch-control-grid,
+body.app-body .batch-selection-board,
+body.app-body .batch-metric-grid,
+body.app-body .decision-toolbar-metrics,
+body.app-body .finance-review-grid,
+body.app-body .result-stat-grid,
+body.app-body .quote-summary-grid,
+body.app-body .quote-summary-meta {
+  display: grid;
+  gap: 0.9rem;
+}
+
+body.app-body .batch-control-grid,
+body.app-body .batch-selection-board {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+}
+
+body.app-body .batch-metric-grid,
+body.app-body .decision-toolbar-metrics,
+body.app-body .result-stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)) !important;
+}
+
+body.app-body .finance-review-grid,
+body.app-body .decision-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+}
+
+body.app-body .create-item-grid {
+  grid-template-columns: 1fr !important;
+}
+
+body.app-body .batch-offer-picker,
+body.app-body .batch-selection-list,
+body.app-body .workspace-detail-list,
+body.app-body .suggestion-action-list {
+  max-height: min(360px, 48dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+body.app-body .batch-offer-option,
+body.app-body .batch-selection-item,
+body.app-body .suggestion-action,
+body.app-body .bundle-component,
+body.app-body .result-stat-card,
+body.app-body .batch-metric-grid article,
+body.app-body .quote-summary-grid article,
+body.app-body .quote-summary-meta div,
+body.app-body .workspace-mini-item,
+body.app-body .workspace-brand-active {
+  border: 1px solid var(--border) !important;
+  background: #f8fbff !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+body.app-body .batch-offer-option:hover,
+body.app-body .batch-selection-item:hover,
+body.app-body .suggestion-action:hover {
+  background: #eef8ff !important;
+  border-color: rgba(15, 127, 197, 0.24) !important;
+}
+
+body.app-body .batch-result-table-wrap,
+body.app-body .activity-log-table-wrap,
+body.app-body .create-items-table-wrap,
+body.app-body .table-responsive {
+  max-width: 100%;
+  overflow: auto !important;
+  border: 1px solid var(--border) !important;
+  background: #ffffff !important;
+  border-radius: var(--radius-lg);
+}
+
+body.app-body .batch-result-table,
+body.app-body .activity-log-table,
+body.app-body table {
+  width: max-content;
+  min-width: 100%;
+}
+
+body.app-body .batch-result-table th,
+body.app-body .activity-log-table th,
+body.app-body table th {
+  background: #f1f7fc !important;
+  color: #486176 !important;
+  white-space: nowrap;
+}
+
+body.app-body .batch-result-table td,
+body.app-body .activity-log-table td,
+body.app-body table td {
+  color: var(--text) !important;
+  vertical-align: top;
+}
+
+body.app-body .accordion-button {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+body.app-body .accordion-button::after {
+  flex: 0 0 auto;
+}
+
+body.app-body .modal-dialog {
+  max-width: min(1180px, calc(100vw - 1.5rem)) !important;
+}
+
+body.app-body .modal-content {
+  max-height: min(92dvh, 940px);
+  overflow: hidden;
+}
+
+body.app-body .modal-body {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+html.has-motion body.app-body .result-review-card[data-result-card],
+html.has-motion body.app-body .decision-card,
+html.has-motion body.app-body .finance-review-card {
+  transform: none !important;
+  transition: opacity 160ms ease, border-color 140ms ease, background-color 140ms ease !important;
+}
+
+@media (max-width: 991.98px) {
+  body.app-body .workspace-topbar,
+  body.app-body .batch-command-panel,
+  body.app-body .batch-submit-row,
+  body.app-body .decision-card-head,
+  body.app-body .finance-review-head,
+  body.app-body .create-item-card-head,
+  body.app-body .hero-actions {
+    align-items: stretch !important;
+  }
+
+  body.app-body .hero-actions .btn,
+  body.app-body .workspace-topbar .btn,
+  body.app-body .batch-submit-row .btn,
+  body.app-body .decision-card-actions .btn {
+    width: 100%;
+  }
+
+  body.app-body .quote-builder-summary {
+    position: static !important;
+  }
+}
+
+/* Final offer UI correction pass: consistent CTA contrast and mobile fit */
+body.app-body {
+  --app-muted: #526b84;
+  --muted: #526b84;
+}
+
+body.app-body .btn-primary,
+body.app-body .hero-actions .btn-primary,
+body.app-body .batch-submit-row .btn-primary,
+body.app-body .workspace-main .btn-primary,
+body.app-body .col-12 > .btn-primary {
+  border-color: #0f7fc5 !important;
+  background:
+    linear-gradient(135deg, #0f7fc5 0%, #1199ba 100%),
+    #0f7fc5 !important;
+  background-color: #0f7fc5 !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+  box-shadow: 0 10px 22px rgba(15, 127, 197, 0.18) !important;
+}
+
+body.app-body .btn-primary:hover,
+body.app-body .hero-actions .btn-primary:hover,
+body.app-body .batch-submit-row .btn-primary:hover,
+body.app-body .workspace-main .btn-primary:hover,
+body.app-body .col-12 > .btn-primary:hover {
+  border-color: #075f98 !important;
+  background:
+    linear-gradient(135deg, #0b6fae 0%, #0a8fac 100%),
+    #0b6fae !important;
+  background-color: #0b6fae !important;
+  color: #ffffff !important;
+}
+
+body.app-body .section-copy,
+body.app-body .helper-text,
+body.app-body .workspace-main p,
+body.app-body .workspace-main small,
+body.app-body .workspace-main label,
+body.app-body .product-subtext,
+body.app-body .batch-cell-muted,
+body.app-body .batch-cell-note {
+  color: #526b84 !important;
+}
+
+body.app-body .badge.bg-success,
+body.app-body .badge.text-bg-success,
+body.app-body .status-badge.status-approved,
+body.app-body .status-badge.approved {
+  background: #e8f7f0 !important;
+  color: #0c6a49 !important;
+  border-color: rgba(20, 136, 95, 0.24) !important;
+}
+
+body.app-body .badge.bg-warning,
+body.app-body .badge.text-bg-warning,
+body.app-body .status-badge.status-expired,
+body.app-body .status-badge.expired {
+  background: #fff7e6 !important;
+  color: #8a5b0f !important;
+  border-color: rgba(184, 121, 20, 0.24) !important;
+}
+
+body.app-body .badge.bg-danger,
+body.app-body .badge.text-bg-danger,
+body.app-body .status-badge.status-rejected,
+body.app-body .status-badge.rejected {
+  background: #fff1f1 !important;
+  color: #a82121 !important;
+  border-color: rgba(201, 58, 58, 0.24) !important;
+}
+
+body.app-body .visually-hidden {
+  contain: paint;
+}
+
+body.app-body .hero-actions {
+  gap: 0.65rem !important;
+}
+
+body.app-body .workspace-main .form-control,
+body.app-body .workspace-main .form-select,
+body.app-body .workspace-main textarea,
+body.app-body .workspace-main input {
+  color: var(--app-text) !important;
+  background-color: #ffffff !important;
+}
+
+@media (max-width: 991.98px) {
+  body.app-body .hero-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    padding-inline: 0.85rem !important;
+  }
+
+  body.app-body .hero-actions .btn {
+    min-height: 40px !important;
+    width: 100% !important;
+  }
+
+  body.app-body .workspace-main .app-card,
+  body.app-body .form-section,
+  body.app-body .batch-command-panel,
+  body.app-body .decision-card,
+  body.app-body .quote-builder-summary {
+    border-radius: 1rem !important;
+  }
+}
+
+@media (max-width: 575.98px) {
+  body.app-body .container-fluid {
+    overflow-x: clip;
+  }
+
+  body.app-body .modal-dialog {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+  }
+
+  body.app-body .modal-content {
+    min-height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0 !important;
+  }
+}
