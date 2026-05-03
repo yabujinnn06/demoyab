@@ -803,14 +803,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const turkishVoices = voices
         .filter((voice) => isTurkishVoice(voice))
         .sort((left, right) => voiceScore(right) - voiceScore(left));
-      const nonMaleVoices = voices
-        .filter((voice) => !isLikelyMaleVoice(voice))
-        .sort((left, right) => voiceScore(right) - voiceScore(left));
-      cachedTurkishVoice = turkishVoices.find((voice) => !isGoogleVoice(voice) && isLikelyFemaleVoice(voice) && !isLikelyMaleVoice(voice))
-        || turkishVoices.find((voice) => !isGoogleVoice(voice) && !isLikelyMaleVoice(voice))
-        || turkishVoices.find((voice) => isLikelyFemaleVoice(voice) && !isLikelyMaleVoice(voice))
-        || turkishVoices.find((voice) => !isLikelyMaleVoice(voice))
-        || nonMaleVoices[0]
+      const preferredTurkishVoices = turkishVoices.filter((voice) => !isGoogleVoice(voice));
+      cachedTurkishVoice = preferredTurkishVoices.find((voice) => isLikelyFemaleVoice(voice) && !isLikelyMaleVoice(voice))
+        || preferredTurkishVoices.find((voice) => !isLikelyMaleVoice(voice))
+        || preferredTurkishVoices[0]
         || null;
       return cachedTurkishVoice;
     };
@@ -862,29 +858,24 @@ document.addEventListener("DOMContentLoaded", () => {
         window.speechSynthesis.cancel();
         window.speechSynthesis.resume?.();
         const voice = await bestTurkishVoice();
+        if (!voice) {
+          button.textContent = "Türkçe ses bulunamadı";
+          button.disabled = true;
+          window.setTimeout(() => {
+            button.textContent = originalLabel;
+            button.disabled = false;
+          }, 2200);
+          return;
+        }
         const utterance = buildUtterance(text, voice);
-        button.textContent = voice ? "Sesli okunuyor" : "Tarayıcı sesiyle okunuyor";
+        button.textContent = "Sesli okunuyor";
         button.disabled = true;
         const resetButton = () => {
           button.textContent = originalLabel;
           button.disabled = false;
         };
         utterance.onend = resetButton;
-        utterance.onerror = (event) => {
-          const shouldRetryDefault = Boolean(voice) && !["canceled", "interrupted"].includes(event.error);
-          if (!shouldRetryDefault) {
-            resetButton();
-            return;
-          }
-          const fallbackUtterance = buildUtterance(text);
-          fallbackUtterance.onend = resetButton;
-          fallbackUtterance.onerror = resetButton;
-          window.setTimeout(() => {
-            window.speechSynthesis.cancel();
-            window.speechSynthesis.resume?.();
-            window.speechSynthesis.speak(fallbackUtterance);
-          }, 80);
-        };
+        utterance.onerror = resetButton;
         window.speechSynthesis.speak(utterance);
       });
     });

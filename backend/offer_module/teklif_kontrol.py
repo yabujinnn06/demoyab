@@ -941,11 +941,71 @@ def _parse_offer_items_from_text(text: str) -> list[OfferItem]:
     return items
 
 
+def _offer_item_key(item: OfferItem) -> tuple[str, float, float, float, float]:
+    return (
+        normalize_text(item.product_name),
+        round(float(item.quantity or 0), 2),
+        round(float(item.unit_price or 0), 2),
+        round(float(item.discounted_price or 0), 2),
+        round(float(item.total_price or 0), 2),
+    )
+
+
+def _offer_item_price_key(item: OfferItem) -> tuple[float, float, float, float]:
+    return _offer_item_key(item)[1:]
+
+
+def _is_same_extracted_offer_item(candidate: OfferItem, existing: OfferItem) -> bool:
+    if _offer_item_key(candidate) == _offer_item_key(existing):
+        return True
+    if _offer_item_price_key(candidate) != _offer_item_price_key(existing):
+        return False
+
+    candidate_name = normalize_text(candidate.product_name)
+    existing_name = normalize_text(existing.product_name)
+    if not candidate_name or not existing_name:
+        return False
+    if candidate_name in existing_name or existing_name in candidate_name:
+        return True
+
+    candidate_tokens = set(candidate_name.split())
+    existing_tokens = set(existing_name.split())
+    shared_tokens = candidate_tokens & existing_tokens
+    if not shared_tokens:
+        return False
+    if candidate_tokens <= existing_tokens or existing_tokens <= candidate_tokens:
+        return True
+    return len(shared_tokens) >= 2 and SequenceMatcher(None, candidate_name, existing_name).ratio() >= 0.55
+
+
+def _merge_offer_items(primary: list[OfferItem], secondary: list[OfferItem]) -> list[OfferItem]:
+    merged: list[OfferItem] = []
+    seen_primary_keys: set[tuple[str, float, float, float, float]] = set()
+    for item in primary:
+        key = _offer_item_key(item)
+        if key in seen_primary_keys:
+            continue
+        seen_primary_keys.add(key)
+        merged.append(item)
+    for item in secondary:
+        if any(_is_same_extracted_offer_item(item, existing) for existing in merged):
+            continue
+        merged.append(item)
+    return merged
+
+
 def parse_offer_items(pdf_path: Path) -> tuple[list[OfferItem], str]:
     text = extract_offer_text(pdf_path)
     text_items = _parse_offer_items_from_text(text)
     layout_items = _parse_offer_items_from_layout(pdf_path)
-    if layout_items and (not text_items or len(layout_items) >= max(1, len(text_items) - 1)):
+    if text_items and layout_items:
+        layout_is_strong = len(layout_items) >= max(1, len(text_items) - 1)
+        items = (
+            _merge_offer_items(layout_items, text_items)
+            if layout_is_strong
+            else _merge_offer_items(text_items, layout_items)
+        )
+    elif layout_items:
         items = layout_items
     else:
         items = text_items
