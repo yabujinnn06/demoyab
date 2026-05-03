@@ -1296,7 +1296,7 @@ function bootMarkup() {
       <div class="boot-orb" aria-hidden="true"></div>
       <div class="boot-card">
         <div class="boot-brand-row">
-          ${brandMark()}
+          <span class="boot-rainwater-mark" aria-hidden="true">rainwater</span>
           <div>
             <p class="brand-kicker">Call Operations & Offer Management Platform</p>
             <h1>Rainwater Control</h1>
@@ -1929,7 +1929,7 @@ function assignPanelMarkup() {
   const agentUsers = activeAgents();
   const summary = assignSummaryValues(agentUsers);
   return `
-    <section class="panel stack window-shell" data-window-title="Operasyon Dağıtımı">
+    <section class="panel stack assignment-panel window-shell" data-window-title="Operasyon Dağıtımı">
       <div class="panel-head">
         <div>
           <p class="section-kicker">Dağıtım</p>
@@ -2485,7 +2485,7 @@ function recordsTableMarkup() {
   const activeFilters = activeRecordFilterLabels();
   const listTotal = list?.summary?.total ?? 0;
   return `
-      <section class="panel stack window-shell" data-window-title="Operasyon Kayıtları">
+    <section class="panel stack records-panel window-shell" data-window-title="Operasyon Kayıtları">
         <div class="panel-head">
           <div>
             <p class="section-kicker">Operasyon</p>

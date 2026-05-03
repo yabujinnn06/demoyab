@@ -8969,3 +8969,198 @@ button,
     max-width: 100vw !important;
   }
 }
+
+/* 2026-05-03 targeted UX fixes: boot, records scroll, assignment fit */
+.boot-screen {
+  min-height: 100dvh !important;
+  padding: clamp(1rem, 4vw, 2rem) !important;
+  background:
+    radial-gradient(circle at 16% 12%, rgba(38, 160, 218, 0.18), transparent 26rem),
+    radial-gradient(circle at 88% 18%, rgba(20, 154, 184, 0.12), transparent 24rem),
+    linear-gradient(135deg, #edf8ff 0%, #f7fbff 48%, #ffffff 100%) !important;
+  color: #102033 !important;
+}
+
+.boot-screen::before {
+  content: "rainwater" !important;
+  top: 6vh !important;
+  color: rgba(15, 127, 197, 0.06) !important;
+  letter-spacing: 0 !important;
+}
+
+.boot-orb {
+  display: none !important;
+}
+
+.boot-card {
+  width: min(620px, calc(100vw - 2rem)) !important;
+  gap: 1.15rem !important;
+  padding: clamp(1.15rem, 3vw, 1.65rem) !important;
+  border: 1px solid rgba(15, 127, 197, 0.16) !important;
+  border-radius: 1.25rem !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #102033 !important;
+  box-shadow: 0 24px 64px rgba(22, 79, 111, 0.14) !important;
+  backdrop-filter: none !important;
+}
+
+.boot-card::before {
+  background: linear-gradient(90deg, #1689d1, #18a6c5) !important;
+}
+
+.boot-rainwater-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 168px;
+  min-height: 58px;
+  padding: 0 1rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #3498df, #1689d1);
+  color: #ffffff;
+  font-size: clamp(1.55rem, 4vw, 2.35rem);
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: 0;
+  box-shadow: 0 14px 30px rgba(15, 127, 197, 0.18);
+}
+
+.boot-brand-row {
+  grid-template-columns: auto minmax(0, 1fr) !important;
+}
+
+.boot-brand-row h1,
+.boot-copy strong {
+  color: #102033 !important;
+}
+
+.boot-copy span,
+.boot-status-grid span {
+  color: #526b84 !important;
+}
+
+.boot-loader span,
+.boot-progress span {
+  background: linear-gradient(90deg, #1689d1, #18a6c5) !important;
+}
+
+.boot-status-grid span {
+  border-color: rgba(15, 127, 197, 0.14) !important;
+  background: #f4faff !important;
+}
+
+.records-panel {
+  min-height: 0 !important;
+}
+
+.records-panel .table-wrap {
+  max-height: min(68dvh, 720px) !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  border-color: var(--border) !important;
+  background: #ffffff !important;
+}
+
+.records-panel .records-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+
+.records-panel .records-table thead th:last-child {
+  z-index: 8;
+}
+
+.assignment-panel {
+  min-width: 0 !important;
+}
+
+.assignment-panel .panel-head {
+  align-items: flex-start !important;
+}
+
+.assignment-panel #assign-form {
+  gap: 0.85rem !important;
+}
+
+.assignment-panel .assign-monitor {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.assignment-panel .assign-monitor-wide {
+  grid-column: 1 / -1 !important;
+}
+
+.assignment-panel .assign-grid {
+  display: grid !important;
+  max-height: clamp(250px, 34dvh, 390px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  gap: 0.75rem !important;
+  padding: 0.1rem 0.35rem 0.1rem 0 !important;
+  overscroll-behavior: contain;
+}
+
+.assignment-panel .assign-row {
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 180px) !important;
+  min-height: 76px !important;
+  gap: 0.65rem !important;
+  overflow: visible !important;
+  align-items: stretch !important;
+}
+
+.assignment-panel .assign-toggle,
+.assignment-panel .assign-count-field {
+  min-height: 70px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 0.85rem !important;
+  background: #f8fbff !important;
+}
+
+.assignment-panel .assign-toggle {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.assignment-panel .assign-count-field {
+  align-content: center !important;
+  padding: 0.65rem 0.75rem !important;
+}
+
+.assignment-panel .assign-count-input {
+  width: 100% !important;
+  min-height: 40px !important;
+  border-radius: 0.75rem !important;
+  background: #ffffff !important;
+}
+
+.assignment-panel .assign-helper {
+  margin: 0 !important;
+}
+
+@media (max-width: 760px) {
+  .boot-brand-row {
+    grid-template-columns: 1fr !important;
+    text-align: left;
+  }
+
+  .boot-rainwater-mark {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .records-panel .table-wrap {
+    max-height: 72dvh !important;
+  }
+
+  .assignment-panel .assign-monitor,
+  .assignment-panel .assign-mode-grid,
+  .assignment-panel .assign-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .assignment-panel .assign-grid {
+    max-height: 52dvh !important;
+    padding-right: 0 !important;
+  }
+}

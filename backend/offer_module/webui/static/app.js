@@ -756,7 +756,6 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const voiceScore = (voice) => {
-      if (isGoogleVoice(voice)) return -999;
       const name = `${voice.name || ""} ${voice.voiceURI || ""}`.toLowerCase();
       const lang = (voice.lang || "").toLowerCase();
       let score = 0;
@@ -771,6 +770,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (name.includes("natural") || name.includes("neural")) score += 34;
       if (isLikelyMaleVoice(voice)) score -= 220;
       if (!voice.localService) score += 6;
+      if (isGoogleVoice(voice)) score -= 90;
       return score;
     };
 
@@ -800,13 +800,31 @@ document.addEventListener("DOMContentLoaded", () => {
         return cachedTurkishVoice;
       }
       const voices = await loadVoices();
-      const preferredVoices = voices
-        .filter((voice) => isTurkishVoice(voice) && !isGoogleVoice(voice))
+      const turkishVoices = voices
+        .filter((voice) => isTurkishVoice(voice))
         .sort((left, right) => voiceScore(right) - voiceScore(left));
-      cachedTurkishVoice = preferredVoices.find((voice) => isLikelyFemaleVoice(voice) && !isLikelyMaleVoice(voice))
-        || preferredVoices.find((voice) => !isLikelyMaleVoice(voice))
+      const nonMaleVoices = voices
+        .filter((voice) => !isLikelyMaleVoice(voice))
+        .sort((left, right) => voiceScore(right) - voiceScore(left));
+      cachedTurkishVoice = turkishVoices.find((voice) => !isGoogleVoice(voice) && isLikelyFemaleVoice(voice) && !isLikelyMaleVoice(voice))
+        || turkishVoices.find((voice) => !isGoogleVoice(voice) && !isLikelyMaleVoice(voice))
+        || turkishVoices.find((voice) => isLikelyFemaleVoice(voice) && !isLikelyMaleVoice(voice))
+        || turkishVoices.find((voice) => !isLikelyMaleVoice(voice))
+        || nonMaleVoices[0]
         || null;
       return cachedTurkishVoice;
+    };
+
+    const buildUtterance = (text, voice = null) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (voice) {
+        utterance.voice = voice;
+      }
+      utterance.lang = "tr-TR";
+      utterance.rate = 0.9;
+      utterance.pitch = voice && isLikelyFemaleVoice(voice) ? 1.06 : 1.02;
+      utterance.volume = 1;
+      return utterance;
     };
 
     const typeText = (target, text) => {
@@ -842,31 +860,30 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
         window.speechSynthesis.cancel();
+        window.speechSynthesis.resume?.();
         const voice = await bestTurkishVoice();
-        if (!voice) {
-          button.textContent = "Kurumsal kadın Türkçe sesi bulunamadı";
-          button.disabled = true;
-          window.setTimeout(() => {
-            button.textContent = originalLabel;
-            button.disabled = false;
-          }, 1800);
-          return;
-        }
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.voice = voice;
-        utterance.lang = "tr-TR";
-        utterance.rate = 0.88;
-        utterance.pitch = 1.06;
-        utterance.volume = 1;
-        button.textContent = "Emel kurumsal sesle okunuyor";
+        const utterance = buildUtterance(text, voice);
+        button.textContent = voice ? "Sesli okunuyor" : "Tarayıcı sesiyle okunuyor";
         button.disabled = true;
-        utterance.onend = () => {
+        const resetButton = () => {
           button.textContent = originalLabel;
           button.disabled = false;
         };
-        utterance.onerror = () => {
-          button.textContent = originalLabel;
-          button.disabled = false;
+        utterance.onend = resetButton;
+        utterance.onerror = (event) => {
+          const shouldRetryDefault = Boolean(voice) && !["canceled", "interrupted"].includes(event.error);
+          if (!shouldRetryDefault) {
+            resetButton();
+            return;
+          }
+          const fallbackUtterance = buildUtterance(text);
+          fallbackUtterance.onend = resetButton;
+          fallbackUtterance.onerror = resetButton;
+          window.setTimeout(() => {
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.resume?.();
+            window.speechSynthesis.speak(fallbackUtterance);
+          }, 80);
         };
         window.speechSynthesis.speak(utterance);
       });
