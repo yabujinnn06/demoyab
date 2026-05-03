@@ -225,7 +225,7 @@
 </div>
 {%- endmacro %}
 {% macro result_review_card(row) -%}
-<article class="result-review-card status-{{ row.status_class }}" data-result-card data-review-index="{{ row.index }}" role="button" tabindex="0">
+<article class="result-review-card status-{{ row.status_class }}" data-result-card data-review-index="{{ row.index }}" data-result-status="{{ row.status }}" role="button" tabindex="0">
   <div class="result-review-head">
     <div class="result-review-meta">
       <span class="result-order">Kalem {{ row.index + 1 }}</span>
@@ -283,6 +283,12 @@
     </article>
   </div>
 
+  <details class="review-detail-drawer">
+    <summary>
+      <span>Detay ve öneri</span>
+      <strong>{{ row.action.title }}</strong>
+    </summary>
+
   <div class="ai-explanation-card ai-tone-{{ row.explanation.tone }}" data-ai-narration data-ai-text="{{ row.explanation.spoken }}">
     <div class="ai-explanation-head">
       <div>
@@ -325,6 +331,7 @@
     <span class="decision-badge">{{ row.note_badge }}</span>
     <p>{{ row.note }}</p>
   </div>
+  </details>
 </article>
 {%- endmacro %}
 {% macro financial_review_card(check) -%}
@@ -437,6 +444,12 @@
       </article>
     </div>
 
+    <details class="decision-detail-drawer">
+      <summary>
+        <span>Gerekçe ve hızlı öneriler</span>
+        <strong>{{ row.action.title }}</strong>
+      </summary>
+
     <div class="ai-explanation-card ai-tone-{{ row.explanation.tone }}" data-ai-narration data-ai-text="{{ row.explanation.spoken }}">
       <div class="ai-explanation-head">
         <div>
@@ -478,6 +491,7 @@
         {% endif %}
       </div>
     {% endif %}
+    </details>
 
     <div class="decision-control-grid">
       <div class="decision-select-panel">
@@ -559,9 +573,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rainwater Control | Offer Studio</title>
   <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260503-trvoice-pdfscope">
+  <link rel="stylesheet" href="{{ request.url_for('offer-tool:offer_static', path='styles.css') }}?v=20260503-ergonomic-control">
   <script defer src="{{ request.url_for('offer-tool:offer_static', path='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
-  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260503-trvoice-pdfscope"></script>
+  <script defer src="{{ request.url_for('offer-tool:offer_static', path='app.js') }}?v=20260503-ergonomic-control"></script>
 </head>
 <body
   class="app-body"
@@ -1106,6 +1120,10 @@
                           </tbody>
                         </table>
                       </div>
+                      <div class="batch-empty-state" data-batch-empty hidden>
+                        <strong>Bu filtrede teklif yok.</strong>
+                        <p>Toplu kontrol filtresini değiştirerek diğer sonuçları inceleyebilirsin.</p>
+                      </div>
                     </section>
                   {% endif %}
                 </div>
@@ -1234,10 +1252,34 @@
 
                   <div class="tab-content operation-tab-content">
                     <div class="tab-pane fade show active" id="result-items-pane" role="tabpanel" aria-labelledby="result-items-tab" tabindex="0">
+                      <div class="result-filter-bar" data-result-filter-bar>
+                        <div class="decision-search">
+                          <label class="visually-hidden" for="result-search-input">Kontrol sonucunda ara</label>
+                          <input
+                            class="form-control"
+                            id="result-search-input"
+                            type="search"
+                            placeholder="Kalem, ürün, durum veya not ara"
+                            data-result-search
+                          >
+                        </div>
+                        <div class="decision-filter-tabs" aria-label="Kontrol sonucu filtreleri">
+                          <button class="active" type="button" data-result-filter="all">Tümü</button>
+                          <button type="button" data-result-filter="DUZELT">Düzelt</button>
+                          <button type="button" data-result-filter="INCELE">İncele</button>
+                          <button type="button" data-result-filter="ESLESMEDI">Eşleşmedi</button>
+                          <button type="button" data-result-filter="ONAY">Onay</button>
+                        </div>
+                        <span class="decision-filter-count" data-result-filter-count>{{ results|length }} kalem</span>
+                      </div>
                       <div class="result-review-grid">
                         {% for row in results %}
                           {{ result_review_card(row) }}
                         {% endfor %}
+                      </div>
+                      <div class="result-empty-state" data-result-empty hidden>
+                        <strong>Bu filtrede gösterilecek kalem yok.</strong>
+                        <p>Aramayı temizleyebilir veya farklı bir durum filtresi seçebilirsin.</p>
                       </div>
                     </div>
 
@@ -1354,6 +1396,10 @@
                     {% for row in results %}
                       {{ apply_decision_card(row, result_catalog_options) }}
                     {% endfor %}
+                  </div>
+                  <div class="decision-empty-state" data-decision-empty hidden>
+                    <strong>Bu görünümde karar satırı yok.</strong>
+                    <p>Arama veya filtreyi değiştirerek diğer satırlara dönebilirsin.</p>
                   </div>
 
                 </form>

@@ -5635,3 +5635,274 @@ body.app-body .workspace-main input {
     border-radius: 0 !important;
   }
 }
+
+/* Offer control ergonomic pass */
+body.app-body .result-review-card,
+body.app-body .decision-card {
+  grid-column: span 12;
+}
+
+body.app-body .result-filter-bar,
+body.app-body .decision-filter-bar {
+  position: sticky;
+  top: 4.9rem;
+  z-index: 11;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  padding: 0.65rem;
+  border: 1px solid #9bb2ca;
+  border-radius: 8px;
+  background: rgba(248, 251, 255, 0.96);
+  box-shadow: var(--app-shadow-soft);
+}
+
+body.app-body .result-filter-bar .form-control,
+body.app-body .decision-filter-bar .form-control {
+  min-height: 36px;
+}
+
+body.app-body .review-detail-drawer,
+body.app-body .decision-detail-drawer {
+  margin-top: 0.9rem;
+  border: 1px solid #b3c6d8;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+body.app-body .review-detail-drawer > summary,
+body.app-body .decision-detail-drawer > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 0.32fr) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+  min-height: 42px;
+  padding: 0.62rem 0.75rem;
+  color: #14334f;
+  cursor: pointer;
+  list-style: none;
+}
+
+body.app-body .review-detail-drawer > summary::-webkit-details-marker,
+body.app-body .decision-detail-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.app-body .review-detail-drawer > summary::after,
+body.app-body .decision-detail-drawer > summary::after {
+  content: "Aç";
+  justify-self: end;
+  padding: 0.24rem 0.55rem;
+  border: 1px solid #9bb2ca;
+  border-radius: 999px;
+  color: #385875;
+  background: #ffffff;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+body.app-body .review-detail-drawer[open] > summary::after,
+body.app-body .decision-detail-drawer[open] > summary::after {
+  content: "Kapat";
+}
+
+body.app-body .review-detail-drawer > summary:hover,
+body.app-body .review-detail-drawer > summary:focus-visible,
+body.app-body .decision-detail-drawer > summary:hover,
+body.app-body .decision-detail-drawer > summary:focus-visible {
+  background: #edf5fc;
+  outline: 0;
+}
+
+body.app-body .review-detail-drawer > summary span,
+body.app-body .decision-detail-drawer > summary span {
+  color: #5d7388;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+body.app-body .review-detail-drawer > summary strong,
+body.app-body .decision-detail-drawer > summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 0.9rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.app-body .review-detail-drawer .ai-explanation-card,
+body.app-body .decision-detail-drawer .ai-explanation-card,
+body.app-body .review-detail-drawer .automation-insight,
+body.app-body .decision-detail-drawer .decision-automation-panel,
+body.app-body .review-detail-drawer .suggestion-strip,
+body.app-body .review-detail-drawer .result-note-block {
+  margin: 0.7rem;
+}
+
+body.app-body .review-detail-drawer:not([open]),
+body.app-body .decision-detail-drawer:not([open]) {
+  background: #f3f8fd;
+}
+
+body.app-body .ai-action-board {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+body.app-body .ai-action-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+body.app-body .ai-explanation-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+body.app-body .decision-control-grid {
+  grid-template-columns: minmax(260px, 0.52fr) minmax(0, 1fr);
+}
+
+body.app-body .decision-select-panel {
+  position: sticky;
+  top: 9.9rem;
+  z-index: 5;
+}
+
+body.app-body .decision-guidance {
+  margin-top: 0;
+}
+
+body.app-body .result-empty-state,
+body.app-body .decision-empty-state,
+body.app-body .batch-empty-state {
+  margin-top: 0.85rem;
+  padding: 1rem;
+  border: 1px dashed #9bb2ca;
+  border-radius: 8px;
+  background: #f8fbff;
+  text-align: center;
+}
+
+body.app-body .result-empty-state strong,
+body.app-body .decision-empty-state strong,
+body.app-body .batch-empty-state strong {
+  display: block;
+  color: var(--app-text);
+}
+
+body.app-body .result-empty-state p,
+body.app-body .decision-empty-state p,
+body.app-body .batch-empty-state p {
+  margin: 0.3rem 0 0;
+  color: var(--app-muted);
+}
+
+body.app-body .batch-result-toolbar {
+  position: sticky;
+  top: 4.9rem;
+  z-index: 8;
+  margin-bottom: 0.65rem;
+  padding: 0.55rem;
+  border: 1px solid #9bb2ca;
+  border-radius: 8px;
+  background: rgba(248, 251, 255, 0.96);
+  box-shadow: var(--app-shadow-soft);
+}
+
+body.app-body .batch-result-table-wrap {
+  max-height: min(62vh, 640px);
+  overflow: auto;
+  border-color: #9bb2ca;
+  background: #ffffff;
+  overscroll-behavior: contain;
+}
+
+body.app-body .batch-result-table {
+  min-width: 1120px;
+  table-layout: fixed;
+}
+
+body.app-body .batch-result-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: linear-gradient(180deg, #f6fbff, #e4eff8);
+  box-shadow: inset 0 -1px 0 #9bb2ca;
+}
+
+body.app-body .batch-cell-main,
+body.app-body .batch-cell-note,
+body.app-body .batch-cell-muted {
+  overflow-wrap: anywhere;
+}
+
+body.app-body .batch-cell-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+}
+
+body.app-body .batch-cell-summary span {
+  display: inline-flex;
+  padding: 0.22rem 0.45rem;
+  border: 1px solid #bfd0df;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #385875;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+body.app-body .quote-builder-summary {
+  position: sticky;
+  top: 4.9rem;
+  z-index: 6;
+}
+
+@media (max-width: 1199.98px) {
+  body.app-body .result-filter-bar,
+  body.app-body .decision-filter-bar,
+  body.app-body .batch-result-toolbar,
+  body.app-body .decision-select-panel,
+  body.app-body .quote-builder-summary {
+    position: static;
+  }
+
+  body.app-body .result-filter-bar,
+  body.app-body .decision-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  body.app-body .decision-filter-count {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 991.98px) {
+  body.app-body .decision-control-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body.app-body .review-detail-drawer > summary,
+  body.app-body .decision-detail-drawer > summary {
+    grid-template-columns: 1fr auto;
+  }
+}
+
+@media (max-width: 575.98px) {
+  body.app-body .result-filter-bar,
+  body.app-body .decision-filter-bar,
+  body.app-body .batch-result-toolbar {
+    margin-inline: -0.2rem;
+  }
+
+  body.app-body .review-detail-drawer > summary strong,
+  body.app-body .decision-detail-drawer > summary strong {
+    white-space: normal;
+  }
+}

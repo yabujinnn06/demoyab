@@ -310,6 +310,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const rows = Array.from(document.querySelectorAll("[data-batch-row]"));
     const buttons = Array.from(document.querySelectorAll("[data-batch-filter]"));
     const countLabel = document.querySelector("[data-batch-filter-count]");
+    const emptyState = document.querySelector("[data-batch-empty]");
     if (!rows.length || !buttons.length) {
       return;
     }
@@ -329,6 +330,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (countLabel) {
         countLabel.textContent = `${visibleCount} teklif`;
       }
+      if (emptyState) {
+        emptyState.hidden = visibleCount > 0;
+      }
     };
 
     buttons.forEach((button) => {
@@ -338,6 +342,53 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   initBatchResultFilters();
+
+  const initResultFilters = () => {
+    const cards = Array.from(document.querySelectorAll("[data-result-card]"));
+    const searchInput = document.querySelector("[data-result-search]");
+    const buttons = Array.from(document.querySelectorAll("[data-result-filter]"));
+    const countLabel = document.querySelector("[data-result-filter-count]");
+    const emptyState = document.querySelector("[data-result-empty]");
+    if (!cards.length || !buttons.length) {
+      return;
+    }
+
+    let activeFilter = "all";
+
+    const render = () => {
+      const query = (searchInput?.value || "").trim().toLocaleLowerCase("tr-TR");
+      let visibleCount = 0;
+      cards.forEach((card) => {
+        const matchesFilter = activeFilter === "all" || card.dataset.resultStatus === activeFilter;
+        const matchesQuery = !query || card.textContent.toLocaleLowerCase("tr-TR").includes(query);
+        const visible = matchesFilter && matchesQuery;
+        card.hidden = !visible;
+        if (visible) {
+          visibleCount += 1;
+        }
+      });
+      buttons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.resultFilter === activeFilter);
+      });
+      if (countLabel) {
+        countLabel.textContent = `${visibleCount} kalem`;
+      }
+      if (emptyState) {
+        emptyState.hidden = visibleCount > 0;
+      }
+    };
+
+    searchInput?.addEventListener("input", render);
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activeFilter = button.dataset.resultFilter || "all";
+        render();
+      });
+    });
+    render();
+  };
+
+  initResultFilters();
 
   const renumberCreateItems = (container) => {
     const rows = Array.from(container.querySelectorAll(".create-item-row"));
@@ -482,6 +533,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const decisionSearchInput = document.querySelector("[data-decision-search]");
   const decisionFilterButtons = Array.from(document.querySelectorAll("[data-decision-filter]"));
   const decisionFilterCount = document.querySelector("[data-decision-filter-count]");
+  const decisionEmptyState = document.querySelector("[data-decision-empty]");
   let activeDecisionFilter = "all";
 
   const getDecisionState = () => {
@@ -537,6 +589,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (decisionFilterCount) {
       decisionFilterCount.textContent = `${visibleCount} satır`;
     }
+    if (decisionEmptyState) {
+      decisionEmptyState.hidden = visibleCount > 0;
+    }
   };
 
   const focusDecisionCard = (card) => {
@@ -561,12 +616,15 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-result-card]").forEach((card) => {
     const openDecision = () => focusDecisionCardByIndex(card.dataset.reviewIndex);
     card.addEventListener("click", (event) => {
-      if (event.target.closest("a, button, input, select, textarea, label")) {
+      if (event.target.closest("a, button, input, select, textarea, label, details, summary")) {
         return;
       }
       openDecision();
     });
     card.addEventListener("keydown", (event) => {
+      if (event.target.closest("a, button, input, select, textarea, label, details, summary")) {
+        return;
+      }
       if (event.key !== "Enter" && event.key !== " ") {
         return;
       }
