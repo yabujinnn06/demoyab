@@ -9170,9 +9170,9 @@ button,
 }
 
 .offer-notification-strip {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.55fr) minmax(320px, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   padding: 14px 16px;
   border: 1px solid rgba(37, 99, 235, 0.24);
@@ -9182,16 +9182,29 @@ button,
   box-shadow: 0 12px 28px rgba(18, 32, 56, 0.08);
 }
 
-.offer-notification-strip div {
+.offer-notification-summary {
+  min-width: 0;
   display: grid;
   gap: 2px;
 }
 
 .offer-notification-actions {
-  display: flex !important;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  min-width: 0;
+  max-height: 104px;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 8px !important;
+  overflow: auto;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+
+.offer-notification-actions .btn {
+  min-width: 0;
+  width: 100%;
+  justify-content: center;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .offer-notification-strip span,
@@ -9331,7 +9344,7 @@ button,
 @media (max-width: 720px) {
   .offer-notification-strip {
     align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .offer-activity-panel .panel-head,
@@ -9353,7 +9366,8 @@ button,
   }
 
   .offer-notification-actions {
-    justify-content: stretch;
+    max-height: 160px;
+    grid-template-columns: 1fr;
   }
 
   .offer-notification-actions .btn,

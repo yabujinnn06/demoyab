@@ -1544,7 +1544,7 @@ function sidebarNavMarkup() {
               <span class="sidebar-nav-detail">${escapeHtml(item.detail)}</span>
             `;
             return item.href
-              ? `<a class="sidebar-nav-item ${item.active ? "active" : ""}" href="${item.href}" target="_blank" rel="noreferrer" ${attrs}>${inner}</a>`
+              ? `<a class="sidebar-nav-item ${item.active ? "active" : ""}" href="${item.href}" ${attrs}>${inner}</a>`
               : `<button class="sidebar-nav-item ${item.active ? "active" : ""}" type="button" ${attrs}>${inner}</button>`;
           },
         )
@@ -2775,7 +2775,7 @@ function offerNotificationsMarkup() {
   if (!state.offerNotifications.length) return "";
   return `
     <section class="offer-notification-strip" aria-label="Teklif bildirimi">
-      <div>
+      <div class="offer-notification-summary">
         <span>Teklif bildirimi</span>
         <strong>${state.offerNotifications.length} teklif sonucu var</strong>
         <small>Detayı görmek için ilgili bildirime tıkla</small>
