@@ -6428,6 +6428,7 @@ textarea {
 }
 
 .sidebar-nav-item[data-tone="offer"] .sidebar-nav-icon,
+.sidebar-nav-item[data-tone="offer-history"] .sidebar-nav-icon,
 .sidebar-nav-item[data-tone="new-offer"] .sidebar-nav-icon {
   background: var(--accent);
 }
@@ -9259,6 +9260,34 @@ button,
   gap: 10px;
 }
 
+.offer-activity-flyout {
+  right: 14px;
+  left: auto;
+  width: min(620px, calc(100vw - 28px));
+  max-height: min(74vh, 720px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.sidebar-flyout-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+
+.offer-activity-flyout .offer-activity-panel {
+  min-width: 0;
+  border-radius: 10px;
+}
+
+.offer-activity-flyout .offer-activity-list {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
 .offer-activity-panel .panel-head {
   align-items: center;
 }
@@ -9314,6 +9343,13 @@ button,
 
   .offer-activity-list {
     max-height: 280px;
+  }
+
+  .offer-activity-flyout {
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: min(74vh, 620px);
   }
 
   .offer-notification-actions {

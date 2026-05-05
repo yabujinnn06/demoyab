@@ -1453,6 +1453,14 @@ function sidebarNavMarkup() {
     });
     if (canOpenOfferTool()) {
       items.push({
+        id: "toggle-offer-activity-flyout",
+        tone: "offer-history",
+        title: "Teklif Geçmişi",
+        meta: `${state.offerActivity.length || 0} hareket`,
+        detail: "Onay ve indirme",
+        active: state.sidebarPanel === "offerActivity",
+      });
+      items.push({
         tone: "offer",
         title: "Teklifler",
         meta: "Offer Studio",
@@ -1546,7 +1554,24 @@ function sidebarNavMarkup() {
 }
 
 function sidebarFlyoutMarkup() {
-  if (state.me?.role !== "admin" || state.sidebarPanel !== "upload") return "";
+  if (state.me?.role !== "admin") return "";
+  if (state.sidebarPanel === "offerActivity") {
+    return `
+      <div class="sidebar-flyout offer-activity-flyout" role="dialog" aria-label="Teklif geçmişi">
+        <div class="sidebar-flyout-head">
+          <div>
+            <span>Teklif modülü</span>
+            <strong>Teklif Geçmişi</strong>
+          </div>
+          <button class="window-close sidebar-flyout-close" type="button" id="close-sidebar-panel" aria-label="Kapat">X</button>
+        </div>
+        <div class="sidebar-flyout-scroll">
+          ${offerActivityPanelMarkup()}
+        </div>
+      </div>
+    `;
+  }
+  if (state.sidebarPanel !== "upload") return "";
   return `
     <div class="sidebar-flyout" role="dialog" aria-label="Veri yükleme">
       <div class="sidebar-flyout-head">
@@ -2817,8 +2842,11 @@ function offerApprovalStatusLabel(status) {
 }
 
 function offerActivityPanelMarkup() {
-  const visibleItems = state.offerActivity.slice(0, 3);
+  const isAdmin = state.me?.role === "admin";
+  const visibleItems = isAdmin ? state.offerActivity : state.offerActivity.slice(0, 3);
   const hiddenCount = Math.max(0, state.offerActivity.length - visibleItems.length);
+  const description = isAdmin ? "Admin onay ve indirme hareketlerini buradan takip et." : "Kendi oluşturduğun tekliflerin onay durumları burada görünür.";
+  const summary = isAdmin ? "Tüm teklif hareketleri." : "Son hareketlerin kısa özeti.";
   if (!state.offerActivity.length) {
     return `
       <section class="panel window-shell offer-activity-panel">
@@ -2826,7 +2854,7 @@ function offerActivityPanelMarkup() {
           <div>
             <p class="section-kicker">Teklif Hareketleri</p>
             <h2>Teklif geçmişi</h2>
-            <p>Kendi oluşturduğun tekliflerin onay durumları burada görünür.</p>
+            <p>${escapeHtml(description)}</p>
           </div>
           <a class="btn btn-soft table-action" href="/teklif/" target="_blank" rel="noreferrer">Offer Studio</a>
         </div>
@@ -2840,7 +2868,7 @@ function offerActivityPanelMarkup() {
         <div>
           <p class="section-kicker">Teklif Hareketleri</p>
           <h2>Teklif geçmişi</h2>
-          <p>Son hareketlerin kısa özeti.</p>
+          <p>${escapeHtml(summary)}</p>
         </div>
         <a class="btn btn-soft table-action" href="/teklif/" target="_blank" rel="noreferrer">Tümünü aç</a>
       </div>
@@ -2902,7 +2930,7 @@ function appMarkup() {
 
         ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
         ${offerNotificationsMarkup()}
-        ${offerActivityPanelMarkup()}
+        ${state.me?.role === "admin" ? "" : offerActivityPanelMarkup()}
         ${statsMarkup()}
         ${operationFocusRailMarkup(currentList)}
         ${managementDashboardMarkup()}
@@ -3537,6 +3565,10 @@ function bindEvents() {
   });
   document.querySelector("#toggle-upload-flyout")?.addEventListener("click", () => {
     state.sidebarPanel = state.sidebarPanel === "upload" ? "" : "upload";
+    render();
+  });
+  document.querySelector("#toggle-offer-activity-flyout")?.addEventListener("click", () => {
+    state.sidebarPanel = state.sidebarPanel === "offerActivity" ? "" : "offerActivity";
     render();
   });
   document.querySelector("#close-sidebar-panel")?.addEventListener("click", () => {
