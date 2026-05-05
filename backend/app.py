@@ -373,7 +373,7 @@ class ActivityRead(BaseModel):
 
 class OfferNotificationRead(BaseModel):
     id: str
-    status: Literal["approved", "rejected"]
+    status: Literal["pending", "approved", "rejected"]
     offer_number: str = ""
     company_name: str = ""
     contact_name: str = ""
@@ -1127,7 +1127,7 @@ def _offer_notification_from_approval(approval: dict) -> OfferNotificationRead:
     status_value = str(approval.get("status") or "")
     return OfferNotificationRead(
         id=approval_id,
-        status="approved" if status_value == "approved" else "rejected",
+        status=status_value if status_value in {"pending", "approved", "rejected"} else "pending",
         offer_number=str(approval.get("offer_number") or ""),
         company_name=str(approval.get("company_name") or ""),
         contact_name=str(approval.get("contact_name") or ""),
@@ -1296,14 +1296,14 @@ def list_offer_notifications(user: AuthUser = Depends(get_current_user)) -> list
     notifications: list[OfferNotificationRead] = []
     for approval in load_pending_offer_approvals().values():
         status_value = str(approval.get("status") or "")
-        if status_value not in {"approved", "rejected"}:
+        if status_value not in {"pending", "approved", "rejected"}:
             continue
         if _offer_approval_creator_id(approval, activity_by_id) != user.id:
             continue
         if str(approval.get("creator_dismissed_at") or ""):
             continue
         notifications.append(_offer_notification_from_approval(approval))
-    return sorted(notifications, key=lambda item: item.approved_at or item.rejected_at, reverse=True)
+    return sorted(notifications, key=lambda item: item.approved_at or item.rejected_at or item.id, reverse=True)
 
 
 @app.post("/api/offer-notifications/{approval_id}/dismiss", response_model=OkResponse)

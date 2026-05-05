@@ -699,7 +699,7 @@ async function loadActivity() {
 }
 
 async function loadOfferNotifications() {
-  if (!canOpenOfferTool()) {
+  if (!state.me) {
     state.offerNotifications = [];
     state.offerNotificationModalId = "";
     return;
@@ -2712,9 +2712,9 @@ function agentCardsMarkup() {
 
 function offerNotificationTitle(item) {
   const target = item.company_name || item.contact_name || item.offer_number || "Teklif";
-  return item.status === "approved"
-    ? `${target} teklifi onaylandÄ±`
-    : `${target} teklifi reddedildi`;
+  if (item.status === "approved") return `${target} teklifi onaylandÄ±`;
+  if (item.status === "rejected") return `${target} teklifi reddedildi`;
+  return `${target} teklifi admin onayÄ± bekliyor`;
 }
 
 function offerNotificationsMarkup() {
@@ -2731,7 +2731,7 @@ function offerNotificationsMarkup() {
           .map(
             (item) => `
               <button class="btn ${item.status === "approved" ? "btn-primary" : "btn-soft"}" type="button" data-offer-notification-open="${escapeHtml(item.id)}">
-                ${escapeHtml(item.status === "approved" ? "OnaylandÄ±" : "Reddedildi")} / ${escapeHtml(item.offer_number || item.company_name || "Teklif")}
+                ${escapeHtml(item.status === "approved" ? "OnaylandÄ±" : item.status === "rejected" ? "Reddedildi" : "Onay bekliyor")} / ${escapeHtml(item.offer_number || item.company_name || "Teklif")}
               </button>
             `,
           )
@@ -2745,11 +2745,12 @@ function offerNotificationModalMarkup() {
   const item = state.offerNotifications.find((candidate) => candidate.id === state.offerNotificationModalId);
   if (!item) return "";
   const isApproved = item.status === "approved";
+  const isRejected = item.status === "rejected";
   return `
     <div class="modal-backdrop" id="offer-notification-backdrop">
       <section class="modal-window" id="offer-notification-modal" role="dialog" aria-modal="true" aria-labelledby="offer-notification-title">
         <header class="modal-titlebar">
-          <strong id="offer-notification-title">${escapeHtml(isApproved ? "Teklif onaylandÄ±" : "Teklif reddedildi")}</strong>
+          <strong id="offer-notification-title">${escapeHtml(isApproved ? "Teklif onaylandÄ±" : isRejected ? "Teklif reddedildi" : "Teklif onay bekliyor")}</strong>
           <button class="window-close" type="button" id="close-offer-notification-modal" aria-label="Kapat">×</button>
         </header>
         <div class="modal-body single-column">
@@ -2765,9 +2766,11 @@ function offerNotificationModalMarkup() {
               isApproved
                 ? `<p class="helper">Admin tarafÄ±ndan onaylandÄ±. Teklifi buradan indirebilirsin.</p>
                    <a class="btn btn-primary" href="${escapeHtml(item.download_url)}">Teklifi indir</a>`
-                : `<p class="helper">Admin tarafÄ±ndan reddedildi. Ä°ndirme kapatÄ±ldÄ±.</p>
+                : isRejected
+                  ? `<p class="helper">Admin tarafÄ±ndan reddedildi. Ä°ndirme kapatÄ±ldÄ±.</p>
                    <div class="reject-reason"><span>Red sebebi</span><strong>${escapeHtml(item.rejection_reason || "Sebep belirtilmedi.")}</strong></div>
                    <button class="btn btn-outline-primary" type="button" data-offer-notification-dismiss="${escapeHtml(item.id)}">Bildirimi kapat</button>`
+                  : `<p class="helper">Teklif admin kontrolüne gönderildi. Admin onay verirse indir butonu burada açılacak; reddederse red sebebi burada görünecek.</p>`
             }
           </section>
         </div>

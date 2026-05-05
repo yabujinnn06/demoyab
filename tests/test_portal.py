@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import importlib
+import json
 import sqlite3
 import sys
 import uuid
@@ -1298,6 +1299,88 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         assert "Teklif akışlarını tek merkezden yönet" in granted_offer.text
         assert "Şablon PDF yükle" not in granted_offer.text
         assert "/teklif/static/styles.css" in granted_offer.text
+
+
+def test_offer_notifications_include_pending_for_creator_without_offer_access(tmp_path, monkeypatch) -> None:
+    offer_base = tmp_path / "offer_data"
+    offer_data_dir = offer_base / "veri"
+    offer_data_dir.mkdir(parents=True)
+
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.setenv("CALL_PORTAL_OFFER_DATA_DIR", str(offer_base))
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+
+    with TestClient(app) as client:
+        admin_login = client.post(
+            "/api/auth/login",
+            json={"email": "admin@test.local", "password": "Admin12345!"},
+        )
+        assert admin_login.status_code == 200
+        admin_token = admin_login.json()["access_token"]
+
+        created_user = client.post(
+            "/api/users",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "full_name": "Bildirim Operator",
+                "email": "bildirim@test.local",
+                "password": "Operator123!",
+                "role": "agent",
+                "can_access_offer_tool": False,
+            },
+        )
+        assert created_user.status_code == 201
+        creator_id = created_user.json()["id"]
+
+        (offer_data_dir / "pending_offer_approvals.json").write_text(
+            json.dumps(
+                {
+                    "approval-1": {
+                        "approval_id": "approval-1",
+                        "creator_user_id": creator_id,
+                        "creator_email": "bildirim@test.local",
+                        "status": "pending",
+                        "offer_number": "RW-TEST-1",
+                        "company_name": "Test Firma",
+                        "generated_name": "RW-TEST-1.pdf",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        agent_login = client.post(
+            "/api/auth/login",
+            json={"email": "bildirim@test.local", "password": "Operator123!"},
+        )
+        assert agent_login.status_code == 200
+        agent_token = agent_login.json()["access_token"]
+
+        response = client.get(
+            "/api/offer-notifications",
+            headers={"Authorization": f"Bearer {agent_token}"},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "id": "approval-1",
+                "status": "pending",
+                "offer_number": "RW-TEST-1",
+                "company_name": "Test Firma",
+                "contact_name": "",
+                "generated_name": "RW-TEST-1.pdf",
+                "approved_at": "",
+                "rejected_at": "",
+                "rejection_reason": "",
+                "download_url": "",
+            }
+        ]
 
 
 def test_offer_manual_match_preview_makes_row_actionable(tmp_path) -> None:
