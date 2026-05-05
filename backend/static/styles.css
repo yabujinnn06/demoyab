@@ -9254,17 +9254,74 @@ button,
   color: #581c1c;
 }
 
+.offer-activity-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.offer-activity-panel .panel-head {
+  align-items: center;
+}
+
+.offer-activity-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.offer-activity-item {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.offer-activity-item .activity-head {
+  gap: 8px;
+}
+
+.offer-activity-item .activity-body {
+  display: grid;
+  gap: 6px;
+}
+
+.offer-activity-item .record-actions {
+  align-items: center;
+  gap: 6px;
+}
+
+.offer-activity-more {
+  margin: 0;
+}
+
+.reject-reason.compact {
+  padding: 8px;
+}
+
 @media (max-width: 720px) {
   .offer-notification-strip {
     align-items: stretch;
     flex-direction: column;
   }
 
+  .offer-activity-panel .panel-head,
+  .offer-activity-item .activity-head,
+  .offer-activity-item .record-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .offer-activity-list {
+    max-height: 280px;
+  }
+
   .offer-notification-actions {
     justify-content: stretch;
   }
 
-  .offer-notification-actions .btn {
+  .offer-notification-actions .btn,
+  .offer-activity-panel .btn {
     width: 100%;
   }
 }

@@ -26,7 +26,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from openpyxl import Workbook
 
-from .portal_auth import enforce_offer_access, get_offer_portal_user, require_offer_admin
+from .portal_auth import enforce_offer_access, get_offer_portal_user, require_offer_admin, require_offer_user
 from .teklif_kontrol import (
     AUTO_OFFER_NUMBER_PATTERN,
     DEFAULT_VAT_RATE,
@@ -3762,6 +3762,11 @@ async def create_offer(
 
 
 @app.get("/admin/activity-file/{entry_id}/{file_index}")
+async def download_admin_activity_file(request: Request, entry_id: str, file_index: int) -> FileResponse:
+    return await download_activity_file(request, entry_id, file_index)
+
+
+@app.get("/activity-file/{entry_id}/{file_index}")
 async def download_activity_file(request: Request, entry_id: str, file_index: int) -> FileResponse:
     try:
         user = require_offer_user(request)

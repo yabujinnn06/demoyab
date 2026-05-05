@@ -73,6 +73,8 @@ const state = {
   offerNotifications: [],
   offerActivity: [],
   offerNotificationModalId: "",
+  seenOfferNotificationStatuses: new Map(),
+  offerNotificationsInitialized: false,
   selectedListId: "",
   uploadFile: null,
   uploadListName: "",
@@ -179,6 +181,8 @@ function resetSessionState(message = "") {
   state.offerNotifications = [];
   state.offerActivity = [];
   state.offerNotificationModalId = "";
+  state.seenOfferNotificationStatuses = new Map();
+  state.offerNotificationsInitialized = false;
   state.selectedListId = "";
   state.uploadFile = null;
   state.uploadListName = "";
@@ -704,9 +708,24 @@ async function loadOfferNotifications() {
   if (!state.me) {
     state.offerNotifications = [];
     state.offerNotificationModalId = "";
+    state.seenOfferNotificationStatuses = new Map();
+    state.offerNotificationsInitialized = false;
     return;
   }
-  state.offerNotifications = await api("/api/offer-notifications");
+  const notifications = await api("/api/offer-notifications");
+  if (state.offerNotificationsInitialized) {
+    const fresh = notifications.find((item) => {
+      const previousStatus = state.seenOfferNotificationStatuses.get(item.id);
+      return item.status !== "pending" && previousStatus !== item.status;
+    });
+    if (fresh) {
+      const label = fresh.status === "approved" ? "onaylandı" : "reddedildi";
+      setFlash(fresh.status === "approved" ? "success" : "error", `${fresh.offer_number || fresh.company_name || "Teklif"} ${label}.`);
+    }
+  }
+  state.offerNotifications = notifications;
+  state.seenOfferNotificationStatuses = new Map(notifications.map((item) => [item.id, item.status]));
+  state.offerNotificationsInitialized = true;
   if (
     state.offerNotificationModalId
     && !state.offerNotifications.some((item) => item.id === state.offerNotificationModalId)
@@ -2798,6 +2817,8 @@ function offerApprovalStatusLabel(status) {
 }
 
 function offerActivityPanelMarkup() {
+  const visibleItems = state.offerActivity.slice(0, 3);
+  const hiddenCount = Math.max(0, state.offerActivity.length - visibleItems.length);
   if (!state.offerActivity.length) {
     return `
       <section class="panel window-shell offer-activity-panel">
@@ -2807,6 +2828,7 @@ function offerActivityPanelMarkup() {
             <h2>Teklif geçmişi</h2>
             <p>Kendi oluşturduğun tekliflerin onay durumları burada görünür.</p>
           </div>
+          <a class="btn btn-soft table-action" href="/teklif/" target="_blank" rel="noreferrer">Offer Studio</a>
         </div>
         <p class="empty">Henüz teklif hareketi yok.</p>
       </section>
@@ -2818,12 +2840,12 @@ function offerActivityPanelMarkup() {
         <div>
           <p class="section-kicker">Teklif Hareketleri</p>
           <h2>Teklif geçmişi</h2>
-          <p>Kendi yetkine uygun teklif hareketlerini buradan takip et.</p>
+          <p>Son hareketlerin kısa özeti.</p>
         </div>
-        <span class="badge active">${state.offerActivity.length} kayıt</span>
+        <a class="btn btn-soft table-action" href="/teklif/" target="_blank" rel="noreferrer">Tümünü aç</a>
       </div>
       <div class="activity-list offer-activity-list">
-        ${state.offerActivity
+        ${visibleItems
           .map((item) => {
             const files = (item.files || [])
               .map((file) => {
@@ -2860,6 +2882,7 @@ function offerActivityPanelMarkup() {
           })
           .join("")}
       </div>
+      ${hiddenCount ? `<p class="record-meta offer-activity-more">+${hiddenCount} hareket daha Offer Studio içinde.</p>` : ""}
     </section>
   `;
 }

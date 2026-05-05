@@ -1452,6 +1452,17 @@ def test_offer_notifications_include_pending_for_creator_without_offer_access(tm
         assert download.status_code == 200
         assert download.content.startswith(b"%PDF-1.4")
 
+        grant_offer_access = client.patch(
+            f"/api/users/{creator_id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"can_access_offer_tool": True},
+        )
+        assert grant_offer_access.status_code == 200
+
+        offer_module_download = client.get("/teklif/activity-file/entry-create/0")
+        assert offer_module_download.status_code == 200
+        assert offer_module_download.content.startswith(b"%PDF-1.4")
+
 
 def test_offer_manual_match_preview_makes_row_actionable(tmp_path) -> None:
     from openpyxl import Workbook
