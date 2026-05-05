@@ -21,7 +21,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from .database import CURRENT_SCHEMA_VERSION, get_connection, init_db, utcnow
-from .offer_module.webapp import create_offer_app
+from .offer_module.webapp import (
+    create_offer_app,
+    load_activity_log as load_offer_activity_log,
+    load_pending_offer_approvals,
+    resolve_activity_file_path,
+    save_pending_offer_approvals,
+)
 from .security import create_token, decode_token, get_password_hash, get_token_ttl_hours, verify_password
 from .xlsx_reader import parse_xlsx_records, raw_payload_json
 
@@ -363,6 +369,19 @@ class ActivityRead(BaseModel):
     next_result_status: str | None = None
     note: str | None = None
     created_at: str
+
+
+class OfferNotificationRead(BaseModel):
+    id: str
+    status: Literal["approved", "rejected"]
+    offer_number: str = ""
+    company_name: str = ""
+    contact_name: str = ""
+    generated_name: str = ""
+    approved_at: str = ""
+    rejected_at: str = ""
+    rejection_reason: str = ""
+    download_url: str = ""
 
 
 class CallListAssignRequest(BaseModel):
@@ -1095,6 +1114,31 @@ def require_admin(user: AuthUser = Depends(get_current_user)) -> AuthUser:
     return user
 
 
+def _offer_approval_creator_id(approval: dict, activity_by_id: dict[str, dict]) -> str:
+    creator_id = str(approval.get("creator_user_id") or "")
+    if creator_id:
+        return creator_id
+    entry = activity_by_id.get(str(approval.get("activity_entry_id") or "")) or {}
+    return str(entry.get("actor_id") or "")
+
+
+def _offer_notification_from_approval(approval: dict) -> OfferNotificationRead:
+    approval_id = str(approval.get("approval_id") or "")
+    status_value = str(approval.get("status") or "")
+    return OfferNotificationRead(
+        id=approval_id,
+        status="approved" if status_value == "approved" else "rejected",
+        offer_number=str(approval.get("offer_number") or ""),
+        company_name=str(approval.get("company_name") or ""),
+        contact_name=str(approval.get("contact_name") or ""),
+        generated_name=str(approval.get("generated_name") or ""),
+        approved_at=str(approval.get("approved_at") or ""),
+        rejected_at=str(approval.get("rejected_at") or ""),
+        rejection_reason=str(approval.get("rejection_reason") or ""),
+        download_url=f"/api/offer-notifications/{approval_id}/download" if status_value == "approved" else "",
+    )
+
+
 @app.middleware("http")
 async def apply_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -1244,6 +1288,55 @@ def me(user: AuthUser = Depends(get_current_user)) -> UserRead:
         if row is None:
             raise _api_error(404, "Kullanici bulunamadi.")
         return _user_read(row)
+
+
+@app.get("/api/offer-notifications", response_model=list[OfferNotificationRead])
+def list_offer_notifications(user: AuthUser = Depends(get_current_user)) -> list[OfferNotificationRead]:
+    activity_by_id = {str(entry.get("id") or ""): entry for entry in load_offer_activity_log()}
+    notifications: list[OfferNotificationRead] = []
+    for approval in load_pending_offer_approvals().values():
+        status_value = str(approval.get("status") or "")
+        if status_value not in {"approved", "rejected"}:
+            continue
+        if _offer_approval_creator_id(approval, activity_by_id) != user.id:
+            continue
+        if str(approval.get("creator_dismissed_at") or ""):
+            continue
+        notifications.append(_offer_notification_from_approval(approval))
+    return sorted(notifications, key=lambda item: item.approved_at or item.rejected_at, reverse=True)
+
+
+@app.post("/api/offer-notifications/{approval_id}/dismiss", response_model=OkResponse)
+def dismiss_offer_notification(approval_id: str, user: AuthUser = Depends(get_current_user)) -> OkResponse:
+    approvals = load_pending_offer_approvals()
+    approval = approvals.get(approval_id)
+    if approval is None:
+        raise _api_error(404, "Teklif bildirimi bulunamadi.")
+    activity_by_id = {str(entry.get("id") or ""): entry for entry in load_offer_activity_log()}
+    if _offer_approval_creator_id(approval, activity_by_id) != user.id:
+        raise _api_error(403, "Bu bildirim bu kullaniciya ait degil.")
+    if str(approval.get("status") or "") != "rejected":
+        raise _api_error(422, "Sadece reddedilen teklif bildirimi kapatilabilir.")
+    approval["creator_dismissed_at"] = utcnow()
+    approvals[approval_id] = approval
+    save_pending_offer_approvals(approvals)
+    return OkResponse(ok=True)
+
+
+@app.get("/api/offer-notifications/{approval_id}/download")
+def download_approved_offer(approval_id: str, user: AuthUser = Depends(get_current_user)) -> FileResponse:
+    approval = load_pending_offer_approvals().get(approval_id)
+    if approval is None:
+        raise _api_error(404, "Teklif bildirimi bulunamadi.")
+    activity_by_id = {str(entry.get("id") or ""): entry for entry in load_offer_activity_log()}
+    if _offer_approval_creator_id(approval, activity_by_id) != user.id:
+        raise _api_error(403, "Bu teklif bu kullaniciya ait degil.")
+    if str(approval.get("status") or "") != "approved":
+        raise _api_error(403, "Teklif admin tarafindan onaylanmadan indirilemez.")
+    path = resolve_activity_file_path(str(approval.get("generated_path") or ""))
+    if not path.exists() or not path.is_file():
+        raise _api_error(404, "Teklif dosyasi bulunamadi.")
+    return FileResponse(path, filename=path.name)
 
 
 @app.get("/api/users", response_model=list[UserRead])

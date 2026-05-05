@@ -680,10 +680,11 @@
                               <button class="btn btn-sm btn-primary mt-2" type="submit" {% if not entry.approval_checked %}disabled title="Önce kontrol et"{% endif %}>Onayla</button>
                             </form>
                             <form method="post" action="{{ request.url_for('offer-tool:reject_generated_offer', approval_id=entry.approval_id) }}" class="d-inline">
+                              <input class="form-control form-control-sm mt-2" type="text" name="rejection_reason" placeholder="Red sebebi">
                               <button class="btn btn-sm btn-outline-danger mt-2" type="submit">Reddet</button>
                             </form>
                           {% elif entry.approval_is_approved and entry.approved_mailto %}
-                            <a class="btn btn-sm btn-outline-primary mt-2" href="{{ entry.approved_mailto }}">Mail hazirla</a>
+                            <span class="activity-file-link">Çalışana bildirildi</span>
                           {% elif entry.approval_is_rejected %}
                             <span class="activity-file-missing">Reddedildi</span>
                           {% elif entry.approval_is_replaced %}

@@ -766,6 +766,8 @@ def register_pending_offer_approval(entry: dict, generated_offer_path: Path, det
     user_details = {
         "approval_id": approval_id,
         "activity_entry_id": str(entry.get("id") or ""),
+        "creator_user_id": str(entry.get("actor_id") or ""),
+        "creator_email": str(entry.get("actor_email") or ""),
         "status": "pending",
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "approved_at": "",
@@ -3931,7 +3933,11 @@ async def edit_pending_generated_offer(request: Request, approval_id: str) -> HT
 
 
 @app.post("/admin/offers/{approval_id}/reject", response_class=HTMLResponse)
-async def reject_generated_offer(request: Request, approval_id: str) -> HTMLResponse:
+async def reject_generated_offer(
+    request: Request,
+    approval_id: str,
+    rejection_reason: str = Form(""),
+) -> HTMLResponse:
     try:
         admin = require_offer_admin(request)
     except PermissionError as exc:
@@ -3954,6 +3960,7 @@ async def reject_generated_offer(request: Request, approval_id: str) -> HTMLResp
     approval["status"] = "rejected"
     approval["rejected_at"] = datetime.now().isoformat(timespec="seconds")
     approval["rejected_by"] = admin.email
+    approval["rejection_reason"] = rejection_reason.strip()
     approvals[approval_id] = approval
     save_pending_offer_approvals(approvals)
     update_activity_entry_details(
@@ -3962,6 +3969,7 @@ async def reject_generated_offer(request: Request, approval_id: str) -> HTMLResp
             "approval_status": "rejected",
             "rejected_by": admin.email,
             "rejected_at": approval["rejected_at"],
+            "rejection_reason": rejection_reason.strip(),
         },
     )
     append_activity_log(
@@ -3972,6 +3980,7 @@ async def reject_generated_offer(request: Request, approval_id: str) -> HTMLResp
             "approval_id": approval_id,
             "offer_number": approval.get("offer_number") or "",
             "company_name": approval.get("company_name") or "",
+            "rejection_reason": rejection_reason.strip(),
         },
     )
     context = build_context(

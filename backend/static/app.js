@@ -70,6 +70,8 @@ const state = {
   filteredSummary: null,
   users: [],
   activity: [],
+  offerNotifications: [],
+  offerNotificationModalId: "",
   selectedListId: "",
   uploadFile: null,
   uploadListName: "",
@@ -142,11 +144,12 @@ function bindGlobalActivityListeners() {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    if (!(state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen)) return;
+    if (!(state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen || state.offerNotificationModalId)) return;
     state.teamModalOpen = false;
     state.listsModalOpen = false;
     state.contactPoolModalOpen = false;
     state.operatorControlModalOpen = false;
+    state.offerNotificationModalId = "";
     render();
   });
 }
@@ -172,6 +175,8 @@ function resetSessionState(message = "") {
   state.filteredSummary = null;
   state.users = [];
   state.activity = [];
+  state.offerNotifications = [];
+  state.offerNotificationModalId = "";
   state.selectedListId = "";
   state.uploadFile = null;
   state.uploadListName = "";
@@ -569,7 +574,7 @@ function markSync(source) {
 }
 
 async function refreshOperationalData(source = "manual") {
-  const tasks = [loadLists(), loadRecords(), loadActivity(), loadOperatorStats(), loadOperationSummary()];
+  const tasks = [loadLists(), loadRecords(), loadActivity(), loadOfferNotifications(), loadOperatorStats(), loadOperationSummary()];
   if (state.contactPoolModalOpen) {
     tasks.push(loadContactPool());
   }
@@ -613,7 +618,7 @@ function hasLocalInteraction() {
   const active = document.activeElement;
   const recentlyTouched = Date.now() - interactionState.lastUserInteractionAt < 12000;
   if (recentlyTouched) return true;
-  if (state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen) return true;
+  if (state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen || state.offerNotificationModalId) return true;
   if (state.uploadFile) return true;
   if (Object.keys(state.recordDrafts).length > 0) return true;
   if (Object.keys(state.contactPoolDrafts).length > 0) return true;
@@ -621,7 +626,7 @@ function hasLocalInteraction() {
     if (active.matches("input, select, textarea, button")) return true;
     if (
       active.closest(
-        "#upload-form, #user-form, #assign-form, #team-modal, #contact-pool-modal, #operator-control-modal, .records-table, .filter-panel, #login-form",
+        "#upload-form, #user-form, #assign-form, #team-modal, #contact-pool-modal, #operator-control-modal, #offer-notification-modal, .records-table, .filter-panel, #login-form",
       )
     ) {
       return true;
@@ -661,11 +666,7 @@ async function loadSession() {
     await Promise.all([loadLists(), loadUsersIfAdmin()]);
     await refreshOperationalData("login");
     state.booting = false;
-    if (state.me?.role === "admin") {
-      startPolling();
-    } else {
-      stopPolling();
-    }
+    startPolling();
   } catch (error) {
     if (hadStoredToken) {
       console.error(error);
@@ -695,6 +696,21 @@ async function loadActivity() {
   if (state.selectedListId) params.set("call_list_id", state.selectedListId);
   params.set("limit", "25");
   state.activity = await api(`/api/activity?${params.toString()}`);
+}
+
+async function loadOfferNotifications() {
+  if (!canOpenOfferTool()) {
+    state.offerNotifications = [];
+    state.offerNotificationModalId = "";
+    return;
+  }
+  state.offerNotifications = await api("/api/offer-notifications");
+  if (
+    state.offerNotificationModalId
+    && !state.offerNotifications.some((item) => item.id === state.offerNotificationModalId)
+  ) {
+    state.offerNotificationModalId = "";
+  }
 }
 
 async function loadOperatorStats() {
@@ -824,10 +840,6 @@ async function loadRecords() {
 }
 
 function startPolling() {
-  if (state.me?.role !== "admin") {
-    stopPolling();
-    return;
-  }
   if (state.pollingHandle) {
     window.clearInterval(state.pollingHandle);
   }
@@ -2698,6 +2710,72 @@ function agentCardsMarkup() {
   return recordsTableMarkup();
 }
 
+function offerNotificationTitle(item) {
+  const target = item.company_name || item.contact_name || item.offer_number || "Teklif";
+  return item.status === "approved"
+    ? `${target} teklifi onaylandÄ±`
+    : `${target} teklifi reddedildi`;
+}
+
+function offerNotificationsMarkup() {
+  if (!state.offerNotifications.length) return "";
+  return `
+    <section class="offer-notification-strip" aria-label="Teklif bildirimi">
+      <div>
+        <span>Teklif bildirimi</span>
+        <strong>${state.offerNotifications.length} teklif sonucu var</strong>
+        <small>DetayÄ± gÃ¶rmek iÃ§in ilgili bildirime tÄ±kla</small>
+      </div>
+      <div class="offer-notification-actions">
+        ${state.offerNotifications
+          .map(
+            (item) => `
+              <button class="btn ${item.status === "approved" ? "btn-primary" : "btn-soft"}" type="button" data-offer-notification-open="${escapeHtml(item.id)}">
+                ${escapeHtml(item.status === "approved" ? "OnaylandÄ±" : "Reddedildi")} / ${escapeHtml(item.offer_number || item.company_name || "Teklif")}
+              </button>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function offerNotificationModalMarkup() {
+  const item = state.offerNotifications.find((candidate) => candidate.id === state.offerNotificationModalId);
+  if (!item) return "";
+  const isApproved = item.status === "approved";
+  return `
+    <div class="modal-backdrop" id="offer-notification-backdrop">
+      <section class="modal-window" id="offer-notification-modal" role="dialog" aria-modal="true" aria-labelledby="offer-notification-title">
+        <header class="modal-titlebar">
+          <strong id="offer-notification-title">${escapeHtml(isApproved ? "Teklif onaylandÄ±" : "Teklif reddedildi")}</strong>
+          <button class="window-close" type="button" id="close-offer-notification-modal" aria-label="Kapat">×</button>
+        </header>
+        <div class="modal-body single-column">
+          <section class="panel stack modal-panel offer-notification-detail">
+            <p class="section-kicker mb-1">Teklif bildirimi</p>
+            <h2>${escapeHtml(offerNotificationTitle(item))}</h2>
+            <dl class="notification-pairs">
+              <div><dt>Teklif no</dt><dd>${escapeHtml(item.offer_number || "-")}</dd></div>
+              <div><dt>Dosya</dt><dd>${escapeHtml(item.generated_name || "-")}</dd></div>
+              <div><dt>Firma</dt><dd>${escapeHtml(item.company_name || item.contact_name || "-")}</dd></div>
+            </dl>
+            ${
+              isApproved
+                ? `<p class="helper">Admin tarafÄ±ndan onaylandÄ±. Teklifi buradan indirebilirsin.</p>
+                   <a class="btn btn-primary" href="${escapeHtml(item.download_url)}">Teklifi indir</a>`
+                : `<p class="helper">Admin tarafÄ±ndan reddedildi. Ä°ndirme kapatÄ±ldÄ±.</p>
+                   <div class="reject-reason"><span>Red sebebi</span><strong>${escapeHtml(item.rejection_reason || "Sebep belirtilmedi.")}</strong></div>
+                   <button class="btn btn-outline-primary" type="button" data-offer-notification-dismiss="${escapeHtml(item.id)}">Bildirimi kapat</button>`
+            }
+          </section>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 function appMarkup() {
   const currentList = selectedList();
   return `
@@ -2712,6 +2790,7 @@ function appMarkup() {
         ${sessionHeaderMarkup(currentList)}
 
         ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
+        ${offerNotificationsMarkup()}
         ${statsMarkup()}
         ${operationFocusRailMarkup(currentList)}
         ${managementDashboardMarkup()}
@@ -2728,6 +2807,7 @@ function appMarkup() {
       ${listsModalMarkup()}
       ${contactPoolModalMarkup()}
       ${operatorControlModalMarkup()}
+      ${offerNotificationModalMarkup()}
     </div>
   `;
 }
@@ -2735,7 +2815,7 @@ function appMarkup() {
 function render() {
   document.body.classList.toggle(
     "modal-open",
-    Boolean(state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen),
+    Boolean(state.teamModalOpen || state.listsModalOpen || state.contactPoolModalOpen || state.operatorControlModalOpen || state.offerNotificationModalId),
   );
   appNode.innerHTML = state.booting ? bootMarkup() : state.me ? appMarkup() : loginMarkup();
   bindEvents();
@@ -2876,6 +2956,27 @@ async function openOperatorControlModal() {
 function closeOperatorControlModal() {
   state.operatorControlModalOpen = false;
   render();
+}
+
+function openOfferNotification(notificationId) {
+  state.offerNotificationModalId = notificationId || "";
+  render();
+}
+
+function closeOfferNotificationModal() {
+  state.offerNotificationModalId = "";
+  render();
+}
+
+async function dismissOfferNotification(notificationId) {
+  try {
+    await api(`/api/offer-notifications/${encodeURIComponent(notificationId)}/dismiss`, { method: "POST" });
+    state.offerNotificationModalId = "";
+    await loadOfferNotifications();
+    render();
+  } catch (error) {
+    setFlash("error", error.message);
+  }
 }
 
 async function selectOperatorDetail(userId) {
@@ -3315,6 +3416,13 @@ function bindEvents() {
   document.querySelector("#close-contact-pool-modal")?.addEventListener("click", closeContactPoolModal);
   document.querySelector("#open-operator-control-modal")?.addEventListener("click", openOperatorControlModal);
   document.querySelector("#close-operator-control-modal")?.addEventListener("click", closeOperatorControlModal);
+  document.querySelector("#close-offer-notification-modal")?.addEventListener("click", closeOfferNotificationModal);
+  document.querySelectorAll("[data-offer-notification-open]").forEach((node) => {
+    node.addEventListener("click", () => openOfferNotification(node.getAttribute("data-offer-notification-open")));
+  });
+  document.querySelectorAll("[data-offer-notification-dismiss]").forEach((node) => {
+    node.addEventListener("click", () => dismissOfferNotification(node.getAttribute("data-offer-notification-dismiss")));
+  });
   document.querySelector("#toggle-upload-flyout")?.addEventListener("click", () => {
     state.sidebarPanel = state.sidebarPanel === "upload" ? "" : "upload";
     render();
@@ -3341,6 +3449,11 @@ function bindEvents() {
   document.querySelector("#operator-control-modal-backdrop")?.addEventListener("click", (event) => {
     if (event.target.id === "operator-control-modal-backdrop") {
       closeOperatorControlModal();
+    }
+  });
+  document.querySelector("#offer-notification-backdrop")?.addEventListener("click", (event) => {
+    if (event.target.id === "offer-notification-backdrop") {
+      closeOfferNotificationModal();
     }
   });
   document.querySelector("#upload-form")?.addEventListener("submit", handleUpload);
