@@ -1298,6 +1298,9 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         assert granted_offer.status_code == 200
         assert "Teklif akışlarını tek merkezden yönet" in granted_offer.text
         assert "Şablon PDF yükle" not in granted_offer.text
+        assert "/teklif/admin/import-template" not in granted_offer.text
+        assert "template_file_upload" not in granted_offer.text
+        assert "create-import-template-file" not in granted_offer.text
         assert "/teklif/static/styles.css" in granted_offer.text
 
 
@@ -1387,6 +1390,12 @@ def test_offer_assets_are_admin_managed_and_global_for_agents(tmp_path, monkeypa
                 },
             )
             assert forbidden_settings.status_code == 403
+            forbidden_template_upload = agent_client.post(
+                "/teklif/admin/import-template",
+                files={"template_file_upload": ("operator-template.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+                data={"activate_after_import": "on", "active_workspace": "settings"},
+            )
+            assert forbidden_template_upload.status_code == 403
 
         admin_update = client.post(
             "/teklif/admin/save-settings",

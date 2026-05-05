@@ -1454,30 +1454,6 @@
                 <p class="section-copy mb-0">Sabit şablon, seçili fiyat listesi ve seçilen ürün satırları ile yeni teklif PDF'i oluştur.</p>
               </div>
 
-              {% if offer_is_admin %}
-                <div class="form-section mb-4">
-                  <form method="post" action="{{ request.url_for('offer-tool:admin_import_template') }}" enctype="multipart/form-data" class="row g-3 align-items-end">
-                    <input type="hidden" name="active_workspace" value="create">
-                    <div class="col-12 col-xl-5">
-                      <p class="section-kicker mb-1">Şablon havuzu</p>
-                      <h3 class="h5 mb-1">Şablon PDF yükle</h3>
-                      <p class="helper-text mb-0">Yeni teklif üretiminde kullanılacak sabit PDF şablonunu buradan ekle.</p>
-                    </div>
-                    <div class="col-12 col-md-6 col-xl-4">
-                      <label class="form-label" for="create-import-template-file">PDF dosyası</label>
-                      <input class="form-control" id="create-import-template-file" type="file" name="template_file_upload" accept=".pdf" required>
-                    </div>
-                    <div class="col-12 col-md-6 col-xl-3">
-                      <div class="form-check mb-2">
-                        <input class="form-check-input" id="create-import-template-activate" type="checkbox" name="activate_after_import" checked>
-                        <label class="form-check-label" for="create-import-template-activate">Aktif şablon yap</label>
-                      </div>
-                      <button class="btn btn-outline-primary w-100" type="submit">Şablonu ekle</button>
-                    </div>
-                  </form>
-                </div>
-              {% endif %}
-
               <form method="post" action="{{ request.url_for('offer-tool:create_offer') }}" class="vstack gap-4">
                 <input type="hidden" name="active_workspace" value="create">
                 <input type="hidden" name="source_approval_id" value="{{ create_state.source_approval_id }}">
@@ -1782,7 +1758,7 @@
                 <div class="accordion-item">
                   <h2 class="accordion-header" id="settings-heading-three">
                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-collapse-three" aria-expanded="false" aria-controls="settings-collapse-three">
-                      Yeni şablon ekle
+                      Şablon PDF yükle
                     </button>
                   </h2>
                   <div id="settings-collapse-three" class="accordion-collapse collapse" aria-labelledby="settings-heading-three" data-bs-parent="#settingsAccordion">
