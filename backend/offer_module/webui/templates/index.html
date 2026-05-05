@@ -670,8 +670,14 @@
                             {% endif %}
                           {% endfor %}
                           {% if entry.approval_is_pending %}
+                            <form method="post" action="{{ request.url_for('offer-tool:check_pending_generated_offer', approval_id=entry.approval_id) }}" class="d-inline">
+                              <button class="btn btn-sm btn-outline-primary mt-2" type="submit">Kontrol et</button>
+                            </form>
+                            <form method="post" action="{{ request.url_for('offer-tool:edit_pending_generated_offer', approval_id=entry.approval_id) }}" class="d-inline">
+                              <button class="btn btn-sm btn-outline-secondary mt-2" type="submit">Düzenle</button>
+                            </form>
                             <form method="post" action="{{ request.url_for('offer-tool:approve_generated_offer', approval_id=entry.approval_id) }}" class="d-inline">
-                              <button class="btn btn-sm btn-primary mt-2" type="submit">Onayla</button>
+                              <button class="btn btn-sm btn-primary mt-2" type="submit" {% if not entry.approval_checked %}disabled title="Önce kontrol et"{% endif %}>Onayla</button>
                             </form>
                             <form method="post" action="{{ request.url_for('offer-tool:reject_generated_offer', approval_id=entry.approval_id) }}" class="d-inline">
                               <button class="btn btn-sm btn-outline-danger mt-2" type="submit">Reddet</button>
@@ -680,6 +686,8 @@
                             <a class="btn btn-sm btn-outline-primary mt-2" href="{{ entry.approved_mailto }}">Mail hazirla</a>
                           {% elif entry.approval_is_rejected %}
                             <span class="activity-file-missing">Reddedildi</span>
+                          {% elif entry.approval_is_replaced %}
+                            <span class="activity-file-missing">Düzenlenerek yenilendi</span>
                           {% endif %}
                         </div>
                       </td>
@@ -1458,6 +1466,7 @@
 
               <form method="post" action="{{ request.url_for('offer-tool:create_offer') }}" class="vstack gap-4">
                 <input type="hidden" name="active_workspace" value="create">
+                <input type="hidden" name="source_approval_id" value="{{ create_state.source_approval_id }}">
                 {% if token %}
                   <input type="hidden" name="compare_token" value="{{ token }}">
                 {% endif %}

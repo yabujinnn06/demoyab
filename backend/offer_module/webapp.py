@@ -789,11 +789,54 @@ def register_pending_offer_approval(entry: dict, generated_offer_path: Path, det
     return approval_id
 
 
+def update_pending_offer_approval(approval_id: str, updates: dict) -> dict | None:
+    approvals = load_pending_offer_approvals()
+    approval = approvals.get(approval_id)
+    if approval is None:
+        return None
+    approval.update(updates)
+    approvals[approval_id] = approval
+    save_pending_offer_approvals(approvals)
+    return approval
+
+
 def pending_offer_for_activity(entry_id: str) -> dict | None:
     for approval in load_pending_offer_approvals().values():
         if str(approval.get("activity_entry_id") or "") == entry_id:
             return approval
     return None
+
+
+def create_state_from_pending_approval(approval: dict) -> dict:
+    stored_state = approval.get("create_state") if isinstance(approval.get("create_state"), dict) else {}
+    state = {**default_create_state(str(approval.get("price_file") or "")), **stored_state}
+    items = state.get("items") if isinstance(state.get("items"), list) else []
+    clean_items: list[dict] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        clean_items.append(
+            {
+                "product_row_id": str(item.get("product_row_id") or ""),
+                "quantity": str(item.get("quantity") or "1"),
+                "manual_price": str(item.get("manual_price") or ""),
+                "discount_type": str(item.get("discount_type") or DISCOUNT_TYPE_NONE),
+                "discount_value": str(item.get("discount_value") or ""),
+            }
+        )
+    while len(clean_items) < CREATE_FORM_MIN_ROWS:
+        clean_items.append(
+            {
+                "product_row_id": "",
+                "quantity": "1",
+                "manual_price": "",
+                "discount_type": DISCOUNT_TYPE_NONE,
+                "discount_value": "",
+            }
+        )
+    state["items"] = clean_items
+    state["source_approval_id"] = str(approval.get("approval_id") or "")
+    return state
 
 
 def approved_offer_mailto(approval: dict, request: Request) -> str:
@@ -893,6 +936,8 @@ def activity_entry_view_model(request: Request, entry: dict) -> dict:
         "approval_is_pending": approval_status == "pending",
         "approval_is_approved": approval_status == "approved",
         "approval_is_rejected": approval_status == "rejected",
+        "approval_is_replaced": approval_status == "replaced",
+        "approval_checked": bool(str((approval or {}).get("last_checked_at") or "")),
         "approved_mailto": approved_offer_mailto(approval, request) if approval_status == "approved" else "",
         "files": files,
         "file_count": len(files),
@@ -1147,6 +1192,7 @@ def default_create_state(price_file_name: str | None = None) -> dict:
         "email": "",
         "gsm": "",
         "note": "",
+        "source_approval_id": "",
         "items": [
             {
                 "product_row_id": "",
@@ -3282,6 +3328,7 @@ async def create_offer(
     gsm: str = Form(""),
     note: str = Form(""),
     compare_token: str | None = Form(default=None),
+    source_approval_id: str = Form(""),
     product_row_ids: list[str] = Form(default=[]),
     quantities: list[str] = Form(default=[]),
     manual_prices: list[str] = Form(default=[]),
@@ -3312,6 +3359,7 @@ async def create_offer(
         "email": email,
         "gsm": gsm,
         "note": note,
+        "source_approval_id": source_approval_id,
         "items": [
             {
                 "product_row_id": product_row_ids[index] if index < len(product_row_ids) else "",
@@ -3546,7 +3594,14 @@ async def create_offer(
         resolved_offer_number = default_offer_number(parsed_offer_date, BASE_DIR)
         create_state["offer_number"] = resolved_offer_number
     elif offer_number_exists(BASE_DIR, requested_offer_number):
-        if AUTO_OFFER_NUMBER_PATTERN.fullmatch(requested_offer_number):
+        source_approval = (
+            load_pending_offer_approvals().get(source_approval_id.strip())
+            if offer_is_admin and source_approval_id.strip()
+            else None
+        )
+        if source_approval and str(source_approval.get("status") or "") == "pending" and str(source_approval.get("offer_number") or "") == requested_offer_number:
+            resolved_offer_number = requested_offer_number
+        elif AUTO_OFFER_NUMBER_PATTERN.fullmatch(requested_offer_number):
             resolved_offer_number = default_offer_number(parsed_offer_date, BASE_DIR)
             create_state["offer_number"] = resolved_offer_number
         else:
@@ -3621,14 +3676,39 @@ async def create_offer(
         generated_offer_path,
         {
             "offer_number": resolved_offer_number,
+            "template_file": relative_runtime_path(template_path),
+            "price_file": price_list_path.name,
+            "price_mode_key": price_mode,
             "company_name": company_name.strip(),
             "contact_name": contact_name.strip(),
             "customer_email": email.strip(),
             "item_count": len(selected_entries),
             "price_mode": price_label,
             "vat_mode": VAT_MODE_LABELS.get(vat_mode, vat_mode),
+            "create_state": {**create_state, "offer_number": resolved_offer_number},
+            "source_approval_id": source_approval_id.strip(),
         },
     )
+    if offer_is_admin and source_approval_id.strip():
+        replaced_at = datetime.now().isoformat(timespec="seconds")
+        replaced = update_pending_offer_approval(
+            source_approval_id.strip(),
+            {
+                "status": "replaced",
+                "replaced_at": replaced_at,
+                "replaced_by": portal_user.email if portal_user else "",
+                "replacement_activity_entry_id": str(activity_entry.get("id") or ""),
+            },
+        )
+        if replaced is not None:
+            update_activity_entry_details(
+                str(replaced.get("activity_entry_id") or ""),
+                {
+                    "approval_status": "replaced",
+                    "replaced_at": replaced_at,
+                    "replaced_by": portal_user.email if portal_user else "",
+                },
+            )
 
     context = build_context(
         request,
@@ -3710,8 +3790,10 @@ async def approve_generated_offer(request: Request, approval_id: str) -> HTMLRes
     approval = approvals.get(approval_id)
     if approval is None:
         raise HTTPException(status_code=404, detail="Onay bekleyen teklif bulunamadi.")
-    if str(approval.get("status") or "") == "rejected":
-        raise HTTPException(status_code=400, detail="Reddedilen teklif tekrar onaylanamaz.")
+    if str(approval.get("status") or "") != "pending":
+        raise HTTPException(status_code=400, detail="Sadece bekleyen teklifler onaylanabilir.")
+    if not str(approval.get("last_checked_at") or ""):
+        raise HTTPException(status_code=400, detail="Onay vermeden once bu satirdan teklifi kontrol et.")
 
     offer_path = resolve_activity_file_path(str(approval.get("generated_path") or ""))
     if not offer_path.exists() or not offer_path.is_file():
@@ -3750,6 +3832,104 @@ async def approve_generated_offer(request: Request, approval_id: str) -> HTMLRes
     return templates.TemplateResponse("index.html", context)
 
 
+@app.post("/admin/offers/{approval_id}/check", response_class=HTMLResponse)
+async def check_pending_generated_offer(request: Request, approval_id: str) -> HTMLResponse:
+    try:
+        require_offer_admin(request)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    approval = load_pending_offer_approvals().get(approval_id)
+    if approval is None:
+        raise HTTPException(status_code=404, detail="Onay bekleyen teklif bulunamadi.")
+    if str(approval.get("status") or "") not in {"pending", "approved"}:
+        raise HTTPException(status_code=400, detail="Bu teklif kontrol icin aktif degil.")
+
+    offer_path = resolve_activity_file_path(str(approval.get("generated_path") or ""))
+    price_file = str(approval.get("price_file") or default_price_file())
+    price_list_path = resolve_price_file_path(price_file)
+    price_mode = normalize_compare_mode(str(approval.get("price_mode_key") or PRICE_MODE_AUTO))
+    if not offer_path.exists() or not offer_path.is_file():
+        raise HTTPException(status_code=404, detail="Teklif PDF dosyasi bulunamadi.")
+    if not price_list_path.exists():
+        raise HTTPException(status_code=404, detail="Fiyat listesi bulunamadi.")
+
+    try:
+        session = create_comparison_session(price_list_path, offer_path, price_mode)
+    except Exception as exc:
+        context = build_context(request, active_workspace="create", error=str(exc))
+        return templates.TemplateResponse("index.html", context, status_code=400)
+    checked_at = datetime.now().isoformat(timespec="seconds")
+    update_pending_offer_approval(
+        approval_id,
+        {
+            "last_checked_at": checked_at,
+            "last_check_session_token": session.token,
+            "last_check_report_path": relative_runtime_path(session.output_path),
+            "last_check_status": session.financial_review.overall_status,
+        },
+    )
+    update_activity_entry_details(
+        str(approval.get("activity_entry_id") or ""),
+        {
+            "last_checked_at": checked_at,
+            "last_check_status": session.financial_review.overall_status,
+        },
+    )
+
+    append_activity_log(
+        request,
+        action="compare",
+        summary=f"{offer_path.name} admin onayi oncesi kontrol edildi; referans {session.selected_column}.",
+        files=[
+            activity_file_payload(session.output_path, "Kontrol raporu", "report"),
+            activity_file_payload(offer_path, "Onay bekleyen teklif", "generated"),
+        ],
+        details={
+            "approval_id": approval_id,
+            "offer_number": approval.get("offer_number") or "",
+            "price_file": price_list_path.name,
+            "reference_column": session.selected_column,
+            "row_count": len(session.results),
+        },
+    )
+    context = build_context(
+        request,
+        selected_price_file=price_list_path.name,
+        selected_offer_file=relative_runtime_path(offer_path),
+        selected_mode=price_mode,
+        session=session,
+        notice="Onay bekleyen teklif kontrol edildi. Sonuclari inceleyip hareket satirindan onay veya red verebilirsin.",
+        active_workspace="results",
+        play_result_sound=True,
+    )
+    return templates.TemplateResponse("index.html", context)
+
+
+@app.post("/admin/offers/{approval_id}/edit", response_class=HTMLResponse)
+async def edit_pending_generated_offer(request: Request, approval_id: str) -> HTMLResponse:
+    try:
+        require_offer_admin(request)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    approval = load_pending_offer_approvals().get(approval_id)
+    if approval is None:
+        raise HTTPException(status_code=404, detail="Onay bekleyen teklif bulunamadi.")
+    if str(approval.get("status") or "") != "pending":
+        raise HTTPException(status_code=400, detail="Sadece bekleyen teklifler duzenlenebilir.")
+
+    create_state = create_state_from_pending_approval(approval)
+    context = build_context(
+        request,
+        selected_price_file=str(create_state.get("price_file") or default_price_file()),
+        create_state=create_state,
+        notice="Teklif admin duzenleme modunda acildi. Fiyat, iskonto veya kalemleri duzenleyip tekrar onaya gonderebilirsin.",
+        active_workspace="create",
+    )
+    return templates.TemplateResponse("index.html", context)
+
+
 @app.post("/admin/offers/{approval_id}/reject", response_class=HTMLResponse)
 async def reject_generated_offer(request: Request, approval_id: str) -> HTMLResponse:
     try:
@@ -3761,8 +3941,8 @@ async def reject_generated_offer(request: Request, approval_id: str) -> HTMLResp
     approval = approvals.get(approval_id)
     if approval is None:
         raise HTTPException(status_code=404, detail="Onay bekleyen teklif bulunamadi.")
-    if str(approval.get("status") or "") == "approved":
-        raise HTTPException(status_code=400, detail="Onaylanmis teklif reddedilemez.")
+    if str(approval.get("status") or "") != "pending":
+        raise HTTPException(status_code=400, detail="Sadece bekleyen teklifler reddedilebilir.")
 
     offer_path = resolve_activity_file_path(str(approval.get("generated_path") or ""))
     if offer_path.exists() and offer_path.is_file():
