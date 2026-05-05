@@ -8,6 +8,7 @@ import socket
 import sys
 import threading
 import time
+from urllib.parse import quote
 import uuid
 import webbrowser
 from collections import Counter
@@ -111,6 +112,7 @@ DATA_DIR = BASE_DIR / "veri"
 PRICE_LISTS_DIR = DATA_DIR / "fiyat_listeleri"
 ADMIN_SETTINGS_PATH = DATA_DIR / "admin_ayarlar.json"
 ACTIVITY_LOG_PATH = DATA_DIR / "offer_activity_log.json"
+PENDING_OFFERS_PATH = DATA_DIR / "pending_offer_approvals.json"
 BATCH_JOBS_DIR = DATA_DIR / "batch_jobs"
 OFFERS_DIR = BASE_DIR / "teklifler"
 TEMPLATES_PDF_DIR = BASE_DIR / "sablonlar"
@@ -177,7 +179,9 @@ ACTIVITY_ACTION_LABELS = {
     "compare": "Kontrol raporu",
     "batch_compare": "Toplu kontrol",
     "correct": "PDF düzeltme",
-    "create": "Teklif üretimi",
+    "create": "Onay bekleyen teklif",
+    "approve": "Teklif onayı",
+    "reject": "Teklif reddi",
 }
 ACTIVITY_LOG_LIMIT = 500
 BATCH_COMPARE_LIMIT = 20
@@ -726,6 +730,91 @@ def save_activity_log(entries: list[dict]) -> None:
     temp_path.replace(ACTIVITY_LOG_PATH)
 
 
+def load_pending_offer_approvals() -> dict[str, dict]:
+    ensure_admin_storage()
+    if not PENDING_OFFERS_PATH.exists():
+        return {}
+    try:
+        raw = json.loads(PENDING_OFFERS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {str(key): value for key, value in raw.items() if isinstance(value, dict)}
+
+
+def save_pending_offer_approvals(entries: dict[str, dict]) -> None:
+    ensure_admin_storage()
+    temp_path = PENDING_OFFERS_PATH.with_suffix(".tmp")
+    temp_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path.replace(PENDING_OFFERS_PATH)
+
+
+def update_activity_entry_details(entry_id: str, details: dict) -> None:
+    entries = load_activity_log()
+    for entry in entries:
+        if str(entry.get("id") or "") != entry_id:
+            continue
+        current = entry.get("details") if isinstance(entry.get("details"), dict) else {}
+        entry["details"] = {**current, **details}
+        break
+    save_activity_log(entries)
+
+
+def register_pending_offer_approval(entry: dict, generated_offer_path: Path, details: dict) -> str:
+    approval_id = uuid.uuid4().hex
+    user_details = {
+        "approval_id": approval_id,
+        "activity_entry_id": str(entry.get("id") or ""),
+        "status": "pending",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "approved_at": "",
+        "rejected_at": "",
+        "approved_by": "",
+        "rejected_by": "",
+        "generated_path": relative_runtime_path(generated_offer_path),
+        "generated_name": generated_offer_path.name,
+        **details,
+    }
+    approvals = load_pending_offer_approvals()
+    approvals[approval_id] = user_details
+    save_pending_offer_approvals(approvals)
+    update_activity_entry_details(
+        str(entry.get("id") or ""),
+        {
+            "approval_id": approval_id,
+            "approval_status": "pending",
+        },
+    )
+    return approval_id
+
+
+def pending_offer_for_activity(entry_id: str) -> dict | None:
+    for approval in load_pending_offer_approvals().values():
+        if str(approval.get("activity_entry_id") or "") == entry_id:
+            return approval
+    return None
+
+
+def approved_offer_mailto(approval: dict, request: Request) -> str:
+    recipient = str(approval.get("customer_email") or "").strip()
+    subject = f"Teklifiniz onaylandi: {approval.get('offer_number') or approval.get('generated_name') or ''}".strip()
+    download_url = ""
+    entry_id = str(approval.get("activity_entry_id") or "")
+    if entry_id:
+        download_url = str(request.url_for("offer-tool:download_activity_file", entry_id=entry_id, file_index=0))
+    body_lines = [
+        f"Merhaba {approval.get('contact_name') or approval.get('company_name') or ''}".strip(),
+        "",
+        "Teklifiniz admin onayindan gecti.",
+        f"Teklif no: {approval.get('offer_number') or '-'}",
+        f"Dosya: {approval.get('generated_name') or '-'}",
+    ]
+    if download_url:
+        body_lines.extend(["", f"Indirme baglantisi: {download_url}"])
+    return f"mailto:{quote(recipient)}?subject={quote(subject)}&body={quote(chr(10).join(body_lines))}"
+
+
 def append_activity_log(
     request: Request,
     *,
@@ -754,24 +843,33 @@ def append_activity_log(
 
 def activity_entry_view_model(request: Request, entry: dict) -> dict:
     files: list[dict] = []
+    entry_id = str(entry.get("id") or "")
+    approval = pending_offer_for_activity(entry_id)
+    approval_status = str((approval or {}).get("status") or "")
     for index, file_info in enumerate(entry.get("files") or []):
         if not isinstance(file_info, dict):
             continue
         path = resolve_activity_file_path(str(file_info.get("path") or ""))
         exists = path.exists() and path.is_file()
+        is_blocked_generated_offer = (
+            str(entry.get("action") or "") == "create"
+            and str(file_info.get("kind") or "") == "generated"
+            and approval_status == "pending"
+        )
         files.append(
             {
                 "label": str(file_info.get("label") or file_info.get("name") or path.name),
                 "name": str(file_info.get("name") or path.name),
                 "kind": str(file_info.get("kind") or ""),
                 "exists": exists,
+                "blocked": is_blocked_generated_offer,
                 "url": (
                     request.url_for(
                         "offer-tool:download_activity_file",
-                        entry_id=str(entry.get("id") or ""),
+                        entry_id=entry_id,
                         file_index=index,
                     )
-                    if exists
+                    if exists and not is_blocked_generated_offer
                     else ""
                 ),
             }
@@ -780,7 +878,7 @@ def activity_entry_view_model(request: Request, entry: dict) -> dict:
     details = entry.get("details") if isinstance(entry.get("details"), dict) else {}
     created_at = str(entry.get("created_at") or "")
     return {
-        "id": str(entry.get("id") or ""),
+        "id": entry_id,
         "created_at": created_at,
         "created_at_display": created_at.replace("T", " ")[:19],
         "actor": actor,
@@ -789,6 +887,13 @@ def activity_entry_view_model(request: Request, entry: dict) -> dict:
         "action_label": str(entry.get("action_label") or ACTIVITY_ACTION_LABELS.get(str(entry.get("action") or ""), "")),
         "summary": str(entry.get("summary") or ""),
         "details": details,
+        "approval": approval or {},
+        "approval_id": str((approval or {}).get("approval_id") or ""),
+        "approval_status": approval_status,
+        "approval_is_pending": approval_status == "pending",
+        "approval_is_approved": approval_status == "approved",
+        "approval_is_rejected": approval_status == "rejected",
+        "approved_mailto": approved_offer_mailto(approval, request) if approval_status == "approved" else "",
         "files": files,
         "file_count": len(files),
         "search_text": " ".join(
@@ -2730,6 +2835,10 @@ async def compare(
     price_mode = normalize_compare_mode(price_mode)
     try:
         if price_file_upload is not None and price_file_upload.filename:
+            try:
+                require_offer_admin(request)
+            except PermissionError as exc:
+                raise ValueError("Fiyat listesi yukleme yetkisi sadece adminde.") from exc
             imported_path, _, _ = import_price_file(price_file_upload, activate_after_import=True)
             price_file = imported_path.name
         if offer_file_upload is not None and offer_file_upload.filename:
@@ -2855,6 +2964,10 @@ async def batch_compare(
     price_mode = normalize_compare_mode(price_mode)
     try:
         if price_file_upload is not None and price_file_upload.filename:
+            try:
+                require_offer_admin(request)
+            except PermissionError as exc:
+                raise ValueError("Fiyat listesi yukleme yetkisi sadece adminde.") from exc
             imported_path, _, _ = import_price_file(price_file_upload, activate_after_import=True)
             price_file = imported_path.name
     except Exception as exc:
@@ -3210,6 +3323,24 @@ async def create_offer(
             for index in range(item_count)
         ],
     }
+    portal_user = get_offer_portal_user(request)
+    offer_is_admin = bool(portal_user and portal_user.is_admin)
+    if not offer_is_admin:
+        has_manual_price = any(str(value or "").strip() for value in manual_prices)
+        has_discount = any(str(value or DISCOUNT_TYPE_NONE).strip().lower() != DISCOUNT_TYPE_NONE for value in discount_types)
+        has_discount_value = any(str(value or "").strip() for value in discount_values)
+        if has_manual_price or has_discount or has_discount_value:
+            context = build_context(
+                request,
+                selected_price_file=price_file,
+                selected_offer_file=relative_runtime_path(session.offer_path) if session else template_file,
+                selected_mode=session.price_mode if session else PRICE_MODE_AUTO,
+                session=session,
+                create_state=create_state,
+                error="Manuel fiyat ve iskonto sadece admin tarafindan girilebilir.",
+                active_workspace="create",
+            )
+            return templates.TemplateResponse("index.html", context, status_code=403)
 
     template_path = resolve_runtime_pdf_path(template_file)
     price_list_path = resolve_price_file_path(price_file)
@@ -3466,7 +3597,7 @@ async def create_offer(
     settings = load_admin_settings()
     settings["active_template_file"] = relative_runtime_path(template_path)
     save_admin_settings(settings)
-    append_activity_log(
+    activity_entry = append_activity_log(
         request,
         action="create",
         summary=f"{generated_offer_path.name} oluşturuldu; müşteri {company_name.strip() or contact_name.strip() or '-'}",
@@ -3485,7 +3616,31 @@ async def create_offer(
         },
     )
 
-    return FileResponse(generated_offer_path, filename=generated_offer_path.name)
+    register_pending_offer_approval(
+        activity_entry,
+        generated_offer_path,
+        {
+            "offer_number": resolved_offer_number,
+            "company_name": company_name.strip(),
+            "contact_name": contact_name.strip(),
+            "customer_email": email.strip(),
+            "item_count": len(selected_entries),
+            "price_mode": price_label,
+            "vat_mode": VAT_MODE_LABELS.get(vat_mode, vat_mode),
+        },
+    )
+
+    context = build_context(
+        request,
+        selected_price_file=price_file,
+        selected_offer_file=template_file,
+        selected_mode=session.price_mode if session else PRICE_MODE_AUTO,
+        session=session,
+        create_state=default_create_state(price_file),
+        notice="Teklif admin onayina gonderildi. Admin onaylamadan indirilemez veya mail aktarimina acilmaz.",
+        active_workspace="create",
+    )
+    return templates.TemplateResponse("index.html", context)
 
 
 @app.get("/admin/activity-file/{entry_id}/{file_index}")
@@ -3501,6 +3656,13 @@ async def download_activity_file(request: Request, entry_id: str, file_index: in
     files = entry.get("files") if isinstance(entry.get("files"), list) else []
     if file_index < 0 or file_index >= len(files) or not isinstance(files[file_index], dict):
         raise HTTPException(status_code=404, detail="Log dosyası bulunamadı.")
+    approval = pending_offer_for_activity(str(entry.get("id") or ""))
+    if (
+        str(entry.get("action") or "") == "create"
+        and str(files[file_index].get("kind") or "") == "generated"
+        and str((approval or {}).get("status") or "") != "approved"
+    ):
+        raise HTTPException(status_code=403, detail="Bu teklif admin onayi olmadan indirilemez.")
     path = resolve_activity_file_path(str(files[file_index].get("path") or ""))
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="Dosya artık bulunamıyor.")
@@ -3535,6 +3697,109 @@ async def download_activity_log_csv(request: Request) -> Response:
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="teklif-islem-logu.csv"'},
     )
+
+
+@app.post("/admin/offers/{approval_id}/approve", response_class=HTMLResponse)
+async def approve_generated_offer(request: Request, approval_id: str) -> HTMLResponse:
+    try:
+        admin = require_offer_admin(request)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    approvals = load_pending_offer_approvals()
+    approval = approvals.get(approval_id)
+    if approval is None:
+        raise HTTPException(status_code=404, detail="Onay bekleyen teklif bulunamadi.")
+    if str(approval.get("status") or "") == "rejected":
+        raise HTTPException(status_code=400, detail="Reddedilen teklif tekrar onaylanamaz.")
+
+    offer_path = resolve_activity_file_path(str(approval.get("generated_path") or ""))
+    if not offer_path.exists() or not offer_path.is_file():
+        raise HTTPException(status_code=404, detail="Teklif PDF dosyasi bulunamadi.")
+
+    approval["status"] = "approved"
+    approval["approved_at"] = datetime.now().isoformat(timespec="seconds")
+    approval["approved_by"] = admin.email
+    approvals[approval_id] = approval
+    save_pending_offer_approvals(approvals)
+    update_activity_entry_details(
+        str(approval.get("activity_entry_id") or ""),
+        {
+            "approval_status": "approved",
+            "approved_by": admin.email,
+            "approved_at": approval["approved_at"],
+        },
+    )
+    append_activity_log(
+        request,
+        action="approve",
+        summary=f"{approval.get('generated_name') or offer_path.name} admin tarafindan onaylandi.",
+        files=[activity_file_payload(offer_path, "Onayli teklif", "generated")],
+        details={
+            "approval_id": approval_id,
+            "offer_number": approval.get("offer_number") or "",
+            "company_name": approval.get("company_name") or "",
+            "customer_email": approval.get("customer_email") or "",
+        },
+    )
+    context = build_context(
+        request,
+        notice="Teklif onaylandi; artik indirilebilir ve mail aktarimi icin hazir.",
+        active_workspace="create",
+    )
+    return templates.TemplateResponse("index.html", context)
+
+
+@app.post("/admin/offers/{approval_id}/reject", response_class=HTMLResponse)
+async def reject_generated_offer(request: Request, approval_id: str) -> HTMLResponse:
+    try:
+        admin = require_offer_admin(request)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    approvals = load_pending_offer_approvals()
+    approval = approvals.get(approval_id)
+    if approval is None:
+        raise HTTPException(status_code=404, detail="Onay bekleyen teklif bulunamadi.")
+    if str(approval.get("status") or "") == "approved":
+        raise HTTPException(status_code=400, detail="Onaylanmis teklif reddedilemez.")
+
+    offer_path = resolve_activity_file_path(str(approval.get("generated_path") or ""))
+    if offer_path.exists() and offer_path.is_file():
+        try:
+            offer_path.unlink()
+        except OSError:
+            pass
+
+    approval["status"] = "rejected"
+    approval["rejected_at"] = datetime.now().isoformat(timespec="seconds")
+    approval["rejected_by"] = admin.email
+    approvals[approval_id] = approval
+    save_pending_offer_approvals(approvals)
+    update_activity_entry_details(
+        str(approval.get("activity_entry_id") or ""),
+        {
+            "approval_status": "rejected",
+            "rejected_by": admin.email,
+            "rejected_at": approval["rejected_at"],
+        },
+    )
+    append_activity_log(
+        request,
+        action="reject",
+        summary=f"{approval.get('generated_name') or 'Teklif'} admin tarafindan reddedildi; final PDF kapatildi.",
+        details={
+            "approval_id": approval_id,
+            "offer_number": approval.get("offer_number") or "",
+            "company_name": approval.get("company_name") or "",
+        },
+    )
+    context = build_context(
+        request,
+        notice="Teklif reddedildi; indirilebilir final teklif olusturulmadi.",
+        active_workspace="create",
+    )
+    return templates.TemplateResponse("index.html", context)
 
 
 @app.get("/batch/{batch_token}", response_class=HTMLResponse)

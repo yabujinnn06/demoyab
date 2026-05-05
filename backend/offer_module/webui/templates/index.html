@@ -661,12 +661,26 @@
                       <td>
                         <div class="activity-file-list">
                           {% for file in entry.files %}
-                            {% if file.exists %}
+                            {% if file.url %}
                               <a class="activity-file-link" href="{{ file.url }}">{{ file.label }}</a>
+                            {% elif file.blocked %}
+                              <span class="activity-file-missing">{{ file.label }} / admin onayi bekliyor</span>
                             {% else %}
                               <span class="activity-file-missing">{{ file.label }}</span>
                             {% endif %}
                           {% endfor %}
+                          {% if entry.approval_is_pending %}
+                            <form method="post" action="{{ request.url_for('offer-tool:approve_generated_offer', approval_id=entry.approval_id) }}" class="d-inline">
+                              <button class="btn btn-sm btn-primary mt-2" type="submit">Onayla</button>
+                            </form>
+                            <form method="post" action="{{ request.url_for('offer-tool:reject_generated_offer', approval_id=entry.approval_id) }}" class="d-inline">
+                              <button class="btn btn-sm btn-outline-danger mt-2" type="submit">Reddet</button>
+                            </form>
+                          {% elif entry.approval_is_approved and entry.approved_mailto %}
+                            <a class="btn btn-sm btn-outline-primary mt-2" href="{{ entry.approved_mailto }}">Mail hazirla</a>
+                          {% elif entry.approval_is_rejected %}
+                            <span class="activity-file-missing">Reddedildi</span>
+                          {% endif %}
                         </div>
                       </td>
                     </tr>
@@ -874,8 +888,9 @@
                 </div>
 
                 <div class="col-12 col-md-6">
-                  <label class="form-label" for="compare-price-upload">Yeni fiyat listesi yükle</label>
+                  {% if offer_is_admin %}<label class="form-label" for="compare-price-upload">Yeni fiyat listesi yükle</label>
                   <input class="form-control" id="compare-price-upload" type="file" name="price_file_upload" accept=".xlsx,.xlsm,.pdf">
+                  {% endif %}
                 </div>
 
                 <div class="col-12 col-md-6">
@@ -946,10 +961,10 @@
                         </select>
                       </div>
 
-                      <div>
+                      {% if offer_is_admin %}<div>
                         <label class="form-label" for="batch-price-upload">Yeni fiyat listesi</label>
                         <input class="form-control" id="batch-price-upload" type="file" name="price_file_upload" accept=".xlsx,.xlsm,.pdf">
-                      </div>
+                      </div>{% endif %}
 
                       <div>
                         <label class="form-label" for="batch-price-mode">Fiyat modu</label>
@@ -1570,21 +1585,35 @@
 
                           <div class="col-12 col-md-4 col-xl-2">
                             <label class="form-label">Elle fiyat</label>
-                            <input class="form-control form-control-sm" type="text" name="manual_prices" value="{{ row.manual_price }}">
+                            {% if offer_is_admin %}
+                              <input class="form-control form-control-sm" type="text" name="manual_prices" value="{{ row.manual_price }}">
+                            {% else %}
+                              <input class="form-control form-control-sm" type="text" value="" placeholder="Sadece admin" disabled>
+                            {% endif %}
                           </div>
 
                           <div class="col-12 col-md-4 col-xl-2">
                             <label class="form-label">İskonto tipi</label>
-                            <select class="form-select form-select-sm" name="discount_types">
-                              <option value="none" {% if row.discount_type == 'none' %}selected{% endif %}>Liste / Manuel</option>
-                              <option value="amount" {% if row.discount_type == 'amount' %}selected{% endif %}>Tutar iskontosu</option>
-                              <option value="percent" {% if row.discount_type == 'percent' %}selected{% endif %}>Yüzde iskonto</option>
-                            </select>
+                            {% if offer_is_admin %}
+                              <select class="form-select form-select-sm" name="discount_types">
+                                <option value="none" {% if row.discount_type == 'none' %}selected{% endif %}>Liste / Manuel</option>
+                                <option value="amount" {% if row.discount_type == 'amount' %}selected{% endif %}>Tutar iskontosu</option>
+                                <option value="percent" {% if row.discount_type == 'percent' %}selected{% endif %}>Yüzde iskonto</option>
+                              </select>
+                            {% else %}
+                              <select class="form-select form-select-sm" disabled>
+                                <option>Kapalı</option>
+                              </select>
+                            {% endif %}
                           </div>
 
                           <div class="col-12 col-md-4 col-xl-2">
                             <label class="form-label">İskonto</label>
-                            <input class="form-control form-control-sm" type="text" name="discount_values" value="{{ row.discount_value }}">
+                            {% if offer_is_admin %}
+                              <input class="form-control form-control-sm" type="text" name="discount_values" value="{{ row.discount_value }}">
+                            {% else %}
+                              <input class="form-control form-control-sm" type="text" value="" placeholder="Sadece admin" disabled>
+                            {% endif %}
                           </div>
                         </div>
                       </article>
@@ -1593,8 +1622,8 @@
                 </div>
 
                 <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-3">
-                  <button class="btn btn-primary btn-lg" type="submit">Teklif PDF üret</button>
-                  <p class="helper-text mb-0">Şablon ve fiyat listesi seçimi kalıcı ayarlardan da yönetilebilir.</p>
+                  <button class="btn btn-primary btn-lg" type="submit">Teklifi admin onayına gönder</button>
+                  <p class="helper-text mb-0">Manuel fiyat, iskonto ve fiyat listesi değişiklikleri sadece admin tarafından yapılır.</p>
                 </div>
               </form>
             </div>
