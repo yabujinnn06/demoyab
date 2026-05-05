@@ -1304,7 +1304,9 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
 def test_offer_notifications_include_pending_for_creator_without_offer_access(tmp_path, monkeypatch) -> None:
     offer_base = tmp_path / "offer_data"
     offer_data_dir = offer_base / "veri"
+    offer_dir = offer_base / "teklifler"
     offer_data_dir.mkdir(parents=True)
+    offer_dir.mkdir(parents=True)
 
     db_path = make_test_db_path()
     monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
@@ -1336,20 +1338,55 @@ def test_offer_notifications_include_pending_for_creator_without_offer_access(tm
         )
         assert created_user.status_code == 201
         creator_id = created_user.json()["id"]
+        generated_offer = offer_dir / "RW-TEST-1.pdf"
+        generated_offer.write_bytes(b"%PDF-1.4\n")
 
         (offer_data_dir / "pending_offer_approvals.json").write_text(
             json.dumps(
                 {
                     "approval-1": {
                         "approval_id": "approval-1",
+                        "activity_entry_id": "entry-create",
                         "creator_user_id": creator_id,
                         "creator_email": "bildirim@test.local",
+                        "creator_name": "Bildirim Operator",
                         "status": "pending",
                         "offer_number": "RW-TEST-1",
                         "company_name": "Test Firma",
+                        "generated_path": "teklifler/RW-TEST-1.pdf",
                         "generated_name": "RW-TEST-1.pdf",
                     }
                 }
+            ),
+            encoding="utf-8",
+        )
+        (offer_data_dir / "offer_activity_log.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "id": "entry-create",
+                        "created_at": "2026-05-05T10:00:00",
+                        "actor_id": creator_id,
+                        "actor_email": "bildirim@test.local",
+                        "actor_name": "Bildirim Operator",
+                        "action": "create",
+                        "action_label": "Teklif oluşturuldu",
+                        "summary": "RW-TEST-1.pdf oluşturuldu; müşteri Test Firma",
+                        "files": [
+                            {
+                                "label": "Oluşturulan teklif",
+                                "kind": "generated",
+                                "path": "teklifler/RW-TEST-1.pdf",
+                                "name": "RW-TEST-1.pdf",
+                            }
+                        ],
+                        "details": {
+                            "approval_id": "approval-1",
+                            "offer_number": "RW-TEST-1",
+                            "company_name": "Test Firma",
+                        },
+                    }
+                ]
             ),
             encoding="utf-8",
         )
@@ -1381,6 +1418,39 @@ def test_offer_notifications_include_pending_for_creator_without_offer_access(tm
                 "download_url": "",
             }
         ]
+
+        activity_response = client.get(
+            "/api/offer-activity",
+            headers={"Authorization": f"Bearer {agent_token}"},
+        )
+        assert activity_response.status_code == 200
+        activity = activity_response.json()
+        assert len(activity) == 1
+        assert activity[0]["approval_status"] == "pending"
+        assert activity[0]["creator_name"] == "Bildirim Operator"
+        assert activity[0]["creator_email"] == "bildirim@test.local"
+        assert activity[0]["files"][0]["blocked"] is True
+        assert activity[0]["files"][0]["url"] == ""
+
+        approvals = json.loads((offer_data_dir / "pending_offer_approvals.json").read_text(encoding="utf-8"))
+        approvals["approval-1"]["status"] = "approved"
+        approvals["approval-1"]["approved_at"] = "2026-05-05T10:05:00"
+        (offer_data_dir / "pending_offer_approvals.json").write_text(json.dumps(approvals), encoding="utf-8")
+
+        approved_activity = client.get(
+            "/api/offer-activity",
+            headers={"Authorization": f"Bearer {agent_token}"},
+        ).json()
+        assert approved_activity[0]["approval_status"] == "approved"
+        assert approved_activity[0]["files"][0]["blocked"] is False
+        assert approved_activity[0]["files"][0]["url"] == "/api/offer-activity/entry-create/files/0"
+
+        download = client.get(
+            approved_activity[0]["files"][0]["url"],
+            headers={"Authorization": f"Bearer {agent_token}"},
+        )
+        assert download.status_code == 200
+        assert download.content.startswith(b"%PDF-1.4")
 
 
 def test_offer_manual_match_preview_makes_row_actionable(tmp_path) -> None:

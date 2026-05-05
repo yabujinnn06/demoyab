@@ -768,6 +768,7 @@ def register_pending_offer_approval(entry: dict, generated_offer_path: Path, det
         "activity_entry_id": str(entry.get("id") or ""),
         "creator_user_id": str(entry.get("actor_id") or ""),
         "creator_email": str(entry.get("actor_email") or ""),
+        "creator_name": str(entry.get("actor_name") or ""),
         "status": "pending",
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "approved_at": "",
@@ -807,6 +808,36 @@ def pending_offer_for_activity(entry_id: str) -> dict | None:
         if str(approval.get("activity_entry_id") or "") == entry_id:
             return approval
     return None
+
+
+def pending_offer_for_entry(entry: dict, approvals: dict[str, dict] | None = None) -> dict | None:
+    approvals = approvals or load_pending_offer_approvals()
+    details = entry.get("details") if isinstance(entry.get("details"), dict) else {}
+    approval_id = str(details.get("approval_id") or "")
+    if approval_id and isinstance(approvals.get(approval_id), dict):
+        return approvals[approval_id]
+    entry_id = str(entry.get("id") or "")
+    for approval in approvals.values():
+        if str(approval.get("activity_entry_id") or "") == entry_id:
+            return approval
+    return None
+
+
+def activity_entry_visible_to_user(entry: dict, user: OfferPortalUser | None, approvals: dict[str, dict] | None = None) -> bool:
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    if str(entry.get("actor_id") or "") == user.id:
+        return True
+    approval = pending_offer_for_entry(entry, approvals)
+    if approval is None:
+        return False
+    if str(approval.get("creator_user_id") or "") == user.id:
+        return True
+    if str(approval.get("creator_email") or "").lower() == user.email.lower():
+        return True
+    return False
 
 
 def create_state_from_pending_approval(approval: dict) -> dict:
@@ -889,18 +920,14 @@ def append_activity_log(
 def activity_entry_view_model(request: Request, entry: dict) -> dict:
     files: list[dict] = []
     entry_id = str(entry.get("id") or "")
-    approval = pending_offer_for_activity(entry_id)
+    approval = pending_offer_for_entry(entry)
     approval_status = str((approval or {}).get("status") or "")
     for index, file_info in enumerate(entry.get("files") or []):
         if not isinstance(file_info, dict):
             continue
         path = resolve_activity_file_path(str(file_info.get("path") or ""))
         exists = path.exists() and path.is_file()
-        is_blocked_generated_offer = (
-            str(entry.get("action") or "") == "create"
-            and str(file_info.get("kind") or "") == "generated"
-            and approval_status == "pending"
-        )
+        is_blocked_generated_offer = str(file_info.get("kind") or "") == "generated" and approval_status not in {"", "approved"}
         files.append(
             {
                 "label": str(file_info.get("label") or file_info.get("name") or path.name),
@@ -921,6 +948,8 @@ def activity_entry_view_model(request: Request, entry: dict) -> dict:
         )
     actor = str(entry.get("actor_name") or entry.get("actor_email") or "Bilinmeyen")
     details = entry.get("details") if isinstance(entry.get("details"), dict) else {}
+    creator_name = str((approval or {}).get("creator_name") or "")
+    creator_email = str((approval or {}).get("creator_email") or "")
     created_at = str(entry.get("created_at") or "")
     return {
         "id": entry_id,
@@ -940,6 +969,9 @@ def activity_entry_view_model(request: Request, entry: dict) -> dict:
         "approval_is_rejected": approval_status == "rejected",
         "approval_is_replaced": approval_status == "replaced",
         "approval_checked": bool(str((approval or {}).get("last_checked_at") or "")),
+        "creator_name": creator_name,
+        "creator_email": creator_email,
+        "creator_label": creator_name or creator_email,
         "approved_mailto": approved_offer_mailto(approval, request) if approval_status == "approved" else "",
         "files": files,
         "file_count": len(files),
@@ -2550,8 +2582,12 @@ def build_context(
             financial_overall_status=financial_overall_status,
         )
 
-    if offer_is_admin:
-        activity_entries = [activity_entry_view_model(request, entry) for entry in load_activity_log()]
+    approvals = load_pending_offer_approvals()
+    activity_entries = [
+        activity_entry_view_model(request, entry)
+        for entry in load_activity_log()
+        if activity_entry_visible_to_user(entry, portal_user, approvals)
+    ]
 
     feedback = build_feedback_state(
         notice=notice,
@@ -3719,7 +3755,7 @@ async def create_offer(
         selected_mode=session.price_mode if session else PRICE_MODE_AUTO,
         session=session,
         create_state=default_create_state(price_file),
-        notice="Teklif admin onayina gonderildi. Admin onaylamadan indirilemez veya mail aktarimina acilmaz.",
+        notice="Teklif admin onayına gönderildi. Admin onaylamadan indirilemez.",
         active_workspace="create",
     )
     return templates.TemplateResponse("index.html", context)
@@ -3728,22 +3764,21 @@ async def create_offer(
 @app.get("/admin/activity-file/{entry_id}/{file_index}")
 async def download_activity_file(request: Request, entry_id: str, file_index: int) -> FileResponse:
     try:
-        require_offer_admin(request)
+        user = require_offer_user(request)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
+    approvals = load_pending_offer_approvals()
     entry = next((item for item in load_activity_log() if str(item.get("id") or "") == entry_id), None)
     if entry is None:
         raise HTTPException(status_code=404, detail="Log kaydı bulunamadı.")
+    if not activity_entry_visible_to_user(entry, user, approvals):
+        raise HTTPException(status_code=403, detail="Bu teklif hareketi bu kullanıcıya ait değil.")
     files = entry.get("files") if isinstance(entry.get("files"), list) else []
     if file_index < 0 or file_index >= len(files) or not isinstance(files[file_index], dict):
         raise HTTPException(status_code=404, detail="Log dosyası bulunamadı.")
-    approval = pending_offer_for_activity(str(entry.get("id") or ""))
-    if (
-        str(entry.get("action") or "") == "create"
-        and str(files[file_index].get("kind") or "") == "generated"
-        and str((approval or {}).get("status") or "") != "approved"
-    ):
+    approval = pending_offer_for_entry(entry, approvals)
+    if str(files[file_index].get("kind") or "") == "generated" and str((approval or {}).get("status") or "") != "approved":
         raise HTTPException(status_code=403, detail="Bu teklif admin onayi olmadan indirilemez.")
     path = resolve_activity_file_path(str(files[file_index].get("path") or ""))
     if not path.exists() or not path.is_file():
@@ -3828,7 +3863,7 @@ async def approve_generated_offer(request: Request, approval_id: str) -> HTMLRes
     )
     context = build_context(
         request,
-        notice="Teklif onaylandi; artik indirilebilir ve mail aktarimi icin hazir.",
+        notice="Teklif onaylandı; çalışan ekranına bildirim gönderildi ve indirme açıldı.",
         active_workspace="create",
     )
     return templates.TemplateResponse("index.html", context)

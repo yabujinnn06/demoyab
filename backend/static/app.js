@@ -71,6 +71,7 @@ const state = {
   users: [],
   activity: [],
   offerNotifications: [],
+  offerActivity: [],
   offerNotificationModalId: "",
   selectedListId: "",
   uploadFile: null,
@@ -176,6 +177,7 @@ function resetSessionState(message = "") {
   state.users = [];
   state.activity = [];
   state.offerNotifications = [];
+  state.offerActivity = [];
   state.offerNotificationModalId = "";
   state.selectedListId = "";
   state.uploadFile = null;
@@ -574,7 +576,7 @@ function markSync(source) {
 }
 
 async function refreshOperationalData(source = "manual") {
-  const tasks = [loadLists(), loadRecords(), loadActivity(), loadOfferNotifications(), loadOperatorStats(), loadOperationSummary()];
+  const tasks = [loadLists(), loadRecords(), loadActivity(), loadOfferNotifications(), loadOfferActivity(), loadOperatorStats(), loadOperationSummary()];
   if (state.contactPoolModalOpen) {
     tasks.push(loadContactPool());
   }
@@ -711,6 +713,14 @@ async function loadOfferNotifications() {
   ) {
     state.offerNotificationModalId = "";
   }
+}
+
+async function loadOfferActivity() {
+  if (!state.me) {
+    state.offerActivity = [];
+    return;
+  }
+  state.offerActivity = await api("/api/offer-activity");
 }
 
 async function loadOperatorStats() {
@@ -2712,9 +2722,9 @@ function agentCardsMarkup() {
 
 function offerNotificationTitle(item) {
   const target = item.company_name || item.contact_name || item.offer_number || "Teklif";
-  if (item.status === "approved") return `${target} teklifi onaylandÄ±`;
+  if (item.status === "approved") return `${target} teklifi onaylandı`;
   if (item.status === "rejected") return `${target} teklifi reddedildi`;
-  return `${target} teklifi admin onayÄ± bekliyor`;
+  return `${target} teklifi admin onayı bekliyor`;
 }
 
 function offerNotificationsMarkup() {
@@ -2724,14 +2734,14 @@ function offerNotificationsMarkup() {
       <div>
         <span>Teklif bildirimi</span>
         <strong>${state.offerNotifications.length} teklif sonucu var</strong>
-        <small>DetayÄ± gÃ¶rmek iÃ§in ilgili bildirime tÄ±kla</small>
+        <small>Detayı görmek için ilgili bildirime tıkla</small>
       </div>
       <div class="offer-notification-actions">
         ${state.offerNotifications
           .map(
             (item) => `
               <button class="btn ${item.status === "approved" ? "btn-primary" : "btn-soft"}" type="button" data-offer-notification-open="${escapeHtml(item.id)}">
-                ${escapeHtml(item.status === "approved" ? "OnaylandÄ±" : item.status === "rejected" ? "Reddedildi" : "Onay bekliyor")} / ${escapeHtml(item.offer_number || item.company_name || "Teklif")}
+                ${escapeHtml(item.status === "approved" ? "Onaylandı" : item.status === "rejected" ? "Reddedildi" : "Onay bekliyor")} / ${escapeHtml(item.offer_number || item.company_name || "Teklif")}
               </button>
             `,
           )
@@ -2750,7 +2760,7 @@ function offerNotificationModalMarkup() {
     <div class="modal-backdrop" id="offer-notification-backdrop">
       <section class="modal-window" id="offer-notification-modal" role="dialog" aria-modal="true" aria-labelledby="offer-notification-title">
         <header class="modal-titlebar">
-          <strong id="offer-notification-title">${escapeHtml(isApproved ? "Teklif onaylandÄ±" : isRejected ? "Teklif reddedildi" : "Teklif onay bekliyor")}</strong>
+          <strong id="offer-notification-title">${escapeHtml(isApproved ? "Teklif onaylandı" : isRejected ? "Teklif reddedildi" : "Teklif onay bekliyor")}</strong>
           <button class="window-close" type="button" id="close-offer-notification-modal" aria-label="Kapat">×</button>
         </header>
         <div class="modal-body single-column">
@@ -2764,10 +2774,10 @@ function offerNotificationModalMarkup() {
             </dl>
             ${
               isApproved
-                ? `<p class="helper">Admin tarafÄ±ndan onaylandÄ±. Teklifi buradan indirebilirsin.</p>
+                ? `<p class="helper">Admin tarafından onaylandı. Teklifi buradan indirebilirsin.</p>
                    <a class="btn btn-primary" href="${escapeHtml(item.download_url)}">Teklifi indir</a>`
                 : isRejected
-                  ? `<p class="helper">Admin tarafÄ±ndan reddedildi. Ä°ndirme kapatÄ±ldÄ±.</p>
+                  ? `<p class="helper">Admin tarafından reddedildi. İndirme kapatıldı.</p>
                    <div class="reject-reason"><span>Red sebebi</span><strong>${escapeHtml(item.rejection_reason || "Sebep belirtilmedi.")}</strong></div>
                    <button class="btn btn-outline-primary" type="button" data-offer-notification-dismiss="${escapeHtml(item.id)}">Bildirimi kapat</button>`
                   : `<p class="helper">Teklif admin kontrolüne gönderildi. Admin onay verirse indir butonu burada açılacak; reddederse red sebebi burada görünecek.</p>`
@@ -2776,6 +2786,81 @@ function offerNotificationModalMarkup() {
         </div>
       </section>
     </div>
+  `;
+}
+
+function offerApprovalStatusLabel(status) {
+  if (status === "approved") return "Onaylandı";
+  if (status === "rejected") return "Reddedildi";
+  if (status === "pending") return "Onay bekliyor";
+  if (status === "replaced") return "Düzenlendi";
+  return status || "Kayıt";
+}
+
+function offerActivityPanelMarkup() {
+  if (!state.offerActivity.length) {
+    return `
+      <section class="panel window-shell offer-activity-panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">Teklif Hareketleri</p>
+            <h2>Teklif geçmişi</h2>
+            <p>Kendi oluşturduğun tekliflerin onay durumları burada görünür.</p>
+          </div>
+        </div>
+        <p class="empty">Henüz teklif hareketi yok.</p>
+      </section>
+    `;
+  }
+  return `
+    <section class="panel window-shell offer-activity-panel">
+      <div class="panel-head">
+        <div>
+          <p class="section-kicker">Teklif Hareketleri</p>
+          <h2>Teklif geçmişi</h2>
+          <p>Kendi yetkine uygun teklif hareketlerini buradan takip et.</p>
+        </div>
+        <span class="badge active">${state.offerActivity.length} kayıt</span>
+      </div>
+      <div class="activity-list offer-activity-list">
+        ${state.offerActivity
+          .map((item) => {
+            const files = (item.files || [])
+              .map((file) => {
+                if (file.url) {
+                  return `<a class="btn btn-primary table-action" href="${escapeHtml(file.url)}">${escapeHtml(file.label || "İndir")}</a>`;
+                }
+                if (file.blocked) {
+                  return `<span class="record-meta">${escapeHtml(file.label || "Dosya")} / admin onayı bekliyor</span>`;
+                }
+                return `<span class="record-meta">${escapeHtml(file.label || file.name || "Dosya yok")}</span>`;
+              })
+              .join("");
+            return `
+              <article class="activity-item offer-activity-item">
+                <div class="activity-head">
+                  <div>
+                    <strong>${escapeHtml(item.offer_number || item.company_name || item.action_label || "Teklif")}</strong>
+                    <span class="record-meta">${escapeHtml(offerApprovalStatusLabel(item.approval_status))} / ${escapeHtml(item.created_at_display || "-")}</span>
+                  </div>
+                  <span class="badge ${item.approval_status === "approved" ? "active" : ""}">${escapeHtml(item.action_label || item.action || "-")}</span>
+                </div>
+                <div class="activity-body">
+                  <div>${escapeHtml(item.company_name || item.contact_name || item.summary || "-")}</div>
+                  <div class="record-meta">${escapeHtml(item.summary || "")}</div>
+                  ${
+                    item.rejection_reason
+                      ? `<div class="reject-reason compact"><span>Red sebebi</span><strong>${escapeHtml(item.rejection_reason)}</strong></div>`
+                      : ""
+                  }
+                  <div class="record-actions compact">${files}</div>
+                </div>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
   `;
 }
 
@@ -2794,6 +2879,7 @@ function appMarkup() {
 
         ${state.flash ? `<div class="flash ${state.flash.type}">${escapeHtml(state.flash.text)}</div>` : ""}
         ${offerNotificationsMarkup()}
+        ${offerActivityPanelMarkup()}
         ${statsMarkup()}
         ${operationFocusRailMarkup(currentList)}
         ${managementDashboardMarkup()}

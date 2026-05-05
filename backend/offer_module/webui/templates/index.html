@@ -596,8 +596,7 @@
     </div>
   </div>
 
-  {% if offer_is_admin %}
-    <div class="modal fade activity-log-modal" id="offerActivityModal" tabindex="-1" aria-labelledby="offerActivityModalLabel" aria-hidden="true">
+  <div class="modal fade activity-log-modal" id="offerActivityModal" tabindex="-1" aria-labelledby="offerActivityModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-scrollable activity-log-dialog">
         <div class="modal-content">
           <div class="modal-header">
@@ -616,7 +615,9 @@
                   <option value="{{ action_key }}">{{ action_label }}</option>
                 {% endfor %}
               </select>
-              <a class="btn btn-outline-secondary activity-log-export" href="{{ request.url_for('offer-tool:download_activity_log_csv') }}">CSV indir</a>
+              {% if offer_is_admin %}
+                <a class="btn btn-outline-secondary activity-log-export" href="{{ request.url_for('offer-tool:download_activity_log_csv') }}">CSV indir</a>
+              {% endif %}
             </div>
 
             <div class="activity-log-table-wrap" tabindex="0">
@@ -654,6 +655,7 @@
                           <small>
                             {% if entry.details.offer_number %}Teklif no: {{ entry.details.offer_number }} · {% endif %}
                             {% if entry.details.item_count %}Kalem: {{ entry.details.item_count }} · {% endif %}
+                            {% if entry.creator_label %}Çalışan: {{ entry.creator_label }} · {% endif %}
                             {% if entry.details.selected_count %}Düzeltilen: {{ entry.details.selected_count }}{% endif %}
                           </small>
                         {% endif %}
@@ -669,7 +671,7 @@
                               <span class="activity-file-missing">{{ file.label }}</span>
                             {% endif %}
                           {% endfor %}
-                          {% if entry.approval_is_pending %}
+                          {% if offer_is_admin and entry.approval_is_pending %}
                             <form method="post" action="{{ request.url_for('offer-tool:check_pending_generated_offer', approval_id=entry.approval_id) }}" class="d-inline">
                               <button class="btn btn-sm btn-outline-primary mt-2" type="submit">Kontrol et</button>
                             </form>
@@ -683,6 +685,8 @@
                               <input class="form-control form-control-sm mt-2" type="text" name="rejection_reason" placeholder="Red sebebi">
                               <button class="btn btn-sm btn-outline-danger mt-2" type="submit">Reddet</button>
                             </form>
+                          {% elif entry.approval_is_pending %}
+                            <span class="activity-file-missing">Admin onayı bekliyor</span>
                           {% elif entry.approval_is_approved and entry.approved_mailto %}
                             <span class="activity-file-link">Çalışana bildirildi</span>
                           {% elif entry.approval_is_rejected %}
@@ -714,8 +718,7 @@
           </div>
         </div>
       </div>
-    </div>
-  {% endif %}
+  </div>
 
   <header class="hero-shell offer-template-header border-bottom">
     <div class="offer-template-banner rainwater-brand-banner">
@@ -740,19 +743,17 @@
           düzeltmeleri uygula ve yeni teklifleri tek ekrandan üret.
         </p>
       </div>
-      <div class="offer-header-log-zone {% if offer_is_admin %}has-log{% endif %}">
-        {% if offer_is_admin %}
-          <button class="offer-header-log-card" type="button" data-bs-toggle="modal" data-bs-target="#offerActivityModal">
-            <span>Son işlem</span>
-            {% if offer_activity_latest %}
-              <strong>{{ offer_activity_latest.action_label }}</strong>
-              <small>{{ offer_activity_latest.actor }} · {{ offer_activity_latest.created_at_display }}</small>
-            {% else %}
-              <strong>Log boş</strong>
-              <small>İlk işlemden sonra burada görünür.</small>
-            {% endif %}
-          </button>
-        {% endif %}
+      <div class="offer-header-log-zone has-log">
+        <button class="offer-header-log-card" type="button" data-bs-toggle="modal" data-bs-target="#offerActivityModal">
+          <span>Son teklif hareketi</span>
+          {% if offer_activity_latest %}
+            <strong>{{ offer_activity_latest.action_label }}</strong>
+            <small>{{ offer_activity_latest.actor }} · {{ offer_activity_latest.created_at_display }}</small>
+          {% else %}
+            <strong>Hareket yok</strong>
+            <small>İlk teklif işleminden sonra burada görünür.</small>
+          {% endif %}
+        </button>
       </div>
     </div>
     <div class="container-fluid px-3 px-md-4 px-xxl-5 py-2 offer-header-action-row">

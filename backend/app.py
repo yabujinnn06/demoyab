@@ -384,6 +384,35 @@ class OfferNotificationRead(BaseModel):
     download_url: str = ""
 
 
+class OfferActivityFileRead(BaseModel):
+    label: str = ""
+    name: str = ""
+    kind: str = ""
+    exists: bool = False
+    blocked: bool = False
+    url: str = ""
+
+
+class OfferActivityRead(BaseModel):
+    id: str
+    created_at: str = ""
+    created_at_display: str = ""
+    actor: str = ""
+    actor_email: str = ""
+    action: str = ""
+    action_label: str = ""
+    summary: str = ""
+    approval_id: str = ""
+    approval_status: str = ""
+    offer_number: str = ""
+    company_name: str = ""
+    contact_name: str = ""
+    creator_name: str = ""
+    creator_email: str = ""
+    rejection_reason: str = ""
+    files: list[OfferActivityFileRead] = Field(default_factory=list)
+
+
 class CallListAssignRequest(BaseModel):
     user_ids: list[str] = Field(min_length=1)
     mode: Literal["unassigned", "all"] = "unassigned"
@@ -1122,6 +1151,104 @@ def _offer_approval_creator_id(approval: dict, activity_by_id: dict[str, dict]) 
     return str(entry.get("actor_id") or "")
 
 
+def _offer_approval_for_activity(entry: dict, approvals: dict[str, dict]) -> dict | None:
+    entry_id = str(entry.get("id") or "")
+    details = entry.get("details") if isinstance(entry.get("details"), dict) else {}
+    approval_id = str(details.get("approval_id") or "")
+    if approval_id and isinstance(approvals.get(approval_id), dict):
+        return approvals[approval_id]
+    for approval in approvals.values():
+        if str(approval.get("activity_entry_id") or "") == entry_id:
+            return approval
+    return None
+
+
+def _can_view_offer_activity(entry: dict, approval: dict | None, user: AuthUser, activity_by_id: dict[str, dict]) -> bool:
+    if user.role == "admin":
+        return True
+    if str(entry.get("actor_id") or "") == user.id:
+        return True
+    if approval is not None and _offer_approval_creator_id(approval, activity_by_id) == user.id:
+        return True
+    return False
+
+
+def _offer_activity_file_path(entry: dict, file_index: int) -> tuple[dict, Path, dict | None]:
+    files = entry.get("files") if isinstance(entry.get("files"), list) else []
+    if file_index < 0 or file_index >= len(files) or not isinstance(files[file_index], dict):
+        raise _api_error(404, "Log dosyasi bulunamadi.")
+    approvals = load_pending_offer_approvals()
+    approval = _offer_approval_for_activity(entry, approvals)
+    file_info = files[file_index]
+    path = resolve_activity_file_path(str(file_info.get("path") or ""))
+    return file_info, path, approval
+
+
+def _offer_activity_from_entry(
+    entry: dict,
+    *,
+    approval: dict | None,
+    user: AuthUser,
+    activity_by_id: dict[str, dict],
+) -> OfferActivityRead:
+    entry_id = str(entry.get("id") or "")
+    details = entry.get("details") if isinstance(entry.get("details"), dict) else {}
+    approval_status = str((approval or {}).get("status") or details.get("approval_status") or "")
+    approval_id = str((approval or {}).get("approval_id") or details.get("approval_id") or "")
+    actor = str(entry.get("actor_name") or entry.get("actor_email") or "Bilinmeyen")
+    creator_entry = activity_by_id.get(str((approval or {}).get("activity_entry_id") or "")) or {}
+    creator_name = str((approval or {}).get("creator_name") or creator_entry.get("actor_name") or "")
+    creator_email = str((approval or {}).get("creator_email") or creator_entry.get("actor_email") or "")
+    files: list[OfferActivityFileRead] = []
+
+    for index, file_info in enumerate(entry.get("files") if isinstance(entry.get("files"), list) else []):
+        if not isinstance(file_info, dict):
+            continue
+        path = resolve_activity_file_path(str(file_info.get("path") or ""))
+        exists = path.exists() and path.is_file()
+        is_generated = str(file_info.get("kind") or "") == "generated"
+        blocked = (
+            is_generated
+            and approval is not None
+            and approval_status != "approved"
+        )
+        files.append(
+            OfferActivityFileRead(
+                label=str(file_info.get("label") or file_info.get("name") or path.name),
+                name=str(file_info.get("name") or path.name),
+                kind=str(file_info.get("kind") or ""),
+                exists=exists,
+                blocked=blocked,
+                url=(
+                    f"/api/offer-activity/{entry_id}/files/{index}"
+                    if exists and not blocked and (user.role == "admin" or approval_status == "approved")
+                    else ""
+                ),
+            )
+        )
+
+    created_at = str(entry.get("created_at") or "")
+    return OfferActivityRead(
+        id=entry_id,
+        created_at=created_at,
+        created_at_display=created_at.replace("T", " ")[:19],
+        actor=actor,
+        actor_email=str(entry.get("actor_email") or ""),
+        action=str(entry.get("action") or ""),
+        action_label=str(entry.get("action_label") or str(entry.get("action") or "")),
+        summary=str(entry.get("summary") or ""),
+        approval_id=approval_id,
+        approval_status=approval_status,
+        offer_number=str((approval or {}).get("offer_number") or details.get("offer_number") or ""),
+        company_name=str((approval or {}).get("company_name") or details.get("company_name") or ""),
+        contact_name=str((approval or {}).get("contact_name") or details.get("contact_name") or ""),
+        creator_name=creator_name,
+        creator_email=creator_email,
+        rejection_reason=str((approval or {}).get("rejection_reason") or details.get("rejection_reason") or ""),
+        files=files,
+    )
+
+
 def _offer_notification_from_approval(approval: dict) -> OfferNotificationRead:
     approval_id = str(approval.get("approval_id") or "")
     status_value = str(approval.get("status") or "")
@@ -1334,6 +1461,44 @@ def download_approved_offer(approval_id: str, user: AuthUser = Depends(get_curre
     if str(approval.get("status") or "") != "approved":
         raise _api_error(403, "Teklif admin tarafindan onaylanmadan indirilemez.")
     path = resolve_activity_file_path(str(approval.get("generated_path") or ""))
+    if not path.exists() or not path.is_file():
+        raise _api_error(404, "Teklif dosyasi bulunamadi.")
+    return FileResponse(path, filename=path.name)
+
+
+@app.get("/api/offer-activity", response_model=list[OfferActivityRead])
+def list_offer_activity(user: AuthUser = Depends(get_current_user)) -> list[OfferActivityRead]:
+    entries = load_offer_activity_log()
+    approvals = load_pending_offer_approvals()
+    activity_by_id = {str(entry.get("id") or ""): entry for entry in entries}
+    result: list[OfferActivityRead] = []
+    for entry in entries:
+        approval = _offer_approval_for_activity(entry, approvals)
+        if not _can_view_offer_activity(entry, approval, user, activity_by_id):
+            continue
+        result.append(
+            _offer_activity_from_entry(
+                entry,
+                approval=approval,
+                user=user,
+                activity_by_id=activity_by_id,
+            )
+        )
+    return result
+
+
+@app.get("/api/offer-activity/{entry_id}/files/{file_index}")
+def download_offer_activity_file(entry_id: str, file_index: int, user: AuthUser = Depends(get_current_user)) -> FileResponse:
+    entries = load_offer_activity_log()
+    activity_by_id = {str(entry.get("id") or ""): entry for entry in entries}
+    entry = activity_by_id.get(entry_id)
+    if entry is None:
+        raise _api_error(404, "Log kaydi bulunamadi.")
+    file_info, path, approval = _offer_activity_file_path(entry, file_index)
+    if not _can_view_offer_activity(entry, approval, user, activity_by_id):
+        raise _api_error(403, "Bu teklif hareketi bu kullaniciya ait degil.")
+    if str(file_info.get("kind") or "") == "generated" and str((approval or {}).get("status") or "") != "approved":
+        raise _api_error(403, "Teklif admin tarafindan onaylanmadan indirilemez.")
     if not path.exists() or not path.is_file():
         raise _api_error(404, "Teklif dosyasi bulunamadi.")
     return FileResponse(path, filename=path.name)
