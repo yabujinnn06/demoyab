@@ -886,15 +886,21 @@
               <form method="post" action="{{ request.url_for('offer-tool:compare') }}" enctype="multipart/form-data" class="row g-3">
                 <input type="hidden" name="active_workspace" value="compare">
                 <div class="col-12 col-md-6">
-                  <label class="form-label" for="compare-price-file">Kayıtlı fiyat listesi</label>
-                  <select class="form-select" id="compare-price-file" name="price_file">
-                    {% if not price_files %}
-                      <option value="">Kayıtlı fiyat listesi yok</option>
-                    {% endif %}
-                    {% for file_name in price_files %}
-                      <option value="{{ file_name }}" {% if file_name == selected_price_file %}selected{% endif %}>{{ file_name }}</option>
-                    {% endfor %}
-                  </select>
+                  {% if offer_is_admin %}
+                    <label class="form-label" for="compare-price-file">Kayıtlı fiyat listesi</label>
+                    <select class="form-select" id="compare-price-file" name="price_file">
+                      {% if not price_files %}
+                        <option value="">Kayıtlı fiyat listesi yok</option>
+                      {% endif %}
+                      {% for file_name in price_files %}
+                        <option value="{{ file_name }}" {% if file_name == selected_price_file %}selected{% endif %}>{{ file_name }}</option>
+                      {% endfor %}
+                    </select>
+                  {% else %}
+                    <label class="form-label">Aktif fiyat listesi</label>
+                    <input type="hidden" name="price_file" value="{{ active_price_file }}">
+                    <div class="readonly-field">{{ active_price_file or "-" }}</div>
+                  {% endif %}
                 </div>
 
                 <div class="col-12 col-md-6">
@@ -960,15 +966,21 @@
 
                     <div class="batch-control-grid">
                       <div>
-                        <label class="form-label" for="batch-price-file">Fiyat listesi</label>
-                        <select class="form-select" id="batch-price-file" name="price_file">
-                          {% if not price_files %}
-                            <option value="">Kayıtlı fiyat listesi yok</option>
-                          {% endif %}
-                          {% for file_name in price_files %}
-                            <option value="{{ file_name }}" {% if file_name == selected_price_file %}selected{% endif %}>{{ file_name }}</option>
-                          {% endfor %}
-                        </select>
+                        {% if offer_is_admin %}
+                          <label class="form-label" for="batch-price-file">Fiyat listesi</label>
+                          <select class="form-select" id="batch-price-file" name="price_file">
+                            {% if not price_files %}
+                              <option value="">Kayıtlı fiyat listesi yok</option>
+                            {% endif %}
+                            {% for file_name in price_files %}
+                              <option value="{{ file_name }}" {% if file_name == selected_price_file %}selected{% endif %}>{{ file_name }}</option>
+                            {% endfor %}
+                          </select>
+                        {% else %}
+                          <label class="form-label">Aktif fiyat listesi</label>
+                          <input type="hidden" name="price_file" value="{{ active_price_file }}">
+                          <div class="readonly-field">{{ active_price_file or "-" }}</div>
+                        {% endif %}
                       </div>
 
                       {% if offer_is_admin %}<div>
@@ -1475,27 +1487,39 @@
 
                 <div class="row g-3">
                   <div class="col-12 col-md-6 col-xxl-4">
-                    <label class="form-label" for="create-template-file">Sabit şablon</label>
-                    <select class="form-select" id="create-template-file" name="template_file" required>
-                      {% if not template_files %}
-                        <option value="">Şablon yok</option>
-                      {% endif %}
-                      {% for file_name in template_files %}
-                        <option value="{{ file_name }}" {% if file_name == create_state.template_file %}selected{% endif %}>{{ file_name }}</option>
-                      {% endfor %}
-                    </select>
+                    {% if offer_is_admin %}
+                      <label class="form-label" for="create-template-file">Sabit şablon</label>
+                      <select class="form-select" id="create-template-file" name="template_file" required>
+                        {% if not template_files %}
+                          <option value="">Şablon yok</option>
+                        {% endif %}
+                        {% for file_name in template_files %}
+                          <option value="{{ file_name }}" {% if file_name == create_state.template_file %}selected{% endif %}>{{ file_name }}</option>
+                        {% endfor %}
+                      </select>
+                    {% else %}
+                      <label class="form-label">Aktif şablon</label>
+                      <input type="hidden" name="template_file" value="{{ active_template_file }}">
+                      <div class="readonly-field">{{ active_template_file or "-" }}</div>
+                    {% endif %}
                   </div>
 
                   <div class="col-12 col-md-6 col-xxl-4">
-                    <label class="form-label" for="create-price-file">Fiyat listesi</label>
-                    <select class="form-select" id="create-price-file" name="price_file" required>
-                      {% if not price_files %}
-                        <option value="">Fiyat listesi yok</option>
-                      {% endif %}
-                      {% for file_name in price_files %}
-                        <option value="{{ file_name }}" {% if file_name == create_state.price_file %}selected{% endif %}>{{ file_name }}</option>
-                      {% endfor %}
-                    </select>
+                    {% if offer_is_admin %}
+                      <label class="form-label" for="create-price-file">Fiyat listesi</label>
+                      <select class="form-select" id="create-price-file" name="price_file" required>
+                        {% if not price_files %}
+                          <option value="">Fiyat listesi yok</option>
+                        {% endif %}
+                        {% for file_name in price_files %}
+                          <option value="{{ file_name }}" {% if file_name == create_state.price_file %}selected{% endif %}>{{ file_name }}</option>
+                        {% endfor %}
+                      </select>
+                    {% else %}
+                      <label class="form-label">Aktif fiyat listesi</label>
+                      <input type="hidden" name="price_file" value="{{ active_price_file }}">
+                      <div class="readonly-field">{{ active_price_file or "-" }}</div>
+                    {% endif %}
                   </div>
 
                   <div class="col-12 col-md-6 col-xxl-4">

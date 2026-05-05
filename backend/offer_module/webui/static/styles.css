@@ -5326,6 +5326,19 @@ body.app-body input:not([type="checkbox"]):not([type="radio"]) {
   border-color: var(--border-strong) !important;
 }
 
+body.app-body .readonly-field {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.75rem;
+  background: #f5f8fb;
+  color: var(--text);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 body.app-body .form-control::placeholder {
   color: #7a8fa3 !important;
 }

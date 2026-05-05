@@ -1046,11 +1046,16 @@ def build_batch_summary_path(batch_token: str) -> Path:
     return target_dir / f"toplu_kontrol_{timestamp}_{batch_token[:8]}.xlsx"
 
 
-def remember_last_files(*, price_file_name: str | None = None, offer_file_name: str | None = None) -> None:
+def remember_last_files(
+    *,
+    price_file_name: str | None = None,
+    offer_file_name: str | None = None,
+    update_active_price: bool = False,
+) -> None:
     settings = load_admin_settings()
     changed = False
 
-    if price_file_name and resolve_price_file_path(price_file_name).exists():
+    if update_active_price and price_file_name and resolve_price_file_path(price_file_name).exists():
         settings["active_price_file"] = price_file_name
         changed = True
 
@@ -2917,6 +2922,10 @@ async def compare(
     offer_file_upload: UploadFile | None = File(default=None),
 ) -> HTMLResponse:
     price_mode = normalize_compare_mode(price_mode)
+    portal_user = get_offer_portal_user(request)
+    offer_is_admin = bool(portal_user and portal_user.is_admin)
+    if not offer_is_admin:
+        price_file = default_price_file()
     try:
         if price_file_upload is not None and price_file_upload.filename:
             try:
@@ -3046,6 +3055,10 @@ async def batch_compare(
     offer_file_uploads: list[UploadFile] | None = File(default=None),
 ) -> HTMLResponse:
     price_mode = normalize_compare_mode(price_mode)
+    portal_user = get_offer_portal_user(request)
+    offer_is_admin = bool(portal_user and portal_user.is_admin)
+    if not offer_is_admin:
+        price_file = default_price_file()
     try:
         if price_file_upload is not None and price_file_upload.filename:
             try:
@@ -3376,6 +3389,11 @@ async def create_offer(
     price_mode = normalize_create_mode(price_mode)
     vat_mode = normalize_vat_mode(vat_mode)
     session = SESSIONS.get(compare_token or "") if compare_token else None
+    portal_user = get_offer_portal_user(request)
+    offer_is_admin = bool(portal_user and portal_user.is_admin)
+    if not offer_is_admin:
+        template_file = default_template_file()
+        price_file = default_price_file()
     item_count = max(
         len(product_row_ids),
         len(quantities),
@@ -3409,8 +3427,6 @@ async def create_offer(
             for index in range(item_count)
         ],
     }
-    portal_user = get_offer_portal_user(request)
-    offer_is_admin = bool(portal_user and portal_user.is_admin)
     if not offer_is_admin:
         has_manual_price = any(str(value or "").strip() for value in manual_prices)
         has_discount = any(str(value or DISCOUNT_TYPE_NONE).strip().lower() != DISCOUNT_TYPE_NONE for value in discount_types)
@@ -3687,9 +3703,10 @@ async def create_offer(
         )
         return templates.TemplateResponse("index.html", context, status_code=400)
 
-    settings = load_admin_settings()
-    settings["active_template_file"] = relative_runtime_path(template_path)
-    save_admin_settings(settings)
+    if offer_is_admin:
+        settings = load_admin_settings()
+        settings["active_template_file"] = relative_runtime_path(template_path)
+        save_admin_settings(settings)
     activity_entry = append_activity_log(
         request,
         action="create",

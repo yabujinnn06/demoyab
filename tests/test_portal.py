@@ -1301,6 +1301,118 @@ def test_offer_module_requires_permission_and_uses_session_cookie(monkeypatch) -
         assert "/teklif/static/styles.css" in granted_offer.text
 
 
+def test_offer_assets_are_admin_managed_and_global_for_agents(tmp_path, monkeypatch) -> None:
+    offer_base = tmp_path / "offer_data"
+    price_dir = offer_base / "veri" / "fiyat_listeleri"
+    template_dir = offer_base / "sablonlar"
+    price_dir.mkdir(parents=True)
+    template_dir.mkdir(parents=True)
+    price_a = price_dir / "global-a.xlsx"
+    price_b = price_dir / "global-b.xlsx"
+    price_rows = [
+        ["URUN", "2026 KURUMSAL 6 TAKSIT", "2026 KURUMSAL NAKIT"],
+        ["RAINWATER TEST", "1000", "900"],
+    ]
+    price_a.write_bytes(build_xlsx_bytes(price_rows))
+    price_b.write_bytes(build_xlsx_bytes(price_rows))
+    template_a = template_dir / "template-a.pdf"
+    template_b = template_dir / "template-b.pdf"
+    template_a.write_bytes(b"%PDF-1.4\n%%EOF")
+    template_b.write_bytes(b"%PDF-1.4\n%%EOF")
+    settings_path = offer_base / "veri" / "admin_ayarlar.json"
+    settings_path.write_text(
+        json.dumps(
+            {
+                "active_price_file": price_a.name,
+                "active_template_file": "sablonlar/template-a.pdf",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    db_path = make_test_db_path()
+    monkeypatch.setenv("CALL_PORTAL_DB_PATH", str(db_path))
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_EMAIL", "admin@test.local")
+    monkeypatch.setenv("CALL_PORTAL_ADMIN_PASSWORD", "Admin12345!")
+    monkeypatch.setenv("CALL_PORTAL_OFFER_DATA_DIR", str(offer_base))
+    monkeypatch.delenv("RENDER", raising=False)
+
+    app = load_fresh_app()
+
+    with TestClient(app) as client:
+        admin_login = client.post(
+            "/api/auth/login",
+            json={"email": "admin@test.local", "password": "Admin12345!"},
+        )
+        assert admin_login.status_code == 200
+        admin_token = admin_login.json()["access_token"]
+
+        created_user = client.post(
+            "/api/users",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "full_name": "Offer Operator",
+                "email": "offer-agent@test.local",
+                "password": "Operator123!",
+                "role": "agent",
+                "can_access_offer_tool": True,
+            },
+        )
+        assert created_user.status_code == 201
+
+        agent_client = TestClient(app)
+        with agent_client:
+            agent_login = agent_client.post(
+                "/api/auth/login",
+                json={"email": "offer-agent@test.local", "password": "Operator123!"},
+            )
+            assert agent_login.status_code == 200
+            agent_offer = agent_client.get("/teklif/")
+            assert agent_offer.status_code == 200
+            assert 'id="compare-price-file"' not in agent_offer.text
+            assert 'id="batch-price-file"' not in agent_offer.text
+            assert 'id="create-price-file"' not in agent_offer.text
+            assert 'id="create-template-file"' not in agent_offer.text
+            assert f'name="price_file" value="{price_a.name}"' in agent_offer.text
+            assert 'name="template_file" value="sablonlar/template-a.pdf"' in agent_offer.text
+
+            forbidden_settings = agent_client.post(
+                "/teklif/admin/save-settings",
+                data={
+                    "active_price_file": price_b.name,
+                    "active_template_file": "sablonlar/template-b.pdf",
+                    "default_compare_mode": "auto",
+                    "default_create_mode": "kurumsal_6",
+                    "default_vat_mode": "dahil",
+                },
+            )
+            assert forbidden_settings.status_code == 403
+
+        admin_update = client.post(
+            "/teklif/admin/save-settings",
+            data={
+                "active_price_file": price_b.name,
+                "active_template_file": "sablonlar/template-b.pdf",
+                "default_compare_mode": "auto",
+                "default_create_mode": "kurumsal_6",
+                "default_vat_mode": "dahil",
+            },
+        )
+        assert admin_update.status_code == 200
+
+        updated_agent_client = TestClient(app)
+        with updated_agent_client:
+            updated_agent_login = updated_agent_client.post(
+                "/api/auth/login",
+                json={"email": "offer-agent@test.local", "password": "Operator123!"},
+            )
+            assert updated_agent_login.status_code == 200
+            updated_offer = updated_agent_client.get("/teklif/")
+            assert updated_offer.status_code == 200
+            assert f'name="price_file" value="{price_b.name}"' in updated_offer.text
+            assert 'name="template_file" value="sablonlar/template-b.pdf"' in updated_offer.text
+
+
 def test_offer_notifications_include_pending_for_creator_without_offer_access(tmp_path, monkeypatch) -> None:
     offer_base = tmp_path / "offer_data"
     offer_data_dir = offer_base / "veri"
